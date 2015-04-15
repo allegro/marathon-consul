@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -154,4 +155,12 @@ func TestParseDeploymentInfoEvent(t *testing.T) {
 	assert.Equal(t, 0, len(output[0].Uris))
 	assert.Equal(t, "", output[0].User)
 	assert.Equal(t, "2014-09-09T05:57:50.866Z", output[0].Version)
+}
+
+func TestParseEmpty(t *testing.T) {
+	input := []byte(`{"eventType":"deployment_info"}`)
+	output, err := ParseApps(input)
+
+	assert.Equal(t, errors.New("no apps present in provided JSON"), err)
+	assert.Equal(t, 0, len(output))
 }
