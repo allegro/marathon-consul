@@ -28,12 +28,12 @@ type Container struct {
 
 type HealthCheck struct {
 	Path                   string `json:"path"`
-	PortIndex              int64  `json:"portIndex"`
+	PortIndex              int    `json:"portIndex"`
 	Protocol               string `json:"protocol"`
-	GracePeriodSeconds     int64  `json:"gracePeriodSeconds"`
-	IntervalSeconds        int64  `json:"intervalSeconds"`
-	TimeoutSeconds         int64  `json:"timeoutSeconds"`
-	MaxConsecutiveFailures int64  `json:"maxConsecutiveFailures"`
+	GracePeriodSeconds     int    `json:"gracePeriodSeconds"`
+	IntervalSeconds        int    `json:"intervalSeconds"`
+	TimeoutSeconds         int    `json:"timeoutSeconds"`
+	MaxConsecutiveFailures int    `json:"maxConsecutiveFailures"`
 }
 
 type UpgradeStrategy struct {
@@ -44,7 +44,7 @@ type UpgradeStrategy struct {
 type App struct {
 	Args            []string          `json:"args"`
 	BackoffFactor   float64           `json:"backoffFactor"`
-	BackoffSeconds  int64             `json:"backoffSeconds"`
+	BackoffSeconds  int               `json:"backoffSeconds"`
 	Cmd             string            `json:"cmd"`
 	Constraints     []string          `json:"constraints"`
 	Container       *Container        `json:"container"`
@@ -56,9 +56,9 @@ type App struct {
 	Labels          map[string]string `json:"labels"`
 	HealthChecks    []HealthCheck     `json:"healthChecks"`
 	ID              string            `json:"id"`
-	Instances       int64             `json:"instances"`
+	Instances       int               `json:"instances"`
 	Mem             float64           `json:"mem"`
-	Ports           []int64           `json:"ports"`
+	Ports           []int             `json:"ports"`
 	RequirePorts    bool              `json:"requirePorts"`
 	StoreUrls       []string          `json:"storeUrls"`
 	UpgradeStrategy UpgradeStrategy   `json:"upgradeStrategy"`
