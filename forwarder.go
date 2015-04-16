@@ -14,14 +14,13 @@ type Forwarder struct {
 	WriteOptions *api.WriteOptions
 }
 
-func NewForwarder(config *api.Config, options *api.WriteOptions) (*Forwarder, error) {
+func NewForwarder(config *api.Config, parallelism int) (*Forwarder, error) {
 	client, err := api.NewClient(config)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: make parallelism tunable
-	return &Forwarder{client.KV(), 8, options}, nil
+	return &Forwarder{client.KV(), parallelism, &api.WriteOptions{}}, nil
 }
 
 type WorkMessage struct {
