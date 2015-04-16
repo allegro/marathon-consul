@@ -5,57 +5,57 @@ import (
 	"testing"
 )
 
+var testApp = App{
+	Args:           []string{"arg"},
+	BackoffFactor:  0.5,
+	BackoffSeconds: 1,
+	Cmd:            "command",
+	Constraints:    []string{"constraint"},
+	Container: &Container{
+		Type:    "DOCKER",
+		Volumes: []Volume{Volume{ContainerPath: "/tmp", HostPath: "/tmp/container", Mode: "rw"}},
+		Docker: &Docker{
+			Image:      "alpine",
+			Parameters: []string{"params"},
+			Privileged: true,
+		},
+	},
+	CPUs:         0.1,
+	Dependencies: []string{"/otherApp"},
+	Disk:         128,
+	Env:          map[string]string{"HOME": "/tmp"},
+	Executor:     "executor",
+	Labels:       map[string]string{"BALANCE": "yes"},
+	HealthChecks: []HealthCheck{HealthCheck{
+		Path:                   "/",
+		PortIndex:              0,
+		Protocol:               "http",
+		GracePeriodSeconds:     30,
+		IntervalSeconds:        15,
+		TimeoutSeconds:         30,
+		MaxConsecutiveFailures: 5,
+	}},
+	ID:           "/test",
+	Instances:    2,
+	Mem:          256,
+	Ports:        []int{10001},
+	RequirePorts: true,
+	StoreUrls:    []string{"http://example.com/resource/"},
+	UpgradeStrategy: UpgradeStrategy{
+		MinimumHealthCapacity: 1.0,
+		MaximumOverCapacity:   1.0,
+	},
+	Uris:    []string{"http://example.com/"},
+	User:    "user",
+	Version: "2015-01-01T00:00:00Z",
+}
+
 func TestKVs(t *testing.T) {
 	t.Parallel()
 
-	app := App{
-		Args:           []string{"arg"},
-		BackoffFactor:  0.5,
-		BackoffSeconds: 1,
-		Cmd:            "command",
-		Constraints:    []string{"constraint"},
-		Container: &Container{
-			Type:    "DOCKER",
-			Volumes: []Volume{Volume{ContainerPath: "/tmp", HostPath: "/tmp/container", Mode: "rw"}},
-			Docker: &Docker{
-				Image:      "alpine",
-				Parameters: []string{"params"},
-				Privileged: true,
-			},
-		},
-		CPUs:         0.1,
-		Dependencies: []string{"/otherApp"},
-		Disk:         128,
-		Env:          map[string]string{"HOME": "/tmp"},
-		Executor:     "executor",
-		Labels:       map[string]string{"BALANCE": "yes"},
-		HealthChecks: []HealthCheck{HealthCheck{
-			Path:                   "/",
-			PortIndex:              0,
-			Protocol:               "http",
-			GracePeriodSeconds:     30,
-			IntervalSeconds:        15,
-			TimeoutSeconds:         30,
-			MaxConsecutiveFailures: 5,
-		}},
-		ID:           "/test",
-		Instances:    2,
-		Mem:          256,
-		Ports:        []int{10001},
-		RequirePorts: true,
-		StoreUrls:    []string{"http://example.com/resource/"},
-		UpgradeStrategy: UpgradeStrategy{
-			MinimumHealthCapacity: 1.0,
-			MaximumOverCapacity:   1.0,
-		},
-		Uris:    []string{"http://example.com/"},
-		User:    "user",
-		Version: "2015-01-01T00:00:00Z",
-	}
-
 	// making assertions on a map will be a little easier...
 	kvs := map[string]string{}
-	for _, kv := range app.KVs() {
+	for _, kv := range testApp.KVs() {
 		kvs[kv.Key] = string(kv.Value)
 	}
 

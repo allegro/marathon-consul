@@ -39,16 +39,14 @@ func TestMultiPut(t *testing.T) {
 func TestForwardApps(t *testing.T) {
 	t.Parallel()
 
-	app := &App{ID: "/test"}
-
 	opts := &api.WriteOptions{}
 	putter := &mocks.Putter{}
-	for _, kv := range app.KVs() {
+	for _, kv := range testApp.KVs() {
 		putter.On("Put", kv, opts).Return(nil, nil).Twice()
 	}
 
 	forwarder := Forwarder{putter, 3, opts}
-	errors := forwarder.ForwardApps([]*App{app, app})
+	errors := forwarder.ForwardApps([]*App{&testApp, &testApp})
 	for _, err := range errors {
 		assert.Nil(t, err)
 	}
