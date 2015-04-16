@@ -112,7 +112,7 @@ type App struct {
 
 func (app *App) Key(postfix string) string {
 	return fmt.Sprintf(
-		"/marathon/%s/%s",
+		"marathon/%s/%s",
 		strings.Trim(app.ID, "/"),
 		postfix,
 	)
