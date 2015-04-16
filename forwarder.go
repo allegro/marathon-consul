@@ -46,7 +46,7 @@ func (f *Forwarder) MultiPut(kvs []*api.KVPair) []error {
 
 	// collect errors without regard for order
 	errors := map[int]error{}
-	for range kvs {
+	for _ = range kvs {
 		message := <-errChan
 		errors[message.ID] = message.Error
 	}
