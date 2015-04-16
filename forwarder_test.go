@@ -22,16 +22,36 @@ func TestMultiPut(t *testing.T) {
 	forwarder := Forwarder{putter, 3, opts}
 
 	// single Put
-	err := forwarder.MultiPut([]*api.KVPair{good})
-	assert.Equal(t, 1, len(err))
-	assert.Nil(t, err[0])
+	errs := forwarder.MultiPut([]*api.KVPair{good})
+	assert.Equal(t, 1, len(errs))
+	assert.Nil(t, errs[0])
 
 	// multiple puts, preserving order
-	err = forwarder.MultiPut([]*api.KVPair{good, good, good, bad, good, good, good})
-	assert.Equal(t, 7, len(err))
-	assert.Equal(t, []error{nil, nil, nil}, err[:3])
-	assert.Equal(t, badErr, err[3])
-	assert.Equal(t, []error{nil, nil, nil}, err[4:])
+	errs = forwarder.MultiPut([]*api.KVPair{good, good, good, bad, good, good, good})
+	assert.Equal(t, 7, len(errs))
+	assert.Equal(t, []error{nil, nil, nil}, errs[:3])
+	assert.Equal(t, badErr, errs[3])
+	assert.Equal(t, []error{nil, nil, nil}, errs[4:])
+
+	putter.AssertExpectations(t)
+}
+
+func TestForwardApps(t *testing.T) {
+	t.Parallel()
+
+	app := &App{ID: "/test"}
+
+	opts := &api.WriteOptions{}
+	putter := &mocks.Putter{}
+	for _, kv := range app.KVs() {
+		putter.On("Put", kv, opts).Return(nil, nil).Twice()
+	}
+
+	forwarder := Forwarder{putter, 3, opts}
+	errors := forwarder.ForwardApps([]*App{app, app})
+	for _, err := range errors {
+		assert.Nil(t, err)
+	}
 
 	putter.AssertExpectations(t)
 }

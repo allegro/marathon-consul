@@ -71,3 +71,12 @@ func (f *Forwarder) worker(in chan WorkMessage, out chan ErrorMessage) {
 		}
 	}
 }
+
+func (f *Forwarder) ForwardApps(apps []*App) []error {
+	kvs := []*api.KVPair{}
+	for _, app := range apps {
+		kvs = append(kvs, app.KVs()...)
+	}
+
+	return f.MultiPut(kvs)
+}
