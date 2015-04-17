@@ -9,13 +9,13 @@ import (
 )
 
 var (
-	parallelism = flag.Int("parallelism", 4, "key setting parallelism")
+	parallelism = flag.Int("parallelism", 4, "set this many keys at once (per request)")
 	consul      = flag.String("consul", "http://localhost:8500", "Consul location")
 	token       = flag.String("token", "", "Consul ACL token")
 	datacenter  = flag.String("datacenter", "", "Consul datacenter")
-	consulUser  = flag.String("consulUser", "", "Consul basic auth username")
-	consulPass  = flag.String("consulPass", "", "Consul basic auth password")
-	serve       = flag.String("serve", ":8000", "accept connections on at this address")
+	user        = flag.String("user", "", "Consul basic auth username")
+	pass        = flag.String("pass", "", "Consul basic auth password")
+	serve       = flag.String("serve", ":8000", "accept connections at this address")
 )
 
 func main() {
@@ -27,10 +27,10 @@ func main() {
 	}
 
 	var auth *api.HttpBasicAuth
-	if *consulUser != "" && *consulPass != "" {
+	if *user != "" && *pass != "" {
 		auth = &api.HttpBasicAuth{
-			Username: *consulUser,
-			Password: *consulPass,
+			Username: *user,
+			Password: *pass,
 		}
 	} else {
 		auth = nil
