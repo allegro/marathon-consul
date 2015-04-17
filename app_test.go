@@ -15,9 +15,12 @@ var testApp = App{
 		Type:    "DOCKER",
 		Volumes: []Volume{Volume{ContainerPath: "/tmp", HostPath: "/tmp/container", Mode: "rw"}},
 		Docker: &Docker{
-			Image:      "alpine",
-			Parameters: []string{"params"},
-			Privileged: true,
+			Image:          "alpine",
+			Parameters:     []Parameter{Parameter{"hostname", "container.example.com"}},
+			Privileged:     true,
+			PortMappings:   []PortMapping{PortMapping{8080, 8080, 0, "tcp"}},
+			Network:        "BRIDGED",
+			ForcePullImage: true,
 		},
 	},
 	CPUs:         0.1,
@@ -67,8 +70,11 @@ func TestKVs(t *testing.T) {
 	assert.Equal(t, "DOCKER", kvs["marathon/test/container/type"])
 	assert.Equal(t, `[{"containerPath":"/tmp","hostPath":"/tmp/container","mode":"rw"}]`, kvs["marathon/test/container/volumes"])
 	assert.Equal(t, "alpine", kvs["marathon/test/container/docker/image"])
-	assert.Equal(t, `["params"]`, kvs["marathon/test/container/docker/parameters"])
+	assert.Equal(t, `[{"key":"hostname","value":"container.example.com"}]`, kvs["marathon/test/container/docker/parameters"])
 	assert.Equal(t, "true", kvs["marathon/test/container/docker/privileged"])
+	assert.Equal(t, `[{"containerPort":8080,"hostPort":8080,"servicePort":0,"protocol":"tcp"}]`, kvs["marathon/test/container/docker/portMappings"])
+	assert.Equal(t, "BRIDGED", kvs["marathon/test/container/docker/network"])
+	assert.Equal(t, "true", kvs["marathon/test/container/docker/forcePullImage"])
 	assert.Equal(t, "0.1", kvs["marathon/test/cpus"])
 	assert.Equal(t, `["/otherApp"]`, kvs["marathon/test/dependencies"])
 	assert.Equal(t, "128", kvs["marathon/test/disk"])

@@ -8,14 +8,30 @@ import (
 	"strings"
 )
 
+type PortMapping struct {
+	ContainerPort int    `json:"containerPort"`
+	HostPort      int    `json:"hostPort"`
+	ServicePort   int    `json:"servicePort"`
+	Protocol      string `json:"protocol"`
+}
+
+type Parameter struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 type Docker struct {
-	Image      string   `json:"image"`
-	Parameters []string `json:"parameters"`
-	Privileged bool     `json:"privileged"`
+	Image          string        `json:"image"`
+	Parameters     []Parameter   `json:"parameters"`
+	Privileged     bool          `json:"privileged"`
+	Network        string        `json:"network"`
+	PortMappings   []PortMapping `json:"portMappings"`
+	ForcePullImage bool          `json:"forcePullImage"`
 }
 
 func (d *Docker) KVs(app *App) []*api.KVPair {
 	params, _ := json.Marshal(d.Parameters)
+	ports, _ := json.Marshal(d.PortMappings)
 
 	return []*api.KVPair{
 		&api.KVPair{
@@ -29,6 +45,18 @@ func (d *Docker) KVs(app *App) []*api.KVPair {
 		&api.KVPair{
 			Key:   app.Key("container/docker/privileged"),
 			Value: []byte(strconv.FormatBool(d.Privileged)),
+		},
+		&api.KVPair{
+			Key:   app.Key("container/docker/portMappings"),
+			Value: ports,
+		},
+		&api.KVPair{
+			Key:   app.Key("container/docker/network"),
+			Value: []byte(d.Network),
+		},
+		&api.KVPair{
+			Key:   app.Key("container/docker/forcePullImage"),
+			Value: []byte(strconv.FormatBool(d.ForcePullImage)),
 		},
 	}
 }
