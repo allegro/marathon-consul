@@ -16,6 +16,7 @@ var (
 	user        = flag.String("user", "", "Consul basic auth username")
 	pass        = flag.String("pass", "", "Consul basic auth password")
 	serve       = flag.String("serve", ":8000", "accept connections at this address")
+	verbose     = flag.Bool("verbose", false, "enable verbose logging")
 )
 
 func main() {

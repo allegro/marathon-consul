@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 )
 
@@ -38,13 +39,23 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	if !(event.Type == "api_post_event" || event.Type == "deployment_info") {
 		w.WriteHeader(200)
 		fmt.Fprintln(w, "this endpoint only accepts api_post_event and deployment_info")
+		if *verbose {
+			log.Printf("received '%s' event, not handling", event.Type)
+		}
 		return
+	}
+
+	if *verbose {
+		log.Printf("received '%s' event, handling", event.Type)
 	}
 
 	apps, err := ParseApps(body)
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, err.Error())
+		if *verbose {
+			log.Printf("body generated error: %s", err.Error())
+		}
 		return
 	}
 
@@ -55,6 +66,9 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			respCode = 500
 			resp = fmt.Sprintf("%s%s\n", resp, err.Error())
+			if *verbose {
+				log.Printf("response generated error: %s", err.Error())
+			}
 		}
 	}
 	if resp == "" {
