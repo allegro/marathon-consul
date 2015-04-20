@@ -55,6 +55,7 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, err.Error())
 		if *verbose {
 			log.Printf("body generated error: %s", err.Error())
+			log.Println(string(body))
 		}
 		return
 	}
