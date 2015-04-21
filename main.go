@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"github.com/hashicorp/consul/api"
 	"log"
@@ -9,13 +10,14 @@ import (
 )
 
 var (
-	parallelism = flag.Int("parallelism", 4, "set this many keys at once (per request)")
 	consul      = flag.String("consul", "http://localhost:8500", "Consul location")
-	token       = flag.String("token", "", "Consul ACL token")
 	datacenter  = flag.String("datacenter", "", "Consul datacenter")
-	user        = flag.String("user", "", "Consul basic auth username")
+	noverify    = flag.Bool("noverify", false, "don't verify certificates")
+	parallelism = flag.Int("parallelism", 4, "set this many keys at once (per request)")
 	pass        = flag.String("pass", "", "Consul basic auth password")
 	serve       = flag.String("serve", ":8000", "accept connections at this address")
+	token       = flag.String("token", "", "Consul ACL token")
+	user        = flag.String("user", "", "Consul basic auth username")
 	verbose     = flag.Bool("verbose", false, "enable verbose logging")
 )
 
@@ -44,6 +46,14 @@ func main() {
 			Datacenter: *datacenter,
 			HttpAuth:   auth,
 			Token:      *token,
+			HttpClient: &http.Client{
+				Transport: &http.Transport{
+					Proxy: http.ProxyFromEnvironment,
+					TLSClientConfig: &tls.Config{
+						InsecureSkipVerify: *noverify,
+					},
+				},
+			},
 		},
 		*parallelism,
 	)

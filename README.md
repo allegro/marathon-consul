@@ -18,10 +18,12 @@ Argument | Default | Description
 ---------|---------|------------
 `consul` | "http://localhost:8500" | Consul location
 `datacenter` | blank | Consul datacenter
+`noverify` | false | don't verify certificates when connecting to Consul
 `parallelism` | 4 | set this many keys at once (per request)
-`user` and `pass` | blank | if both are set, use basic auth to connect to Consul
-`token` | blank | consul ACL token
 `serve` | ":8000" | accept connections at this address
+`token` | blank | consul ACL token
+`user` and `pass` | blank | if both are set, use basic auth to connect to Consul
+`verbose` | false | print debug information for every request
 
 ## Endpoints
 
