@@ -7,6 +7,8 @@ import (
 )
 
 func TestParseAPIPostEvent(t *testing.T) {
+	t.Parallel()
+
 	input := []byte(`{
 	"eventType": "api_post_event",
 	"timestamp": "2014-03-01T23:29:30.158Z",
@@ -69,6 +71,8 @@ func TestParseAPIPostEvent(t *testing.T) {
 }
 
 func TestParseDeploymentInfoEvent(t *testing.T) {
+	t.Parallel()
+
 	input := []byte(`{
 	"eventType": "deployment_info",
 	"timestamp": "2014-03-01T23:29:30.158Z",
@@ -158,6 +162,8 @@ func TestParseDeploymentInfoEvent(t *testing.T) {
 }
 
 func TestParseEmpty(t *testing.T) {
+	t.Parallel()
+
 	input := []byte(`{"eventType":"deployment_info"}`)
 	output, err := ParseApps(input)
 

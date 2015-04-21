@@ -10,7 +10,7 @@ var testApp = App{
 	BackoffFactor:  0.5,
 	BackoffSeconds: 1,
 	Cmd:            "command",
-	Constraints:    []string{"constraint"},
+	Constraints:    [][]string{[]string{"HOSTNAME", "unique"}},
 	Container: &Container{
 		Type:    "DOCKER",
 		Volumes: []Volume{Volume{ContainerPath: "/tmp", HostPath: "/tmp/container", Mode: "rw"}},
@@ -66,7 +66,7 @@ func TestKVs(t *testing.T) {
 	assert.Equal(t, "0.5", kvs["marathon/test/backoffFactor"])
 	assert.Equal(t, "1", kvs["marathon/test/backoffSeconds"])
 	assert.Equal(t, "command", kvs["marathon/test/cmd"])
-	assert.Equal(t, `["constraint"]`, kvs["marathon/test/constraints"])
+	assert.Equal(t, `[["HOSTNAME","unique"]]`, kvs["marathon/test/constraints"])
 	assert.Equal(t, "DOCKER", kvs["marathon/test/container/type"])
 	assert.Equal(t, `[{"containerPath":"/tmp","hostPath":"/tmp/container","mode":"rw"}]`, kvs["marathon/test/container/volumes"])
 	assert.Equal(t, "alpine", kvs["marathon/test/container/docker/image"])

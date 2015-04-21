@@ -42,7 +42,7 @@ Key | Example Value
 `marathon/myApp/backoffFactor` | `0.5`
 `marathon/myApp/backoffSeconds` | `1`
 `marathon/myApp/cmd` | `command`
-`marathon/myApp/constraints` | `["constraint"]`
+`marathon/myApp/constraints` | `[["HOSTNAME","unique"]]`
 `marathon/myApp/container/docker/forcePullImage` | `true`
 `marathon/myApp/container/docker/image` | `alpine`
 `marathon/myApp/container/docker/network` | `BRIDGED`

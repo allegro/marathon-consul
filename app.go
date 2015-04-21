@@ -117,7 +117,7 @@ type App struct {
 	BackoffFactor   float64           `json:"backoffFactor"`
 	BackoffSeconds  int               `json:"backoffSeconds"`
 	Cmd             string            `json:"cmd"`
-	Constraints     []string          `json:"constraints"`
+	Constraints     [][]string        `json:"constraints"`
 	Container       *Container        `json:"container"`
 	CPUs            float64           `json:"cpus"`
 	Dependencies    []string          `json:"dependencies"`
