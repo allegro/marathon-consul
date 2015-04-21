@@ -32,7 +32,7 @@ func TestForwardHandler(t *testing.T) {
 	opts := &api.WriteOptions{}
 	putter := &mocks.Putter{}
 	errKV := errors.New("test error")
-	forwarder := Forwarder{putter, 3, opts}
+	forwarder := Forwarder{putter, 3, opts, false}
 	handler := ForwardHandler{forwarder}
 
 	body, err := json.Marshal(APIPostEvent{"api_post_event", testApp})

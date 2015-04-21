@@ -60,6 +60,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+	forwarder.Verbose = *verbose
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)

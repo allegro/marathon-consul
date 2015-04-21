@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/hashicorp/consul/api"
+	"log"
 )
 
 type Putter interface {
@@ -12,6 +13,7 @@ type Forwarder struct {
 	kv           Putter
 	parallelism  int
 	WriteOptions *api.WriteOptions
+	Verbose      bool
 }
 
 func NewForwarder(config *api.Config, parallelism int) (*Forwarder, error) {
@@ -20,7 +22,12 @@ func NewForwarder(config *api.Config, parallelism int) (*Forwarder, error) {
 		return nil, err
 	}
 
-	return &Forwarder{client.KV(), parallelism, &api.WriteOptions{}}, nil
+	return &Forwarder{
+		kv:           client.KV(),
+		parallelism:  parallelism,
+		WriteOptions: &api.WriteOptions{},
+		Verbose:      false,
+	}, nil
 }
 
 type WorkMessage struct {
@@ -63,6 +70,9 @@ func (f *Forwarder) worker(in chan WorkMessage, out chan ErrorMessage) {
 	for {
 		select {
 		case message := <-in:
+			if f.Verbose {
+				log.Printf("setting %s -> %s", message.KV.Key, string(message.KV.Value))
+			}
 			_, err := f.kv.Put(message.KV, f.WriteOptions)
 			out <- ErrorMessage{message.ID, err}
 		default:

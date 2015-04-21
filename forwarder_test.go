@@ -19,7 +19,7 @@ func TestMultiPut(t *testing.T) {
 	putter.On("Put", good, opts).Return(nil, nil)
 	putter.On("Put", bad, opts).Return(nil, badErr)
 
-	forwarder := Forwarder{putter, 3, opts}
+	forwarder := Forwarder{putter, 3, opts, false}
 
 	// single Put
 	errs := forwarder.MultiPut([]*api.KVPair{good})
@@ -45,7 +45,7 @@ func TestForwardApps(t *testing.T) {
 		putter.On("Put", kv, opts).Return(nil, nil).Twice()
 	}
 
-	forwarder := Forwarder{putter, 3, opts}
+	forwarder := Forwarder{putter, 3, opts, false}
 	errors := forwarder.ForwardApps([]*App{&testApp, &testApp})
 	for _, err := range errors {
 		assert.Nil(t, err)
