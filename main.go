@@ -22,7 +22,7 @@ func main() {
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)
-	forwarderHandler := &ForwardHandler{*forwarder}
+	forwarderHandler := &ForwardHandler{*forwarder, config.Verbose}
 	http.HandleFunc("/events", forwarderHandler.Handle)
 
 	log.Printf(`listening on "%s"`, config.Web.Listen)
