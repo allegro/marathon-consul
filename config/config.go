@@ -23,6 +23,10 @@ type Config struct {
 }
 
 func New() (config *Config) {
+	config = &Config{
+		Registry: Registry{},
+		Verbose:  false,
+	}
 	config.parseFlags()
 
 	return config
