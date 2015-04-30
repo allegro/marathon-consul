@@ -33,7 +33,9 @@ can update anything you can write a configuration file for.
 
 ## Building
 
-`docker build -t marathon-consul .`
+```
+docker build -t marathon-consul .
+```
 
 ## Running
 
@@ -41,39 +43,45 @@ marathon-consul can be run in a Docker container via Marathon. If your Marathon
 service is registered in consul, you can use `.service.consul` to find them,
 otherwise change the vaules for your environment:
 
-    curl -X POST -d @marathon-consul.json -H "Content-Type: application/json" http://marathon.service.consul:8080/v2/apps'
+```
+curl -X POST -d @marathon-consul.json -H "Content-Type: application/json" http://marathon.service.consul:8080/v2/apps'
+```
 
 Where `marathon-consul.json` is similar to (replacing the image with your image):
 
-    {
-      "id": "marathon-consul",
-      "args": ["--registry=https://consul.service.consul:8500"],
-      "container": {
-        "type": "DOCKER",
-        "docker": {
-          "image": "{{ marathon_consul_image }}:{{ marathon_consul_image_tag }}",
-          "network": "BRIDGE",
-          "portMappings": [{"containerPort": 4000, "hostPort": 4000, "protocol": "tcp"}]
-        }
-      },
-      "constraints": [["hostname", "UNIQUE"]],
-      "ports": [4000],
-      "healthChecks": [{
-        "protocol": "HTTP",
-        "path": "/health",
-        "portIndex": 0
-      }],
-      "instances": 1,
-      "cpus": 0.1,
-      "mem": 128
+```
+{
+  "id": "marathon-consul",
+  "args": ["--registry=https://consul.service.consul:8500"],
+  "container": {
+    "type": "DOCKER",
+    "docker": {
+      "image": "{{ marathon_consul_image }}:{{ marathon_consul_image_tag }}",
+      "network": "BRIDGE",
+      "portMappings": [{"containerPort": 4000, "hostPort": 4000, "protocol": "tcp"}]
     }
+  },
+  "constraints": [["hostname", "UNIQUE"]],
+  "ports": [4000],
+  "healthChecks": [{
+    "protocol": "HTTP",
+    "path": "/health",
+    "portIndex": 0
+  }],
+  "instances": 1,
+  "cpus": 0.1,
+  "mem": 128
+}
+```
 
 You can also add [options to authenticate against Consul](#options).
 
 The Marathon event bus should point to [`/events``](#endpoints). You can
 set up the event subscription with a call similar to this one:
 
-    curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callbackUrl=http://marathon-consul.service.consul:4000/events'
+```
+curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callbackUrl=http://marathon-consul.service.consul:4000/events'
+```
 
 ## Usage
 
