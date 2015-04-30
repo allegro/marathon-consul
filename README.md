@@ -1,29 +1,41 @@
-# Marathon Forwarder
+# marathon-consul
 
-Marathon Forwarder forwards app metadata to a Consul KV store
+Marathon to Consul bridge for metadata discovery.
+
+`marathon-consul` takes information provided by the Marathon event bus and
+forwards it to Consul's KV tree.
 
 <!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc/generate-toc again -->
 **Table of Contents**
 
-- [Marathon Forwarder](#marathon-forwarder)
+- [marathon-consul](#marathon-consul)
     - [Arguments](#arguments)
     - [Endpoints](#endpoints)
     - [Keys and Values](#keys-and-values)
 
 <!-- markdown-toc end -->
 
+## Comparison to other metadata bridges
+
+### `haproxy-marathon-bridge`
+
+This project has similar goals (to enable metadata usage in templates.) However,
+`haproxy-marathon-bridge` uses cron instead of the event bus, so it only updates
+once per minute. It is also limited to haproxy, where `marathon-consul` in
+conjuction with [consul-template](https://github.com/hashicorp/consul-template)
+can update anything you can write a configuration file for.
+
 ## Arguments
 
 Argument | Default | Description
 ---------|---------|------------
-`consul` | "http://localhost:8500" | Consul location
-`datacenter` | blank | Consul datacenter
-`noverify` | false | don't verify certificates when connecting to Consul
-`parallelism` | 4 | set this many keys at once (per request)
-`serve` | ":8000" | accept connections at this address
-`token` | blank | consul ACL token
-`user` and `pass` | blank | if both are set, use basic auth to connect to Consul
-`verbose` | false | print debug information for every request
+`listen` | :4000 | accept connections at this address
+`registry` | http://localhost:8500 | root location of the Consul registry
+`registry-auth` | None | basic auth for the Consul registry
+`registry-datacenter` | None | datacenter to use in writes
+`registry-token` | None | Consul registry ACL token
+`registry-noverify` | False | don't verify registry SSL certificates
+`verbose` | False | enable verbose logging
 
 ## Endpoints
 
@@ -31,6 +43,13 @@ Endpoint | Description
 ---------|------------
 `/health` | healthcheck - returns `OK`
 `/events` | event sink - returns `OK` if all keys are set in an event, error message otherwise
+
+The Marathon event bus should point to `/events`. You can bootstrap the event
+subscription like this (substituting the locations for your own, of course, but
+this plays nicely with
+[mesos-consul](https://github.com/ciscocloud/mesos-consul)):
+
+    curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callbackUrl=http://marathon-consul.service.consul:4000/events'
 
 ## Keys and Values
 
