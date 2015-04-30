@@ -17,6 +17,7 @@ forwards it to Consul's KV tree.
         - [Options](#options)
         - [Endpoints](#endpoints)
     - [Keys and Values](#keys-and-values)
+    - [License](#license)
 
 <!-- markdown-toc end -->
 
@@ -134,3 +135,7 @@ Key | Example Value
 `marathon/myApp/uris` | `["http://example.com/"]`
 `marathon/myApp/user` | `user`
 `marathon/myApp/version` | `2015-01-01T00:00:00Z`
+
+## License
+
+marathon-consul is released under the Apache 2.0 license (see [LICENSE](LICENSE))
