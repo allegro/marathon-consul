@@ -9,8 +9,13 @@ forwards it to Consul's KV tree.
 **Table of Contents**
 
 - [marathon-consul](#marathon-consul)
-    - [Arguments](#arguments)
-    - [Endpoints](#endpoints)
+    - [Comparison to other metadata bridges](#comparison-to-other-metadata-bridges)
+        - [`haproxy-marathon-bridge`](#haproxy-marathon-bridge)
+    - [Building](#building)
+    - [Running](#running)
+    - [Usage](#usage)
+        - [Options](#options)
+        - [Endpoints](#endpoints)
     - [Keys and Values](#keys-and-values)
 
 <!-- markdown-toc end -->
@@ -22,10 +27,56 @@ forwards it to Consul's KV tree.
 This project has similar goals (to enable metadata usage in templates.) However,
 `haproxy-marathon-bridge` uses cron instead of the event bus, so it only updates
 once per minute. It is also limited to haproxy, where `marathon-consul` in
-conjuction with [consul-template](https://github.com/hashicorp/consul-template)
+conjunction with [consul-template](https://github.com/hashicorp/consul-template)
 can update anything you can write a configuration file for.
 
-## Arguments
+## Building
+
+`docker build -t marathon-consul .`
+
+## Running
+
+marathon-consul can be run in a Docker container via Marathon. If your Marathon
+service is registered in consul, you can use `.service.consul` to find them,
+otherwise change the vaules for your environment:
+
+    curl -X POST -d @marathon-consul.json -H "Content-Type: application/json" http://marathon.service.consul:8080/v2/apps'
+
+Where `marathon-consul.json` is similar to (replacing the image with your image):
+
+    {
+      "id": "marathon-consul",
+      "args": ["--registry=https://consul.service.consul:8500"],
+      "container": {
+        "type": "DOCKER",
+        "docker": {
+          "image": "{{ marathon_consul_image }}:{{ marathon_consul_image_tag }}",
+          "network": "BRIDGE",
+          "portMappings": [{"containerPort": 4000, "hostPort": 4000, "protocol": "tcp"}]
+        }
+      },
+      "constraints": [["hostname", "UNIQUE"]],
+      "ports": [4000],
+      "healthChecks": [{
+        "protocol": "HTTP",
+        "path": "/health",
+        "portIndex": 0
+      }],
+      "instances": 1,
+      "cpus": 0.1,
+      "mem": 128
+    }
+
+You can also add [options to authenticate against Consul](#options).
+
+The Marathon event bus should point to [`/events``](#endpoints). You can
+set up the event subscription with a call similar to this one:
+
+    curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callbackUrl=http://marathon-consul.service.consul:4000/events'
+
+## Usage
+
+### Options
 
 Argument | Default | Description
 ---------|---------|------------
@@ -37,19 +88,12 @@ Argument | Default | Description
 `registry-noverify` | False | don't verify registry SSL certificates
 `verbose` | False | enable verbose logging
 
-## Endpoints
+### Endpoints
 
 Endpoint | Description
 ---------|------------
 `/health` | healthcheck - returns `OK`
 `/events` | event sink - returns `OK` if all keys are set in an event, error message otherwise
-
-The Marathon event bus should point to `/events`. You can bootstrap the event
-subscription like this (substituting the locations for your own, of course, but
-this plays nicely with
-[mesos-consul](https://github.com/ciscocloud/mesos-consul)):
-
-    curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callbackUrl=http://marathon-consul.service.consul:4000/events'
 
 ## Keys and Values
 
