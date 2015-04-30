@@ -38,7 +38,7 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Registry.Datacenter, "registry-datacenter", "", "Registry datacenter")
 	flag.StringVar(&config.Registry.Location, "registry", "http://localhost:8500", "Registry location")
 	flag.StringVar(&config.Registry.Token, "registry-token", "", "Registry ACL token")
-	flag.BoolVar(&config.Registry.VerifySSL, "registry-noverify", false, "don't verify registry SSL certificates")
+	flag.BoolVar(&config.Registry.NoVerifySSL, "registry-noverify", false, "don't verify registry SSL certificates")
 
 	// Web
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "accept connections at this address")
@@ -50,11 +50,11 @@ func (config *Config) parseFlags() {
 }
 
 type Registry struct {
-	Auth       string
-	Datacenter string
-	Location   string
-	Token      string
-	VerifySSL  bool
+	Auth        string
+	Datacenter  string
+	Location    string
+	Token       string
+	NoVerifySSL bool
 }
 
 func (r Registry) GetAuth() (auth *api.HttpBasicAuth, err error) {
@@ -96,7 +96,7 @@ func (r Registry) Config() (*api.Config, error) {
 			Transport: &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
 				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: !r.VerifySSL,
+					InsecureSkipVerify: r.NoVerifySSL,
 				},
 			},
 		},
