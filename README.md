@@ -1,3 +1,4 @@
+
 # marathon-consul
 
 Marathon to Consul bridge for metadata discovery.
@@ -15,6 +16,7 @@ forwards it to Consul's KV tree.
     - [Running](#running)
     - [Usage](#usage)
         - [Options](#options)
+        - [Adding New Root Certificate Authorities](#adding-new-root-certificate-authorities)
         - [Endpoints](#endpoints)
     - [Keys and Values](#keys-and-values)
     - [License](#license)
