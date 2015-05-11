@@ -97,6 +97,14 @@ Argument | Default | Description
 `registry-noverify` | False | don't verify registry SSL certificates
 `verbose` | False | enable verbose logging
 
+### Adding New Root Certificate Authorities
+
+If you're running Consul behind an SSL proxy like Nginx, you're probably going
+to want to add the CA for your certificate to the trusted store in the container
+so you can avoid using `--registry-noverify`. For that purpose, any certificates
+added in a volume at `/usr/local/share/ca-certificates/` will be added to the
+root certificates in the container on boot.
+
 ### Endpoints
 
 Endpoint | Description
