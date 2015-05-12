@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"github.com/CiscoCloud/marathon-forwarder/mocks"
+	"github.com/CiscoCloud/marathon-consul/mocks"
 	"github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 	"testing"

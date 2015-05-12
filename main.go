@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/CiscoCloud/marathon-forwarder/config"
+	"github.com/CiscoCloud/marathon-consul/config"
 	"log"
 	"net/http"
 	"runtime"
