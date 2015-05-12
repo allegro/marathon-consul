@@ -18,7 +18,6 @@ type Event struct {
 
 type ForwardHandler struct {
 	Forwarder
-	Verbose bool
 }
 
 func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
@@ -37,27 +36,20 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !(event.Type == "api_post_event" || event.Type == "deployment_info") {
+	if event.Type == "api_post_event" || event.Type == "deployment_info" {
+		fh.HandleAppEvent(w, body)
+	} else {
 		w.WriteHeader(200)
 		fmt.Fprintln(w, "this endpoint only accepts api_post_event and deployment_info")
-		if fh.Verbose {
-			log.Printf("received '%s' event, not handling", event.Type)
-		}
-		return
 	}
+}
 
-	if fh.Verbose {
-		log.Printf("received '%s' event, handling", event.Type)
-	}
-
+func (fh *ForwardHandler) HandleAppEvent(w http.ResponseWriter, body []byte) {
 	apps, err := ParseApps(body)
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, err.Error())
-		if fh.Verbose {
-			log.Printf("body generated error: %s", err.Error())
-			log.Println(string(body))
-		}
+		log.Printf("[ERROR] body generated error: %s", err.Error())
 		return
 	}
 
@@ -68,9 +60,7 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			respCode = 500
 			resp = fmt.Sprintf("%s%s\n", resp, err.Error())
-			if fh.Verbose {
-				log.Printf("response generated error: %s", err.Error())
-			}
+			log.Printf("[ERROR] response generated error: %s", err.Error())
 		}
 	}
 	if resp == "" {
