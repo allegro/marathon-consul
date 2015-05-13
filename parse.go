@@ -26,6 +26,12 @@ type DeploymentInfoEvent struct {
 	} `json:"currentStep"`
 }
 
+type AppTerminatedEvent struct {
+	Type      string `json:"eventType"`
+	AppID     string `json:"appId"`
+	Timestamp string `json:"timestamp"`
+}
+
 func ParseApps(event []byte) (apps []*App, err error) {
 	if strings.Index(string(event), "api_post_event") != -1 {
 		container := APIPostEvent{}
@@ -34,7 +40,6 @@ func ParseApps(event []byte) (apps []*App, err error) {
 			return nil, err
 		}
 
-		container.App.Active = true
 		apps = []*App{&container.App}
 	} else if strings.Index(string(event), "deployment_info") != -1 {
 		container := DeploymentInfoEvent{}
@@ -43,11 +48,15 @@ func ParseApps(event []byte) (apps []*App, err error) {
 			return nil, err
 		}
 
-		apps = []*App{}
-		for _, app := range container.Plan.Target.Apps {
-			app.Active = !(container.CurrentStep.Action == "StopApplication" && app.ID == container.CurrentStep.App)
-			apps = append(apps, app)
+		apps = container.Plan.Target.Apps
+	} else if strings.Index(string(event), "app_terminated_event") != -1 {
+		container := AppTerminatedEvent{}
+		err = json.Unmarshal(event, &container)
+		if err != nil {
+			return nil, err
 		}
+
+		apps = []*App{&App{ID: container.AppID}}
 	}
 
 	if len(apps) == 0 {

@@ -46,7 +46,6 @@ func TestParseAPIPostEvent(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(output))
-	assert.True(t, output[0].Active)
 	assert.Equal(t, 0, len(output[0].Args))
 	assert.Equal(t, 1.15, output[0].BackoffFactor)
 	assert.Equal(t, 1, output[0].BackoffSeconds)
@@ -138,7 +137,6 @@ func TestParseDeploymentInfoEvent(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(output))
-	assert.True(t, output[0].Active)
 	assert.Equal(t, 0, len(output[0].Args))
 	assert.Equal(t, 1.15, output[0].BackoffFactor)
 	assert.Equal(t, 1, output[0].BackoffSeconds)
@@ -230,7 +228,6 @@ func TestParseDeploymentInfoEventStop(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(output))
-	assert.False(t, output[0].Active)
 	assert.Equal(t, 0, len(output[0].Args))
 	assert.Equal(t, 1.15, output[0].BackoffFactor)
 	assert.Equal(t, 1, output[0].BackoffSeconds)
