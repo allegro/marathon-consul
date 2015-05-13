@@ -38,7 +38,7 @@ func NewKV(config *api.Config) (*KV, error) {
 }
 
 func (kv KV) ensurePrefix(key string) string {
-	if kv.Prefix != "" && !strings.HasPrefix(key, kv.Prefix) {
+	if kv.Prefix != "" {
 		key = fmt.Sprintf("%s/%s", kv.Prefix, key)
 	}
 	return key
