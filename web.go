@@ -55,6 +55,9 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	case "api_post_event", "deployment_info":
 		fh.LogVerbose(fmt.Sprintf("handling \"%s\"", event.Type))
 		fh.HandleAppEvent(w, body)
+	case "app_terminated_event":
+		fh.LogVerbose("handling \"app_terminated_event\"")
+		fh.HandleTerminationEvent(w, body)
 	case "status_update_event":
 		fh.LogVerbose("handling \"status_update_event\"")
 		fh.HandleStatusEvent(w, body)
@@ -78,11 +81,7 @@ func (fh *ForwardHandler) HandleAppEvent(w http.ResponseWriter, body []byte) {
 	resp := ""
 	respCode := 200
 	for _, app := range apps {
-		if app.Active {
-			_, err = fh.kv.Put(app.KV())
-		} else {
-			_, err = fh.kv.Delete(app.Key())
-		}
+		_, err = fh.kv.Put(app.KV())
 		if err != nil {
 			resp += err.Error() + "\n"
 			log.Printf("[ERROR] response generated error: %s", err.Error())
@@ -96,6 +95,28 @@ func (fh *ForwardHandler) HandleAppEvent(w http.ResponseWriter, body []byte) {
 
 	w.WriteHeader(respCode)
 	fmt.Fprint(w, resp)
+}
+
+func (fh *ForwardHandler) HandleTerminationEvent(w http.ResponseWriter, body []byte) {
+	apps, err := ParseApps(body)
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintln(w, err.Error())
+		log.Printf("[ERROR] body generated error: %s", err.Error())
+		return
+	}
+
+	// app_terminated_event only has one app in it, so we will just take care of
+	// it instead of looping
+	_, err = fh.kv.Delete(apps[0].Key())
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintln(w, err.Error())
+		log.Printf("[ERROR] response generated error: %s", err.Error())
+	} else {
+		w.WriteHeader(200)
+		fmt.Fprintln(w, "OK")
+	}
 }
 
 func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) {

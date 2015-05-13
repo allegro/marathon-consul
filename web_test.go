@@ -52,6 +52,37 @@ func TestForwardHandlerHandleAppEvent(t *testing.T) {
 	assert.Equal(t, "test error\n", recorder.Body.String())
 }
 
+func TestForwardHandlerHandleTerminationEvent(t *testing.T) {
+	t.Parallel()
+
+	// create a handler
+	kv := &mocks.PutDeleter{}
+	errKV := errors.New("test error")
+	handler := ForwardHandler{kv, false, false}
+
+	body, err := json.Marshal(AppTerminatedEvent{
+		Type:  "app_terminated_event",
+		AppID: testApp.ID,
+	})
+	assert.Nil(t, err)
+
+	// test a good update
+	kv.On("Delete", testApp.Key()).Return(nil, nil).Once()
+	recorder := httptest.NewRecorder()
+	handler.HandleTerminationEvent(recorder, body)
+
+	assert.Equal(t, 200, recorder.Code)
+	assert.Equal(t, "OK\n", recorder.Body.String())
+
+	// test a bad update
+	kv.On("Delete", testApp.Key()).Return(nil, errKV).Once()
+	recorder = httptest.NewRecorder()
+	handler.HandleTerminationEvent(recorder, body)
+
+	assert.Equal(t, 500, recorder.Code)
+	assert.Equal(t, "test error\n", recorder.Body.String())
+}
+
 func tempTaskBody(status string) []byte {
 	body, _ := json.Marshal(testTask)
 	return []byte(strings.Replace(
