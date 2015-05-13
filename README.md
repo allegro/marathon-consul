@@ -89,15 +89,15 @@ curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callback
 
 ### Options
 
-Argument | Default | Description
----------|---------|------------
-`listen` | :4000 | accept connections at this address
-`registry` | http://localhost:8500 | root location of the Consul registry
-`registry-auth` | None | basic auth for the Consul registry
-`registry-datacenter` | None | datacenter to use in writes
-`registry-token` | None | Consul registry ACL token
-`registry-noverify` | False | don't verify registry SSL certificates
-`verbose` | False | enable verbose logging
+Argument               | Default               | Description
+-----------------------|-----------------------|----------------------------------------
+`listen`               | :4000                 | accept connections at this address
+`registry`             | http://localhost:8500 | root location of the Consul registry
+`registry-auth`        | None                  | basic auth for the Consul registry
+`registry-datacenter`  | None                  | datacenter to use in writes
+`registry-token`       | None                  | Consul registry ACL token
+`registry-noverify`    | False                 | don't verify registry SSL certificates
+`verbose`              | False                 | enable verbose logging
 
 ### Adding New Root Certificate Authorities
 
@@ -109,8 +109,8 @@ root certificates in the container on boot.
 
 ### Endpoints
 
-Endpoint | Description
----------|------------
+Endpoint  | Description
+----------|------------------------------------------------------------------------------------
 `/health` | healthcheck - returns `OK`
 `/events` | event sink - returns `OK` if all keys are set in an event, error message otherwise
 
