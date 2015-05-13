@@ -25,14 +25,13 @@ type ForwardHandler struct {
 
 func (fh *ForwardHandler) LogVerbose(s string) {
 	if fh.Verbose {
-		fmt.Printf("[INFO] %s\n", s)
+		log.Printf("[INFO] %s\n", s)
 	}
 }
 
 func (fh *ForwardHandler) LogDebug(s string) {
 	if fh.Debug {
-
-		fmt.Printf("[DEBUG] %s\n", s)
+		log.Printf("[DEBUG] %s\n", s)
 	}
 }
 
