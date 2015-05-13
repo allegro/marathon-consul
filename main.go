@@ -17,6 +17,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+	kv.Prefix = config.Registry.Prefix
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)

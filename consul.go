@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"github.com/hashicorp/consul/api"
+	"strings"
 )
 
 type Putter interface {
@@ -20,6 +22,7 @@ type PutDeleter interface {
 type KV struct {
 	kv           *api.KV
 	WriteOptions *api.WriteOptions
+	Prefix       string
 }
 
 func NewKV(config *api.Config) (*KV, error) {
@@ -34,10 +37,18 @@ func NewKV(config *api.Config) (*KV, error) {
 	}, nil
 }
 
+func (kv KV) ensurePrefix(key string) string {
+	if kv.Prefix != "" && !strings.HasPrefix(key, kv.Prefix) {
+		key = fmt.Sprintf("%s/%s", kv.Prefix, key)
+	}
+	return key
+}
+
 func (kv KV) Put(pair *api.KVPair) (*api.WriteMeta, error) {
+	pair.Key = kv.ensurePrefix(pair.Key)
 	return kv.kv.Put(pair, kv.WriteOptions)
 }
 
 func (kv KV) Delete(key string) (*api.WriteMeta, error) {
-	return kv.kv.Delete(key, kv.WriteOptions)
+	return kv.kv.Delete(kv.ensurePrefix(key), kv.WriteOptions)
 }
