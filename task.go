@@ -5,7 +5,7 @@ import (
 	"github.com/hashicorp/consul/api"
 )
 
-type Service struct {
+type Task struct {
 	Timestamp  string `json:"timestamp"`
 	SlaveID    string `json:"slaveId"`
 	TaskID     string `json:"taskId"`
@@ -16,17 +16,21 @@ type Service struct {
 	Version    string `json:"version"`
 }
 
-func ParseService(event []byte) (*Service, error) {
-	svc := &Service{}
-	err := json.Unmarshal(event, svc)
-	return svc, err
+func ParseTask(event []byte) (*Task, error) {
+	task := &Task{}
+	err := json.Unmarshal(event, task)
+	return task, err
 }
 
-func (svc *Service) KV() *api.KVPair {
-	serialized, _ := json.Marshal(svc)
+func (task *Task) Key() string {
+	return task.TaskID
+}
+
+func (task *Task) KV() *api.KVPair {
+	serialized, _ := json.Marshal(task)
 
 	return &api.KVPair{
-		Key:   svc.TaskID,
+		Key:   task.Key(),
 		Value: serialized,
 	}
 }

@@ -1,14 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"github.com/CiscoCloud/marathon-consul/mocks"
-	"github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -25,70 +24,93 @@ func TestHealthHandler(t *testing.T) {
 	assert.Equal(t, "OK\n", recorder.Body.String())
 }
 
-func TestForwardHandler(t *testing.T) {
+func TestForwardHandlerHandleAppEvent(t *testing.T) {
 	t.Parallel()
 
-	// create a forwarder
-	opts := &api.WriteOptions{}
-	putter := &mocks.Putter{}
+	// create a handler
+	kv := &mocks.PutDeleter{}
 	errKV := errors.New("test error")
-	forwarder := Forwarder{putter, 3, opts, false}
-	handler := ForwardHandler{forwarder}
+	handler := ForwardHandler{kv}
 
 	body, err := json.Marshal(APIPostEvent{"api_post_event", testApp})
 	assert.Nil(t, err)
 
-	// test no JSON
-	req, err := http.NewRequest("POST", "http://example.com/event", bytes.NewReader([]byte{}))
-	assert.Nil(t, err)
-
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-
-	assert.Equal(t, 500, recorder.Code)
-	assert.Equal(t, "could not read request body\n", recorder.Body.String())
-
-	// test an unsupported event
-	req, err = http.NewRequest("POST", "http://example.com/event", bytes.NewReader([]byte(`{"eventType":"bad_event"}`)))
-	assert.Nil(t, err)
-
-	recorder = httptest.NewRecorder()
-	handler.Handle(recorder, req)
-
-	assert.Equal(t, 200, recorder.Code)
-	assert.Equal(t, "this endpoint only accepts api_post_event and deployment_info\n", recorder.Body.String())
-
 	// test a good update
-	for _, kv := range testApp.KVs() {
-		putter.On("Put", kv, opts).Return(nil, nil).Once()
-	}
-
-	req, err = http.NewRequest("POST", "http://example.com/event", bytes.NewReader(body))
-	assert.Nil(t, err)
-
-	recorder = httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	kv.On("Put", testApp.KV()).Return(nil, nil).Once()
+	recorder := httptest.NewRecorder()
+	handler.HandleAppEvent(recorder, body)
 
 	assert.Equal(t, 200, recorder.Code)
 	assert.Equal(t, "OK\n", recorder.Body.String())
-	// putter.AssertExpectations(t)
 
 	// test a bad update
-	for i, kv := range testApp.KVs() {
-		if i == 0 {
-			putter.On("Put", kv, opts).Return(nil, errKV).Once()
-		} else {
-			putter.On("Put", kv, opts).Return(nil, nil).Once()
-		}
-	}
-
-	req, err = http.NewRequest("POST", "http://example.com/event", bytes.NewReader(body))
-	assert.Nil(t, err)
-
+	kv.On("Put", testApp.KV()).Return(nil, errKV).Once()
 	recorder = httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handler.HandleAppEvent(recorder, body)
 
 	assert.Equal(t, 500, recorder.Code)
 	assert.Equal(t, "test error\n", recorder.Body.String())
-	// putter.AssertExpectations(t)
+}
+
+func tempTaskBody(status string) []byte {
+	body, _ := json.Marshal(testTask)
+	return []byte(strings.Replace(
+		string(body),
+		testTask.TaskStatus,
+		status,
+		1,
+	))
+}
+
+func TestForwardHandlerHandleStatusEvent(t *testing.T) {
+	t.Parallel()
+
+	// create a handler
+	kv := &mocks.PutDeleter{}
+	errKV := errors.New("test error")
+	handler := ForwardHandler{kv}
+
+	// deletes
+	for _, status := range []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"} {
+		tempBody := tempTaskBody(status)
+		// good update
+		kv.On("Delete", testTask.Key()).Return(nil, nil).Once()
+		recorder := httptest.NewRecorder()
+		handler.HandleStatusEvent(recorder, tempBody)
+		assert.Equal(t, 200, recorder.Code)
+		assert.Equal(t, "OK\n", recorder.Body.String())
+
+		// bad update
+		kv.On("Delete", testTask.Key()).Return(nil, errKV).Once()
+		recorder = httptest.NewRecorder()
+		handler.HandleStatusEvent(recorder, tempBody)
+		assert.Equal(t, 500, recorder.Code)
+		assert.Equal(t, "test error\n", recorder.Body.String())
+	}
+
+	// puts
+	for _, status := range []string{"TASK_STAGING", "TASK_STARTING", "TASK_RUNNING"} {
+		tempBody := tempTaskBody(status)
+		tempTask, _ := ParseTask(tempBody)
+		// good update
+		kv.On("Put", tempTask.KV()).Return(nil, nil).Once()
+		recorder := httptest.NewRecorder()
+		handler.HandleStatusEvent(recorder, tempBody)
+		assert.Equal(t, 200, recorder.Code)
+		assert.Equal(t, "OK\n", recorder.Body.String())
+
+		// bad update
+		kv.On("Put", tempTask.KV()).Return(nil, errKV).Once()
+		recorder = httptest.NewRecorder()
+		handler.HandleStatusEvent(recorder, tempBody)
+		assert.Equal(t, 500, recorder.Code)
+		assert.Equal(t, "test error\n", recorder.Body.String())
+	}
+
+	// bad status
+	tempBody := tempTaskBody("TASK_BATMAN")
+	recorder := httptest.NewRecorder()
+	handler.HandleStatusEvent(recorder, tempBody)
+	assert.Equal(t, 500, recorder.Code)
+	assert.Equal(t, "unknown task status\n", recorder.Body.String())
 }

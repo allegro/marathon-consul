@@ -4,7 +4,6 @@ import (
 	"github.com/CiscoCloud/marathon-consul/config"
 	"log"
 	"net/http"
-	"runtime"
 )
 
 func main() {
@@ -14,15 +13,14 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	forwarder, err := NewForwarder(apiConfig, runtime.NumCPU())
+	kv, err := NewKV(apiConfig)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	forwarder.Verbose = config.Verbose
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)
-	forwarderHandler := &ForwardHandler{*forwarder}
+	forwarderHandler := &ForwardHandler{*kv}
 	http.HandleFunc("/events", forwarderHandler.Handle)
 
 	log.Printf(`listening on "%s"`, config.Web.Listen)

@@ -2,9 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/hashicorp/consul/api"
-	"strconv"
 	"strings"
 )
 
@@ -29,38 +27,6 @@ type Docker struct {
 	ForcePullImage bool          `json:"forcePullImage"`
 }
 
-func (d *Docker) KVs(app *App) []*api.KVPair {
-	params, _ := json.Marshal(d.Parameters)
-	ports, _ := json.Marshal(d.PortMappings)
-
-	return []*api.KVPair{
-		&api.KVPair{
-			Key:   app.Key("container/docker/image"),
-			Value: []byte(d.Image),
-		},
-		&api.KVPair{
-			Key:   app.Key("container/docker/parameters"),
-			Value: params,
-		},
-		&api.KVPair{
-			Key:   app.Key("container/docker/privileged"),
-			Value: []byte(strconv.FormatBool(d.Privileged)),
-		},
-		&api.KVPair{
-			Key:   app.Key("container/docker/portMappings"),
-			Value: ports,
-		},
-		&api.KVPair{
-			Key:   app.Key("container/docker/network"),
-			Value: []byte(d.Network),
-		},
-		&api.KVPair{
-			Key:   app.Key("container/docker/forcePullImage"),
-			Value: []byte(strconv.FormatBool(d.ForcePullImage)),
-		},
-	}
-}
-
 type Volume struct {
 	ContainerPath string `json:"containerPath"`
 	HostPath      string `json:"hostPath"`
@@ -71,17 +37,6 @@ type Container struct {
 	Docker  *Docker  `json:"docker"`
 	Type    string   `json:"type"`
 	Volumes []Volume `json:"volumes"`
-}
-
-func (c *Container) KVs(app *App) []*api.KVPair {
-	out := c.Docker.KVs(app)
-	volumes, _ := json.Marshal(c.Volumes)
-
-	return append(
-		out,
-		&api.KVPair{Key: app.Key("container/type"), Value: []byte(c.Type)},
-		&api.KVPair{Key: app.Key("container/volumes"), Value: volumes},
-	)
 }
 
 type HealthCheck struct {
@@ -97,19 +52,6 @@ type HealthCheck struct {
 type UpgradeStrategy struct {
 	MinimumHealthCapacity float64 `json:"minimumHealthCapacity"`
 	MaximumOverCapacity   float64 `json:"maximumOverCapacity"`
-}
-
-func (u UpgradeStrategy) KVs(app *App) []*api.KVPair {
-	return []*api.KVPair{
-		&api.KVPair{
-			Key:   app.Key("upgradeStrategy/minimumHealthCapacity"),
-			Value: []byte(strconv.FormatFloat(u.MinimumHealthCapacity, 'g', -1, 64)),
-		},
-		&api.KVPair{
-			Key:   app.Key("upgradeStrategy/maximumOverCapacity"),
-			Value: []byte(strconv.FormatFloat(u.MaximumOverCapacity, 'g', -1, 64)),
-		},
-	}
 }
 
 type App struct {
@@ -138,94 +80,18 @@ type App struct {
 	Version         string            `json:"version"`
 }
 
-func (app *App) Key(postfix string) string {
-	return fmt.Sprintf(
-		"marathon/%s/%s",
-		strings.Trim(app.ID, "/"),
-		postfix,
-	)
+func (app *App) KV() *api.KVPair {
+	serialized, _ := json.Marshal(app)
+
+	return &api.KVPair{
+		Key:   app.Key(),
+		Value: serialized,
+	}
 }
 
-func (app *App) KVs() []*api.KVPair {
-	// simple containers (lists and maps) are encoded as JSON. This allows us to
-	// only add or change keys, and simplifies watches.
-	args, _ := json.Marshal(app.Args)
-	constraints, _ := json.Marshal(app.Constraints)
-	dependencies, _ := json.Marshal(app.Dependencies)
-	env, _ := json.Marshal(app.Env)
-	healthChecks, _ := json.Marshal(app.HealthChecks)
-	labels, _ := json.Marshal(app.Labels)
-	ports, _ := json.Marshal(app.Ports)
-	storeUrls, _ := json.Marshal(app.StoreUrls)
-	uris, _ := json.Marshal(app.Uris)
-
-	kvs := []*api.KVPair{
-		// containers
-		&api.KVPair{Key: app.Key("args"), Value: args},
-		&api.KVPair{Key: app.Key("constraints"), Value: constraints},
-		&api.KVPair{Key: app.Key("dependencies"), Value: dependencies},
-		&api.KVPair{Key: app.Key("env"), Value: env},
-		&api.KVPair{Key: app.Key("healthChecks"), Value: healthChecks},
-		&api.KVPair{Key: app.Key("labels"), Value: labels},
-		&api.KVPair{Key: app.Key("ports"), Value: ports},
-		&api.KVPair{Key: app.Key("storeUrls"), Value: storeUrls},
-		&api.KVPair{Key: app.Key("uris"), Value: uris},
-
-		// "scalar" values
-		&api.KVPair{
-			Key:   app.Key("backoffFactor"),
-			Value: []byte(strconv.FormatFloat(app.BackoffFactor, 'g', -1, 64)),
-		},
-		&api.KVPair{
-			Key:   app.Key("backoffSeconds"),
-			Value: []byte(strconv.Itoa(app.BackoffSeconds)),
-		},
-		&api.KVPair{
-			Key:   app.Key("cmd"),
-			Value: []byte(app.Cmd),
-		},
-		&api.KVPair{
-			Key:   app.Key("cpus"),
-			Value: []byte(strconv.FormatFloat(app.CPUs, 'g', -1, 64)),
-		},
-		&api.KVPair{
-			Key:   app.Key("disk"),
-			Value: []byte(strconv.FormatFloat(app.Disk, 'g', -1, 64)),
-		},
-		&api.KVPair{
-			Key:   app.Key("executor"),
-			Value: []byte(app.Executor),
-		},
-		&api.KVPair{
-			Key:   app.Key("id"),
-			Value: []byte(app.ID),
-		},
-		&api.KVPair{
-			Key:   app.Key("instances"),
-			Value: []byte(strconv.Itoa(app.Instances)),
-		},
-		&api.KVPair{
-			Key:   app.Key("mem"),
-			Value: []byte(strconv.FormatFloat(app.Mem, 'g', -1, 64)),
-		},
-		&api.KVPair{
-			Key:   app.Key("requirePorts"),
-			Value: []byte(strconv.FormatBool(app.RequirePorts)),
-		},
-		&api.KVPair{
-			Key:   app.Key("user"),
-			Value: []byte(app.User),
-		},
-		&api.KVPair{
-			Key:   app.Key("version"),
-			Value: []byte(app.Version),
-		},
-	}
-
-	if app.Container != nil {
-		kvs = append(kvs, app.Container.KVs(app)...)
-	}
-	kvs = append(kvs, app.UpgradeStrategy.KVs(app)...)
-
-	return kvs
+func (app *App) Key() string {
+	return strings.Replace(
+		strings.Trim(app.ID, "/"),
+		"/", "-", -1,
+	)
 }
