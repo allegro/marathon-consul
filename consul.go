@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/hashicorp/consul/api"
-	"strings"
 )
 
 type Putter interface {
