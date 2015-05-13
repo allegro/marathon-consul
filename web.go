@@ -18,7 +18,22 @@ type Event struct {
 }
 
 type ForwardHandler struct {
-	kv PutDeleter
+	kv      PutDeleter
+	Verbose bool
+	Debug   bool
+}
+
+func (fh *ForwardHandler) LogVerbose(s string) {
+	if fh.Verbose {
+		fmt.Printf("[INFO] %s\n", s)
+	}
+}
+
+func (fh *ForwardHandler) LogDebug(s string) {
+	if fh.Debug {
+
+		fmt.Printf("[DEBUG] %s\n", s)
+	}
 }
 
 func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
@@ -39,13 +54,17 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	switch event.Type {
 	case "api_post_event", "deployment_info":
+		fh.LogVerbose(fmt.Sprintf("handling \"%s\"", event.Type))
 		fh.HandleAppEvent(w, body)
 	case "status_update_event":
+		fh.LogVerbose("handling \"status_update_event\"")
 		fh.HandleStatusEvent(w, body)
 	default:
+		fh.LogVerbose(fmt.Sprintf("not handling \"%s\"", event.Type))
 		w.WriteHeader(200)
 		fmt.Fprintf(w, "cannot handle %s\n", event.Type)
 	}
+	fh.LogDebug(string(body))
 }
 
 func (fh *ForwardHandler) HandleAppEvent(w http.ResponseWriter, body []byte) {

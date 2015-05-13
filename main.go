@@ -21,7 +21,9 @@ func main() {
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)
-	forwarderHandler := &ForwardHandler{*kv}
+	forwarderHandler := &ForwardHandler{
+		*kv, config.Verbose, config.Debug,
+	}
 	http.HandleFunc("/events", forwarderHandler.Handle)
 
 	log.Printf(`listening on "%s"`, config.Web.Listen)

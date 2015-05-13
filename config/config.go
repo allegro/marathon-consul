@@ -20,6 +20,7 @@ type Config struct {
 		Listen string
 	}
 	Verbose bool
+	Debug   bool
 }
 
 func New() (config *Config) {
@@ -46,6 +47,7 @@ func (config *Config) parseFlags() {
 
 	// General
 	flag.BoolVar(&config.Verbose, "verbose", false, "enable verbose logging")
+	flag.BoolVar(&config.Debug, "debug", false, "enable debug logging")
 
 	flag.Parse()
 }
