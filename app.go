@@ -90,8 +90,12 @@ func (app *App) KV() *api.KVPair {
 }
 
 func (app *App) Key() string {
+	return cleanID(app.ID)
+}
+
+func cleanID(ID string) string {
 	return strings.Replace(
-		strings.Trim(app.ID, "/"),
+		strings.Trim(ID, "/"),
 		"/", "-", -1,
 	)
 }

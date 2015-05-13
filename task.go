@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/hashicorp/consul/api"
 )
 
@@ -23,7 +24,11 @@ func ParseTask(event []byte) (*Task, error) {
 }
 
 func (task *Task) Key() string {
-	return task.TaskID
+	return fmt.Sprintf(
+		"%s/tasks/%s",
+		cleanID(task.AppID),
+		task.TaskID,
+	)
 }
 
 func (task *Task) KV() *api.KVPair {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -44,6 +45,6 @@ func TestKV(t *testing.T) {
 	jsonified, err := json.Marshal(testTask)
 	assert.Nil(t, err)
 
-	assert.Equal(t, testTask.TaskID, kv.Key)
+	assert.Equal(t, fmt.Sprintf("%s/tasks/%s", "my-app", testTask.TaskID), kv.Key)
 	assert.Equal(t, jsonified, kv.Value)
 }
