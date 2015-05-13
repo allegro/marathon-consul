@@ -78,6 +78,9 @@ type App struct {
 	Uris            []string          `json:"uris"`
 	User            string            `json:"user"`
 	Version         string            `json:"version"`
+
+	// added for metadata storage
+	Active bool `json:"-"`
 }
 
 func (app *App) KV() *api.KVPair {

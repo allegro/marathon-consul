@@ -60,7 +60,11 @@ func (fh *ForwardHandler) HandleAppEvent(w http.ResponseWriter, body []byte) {
 	resp := ""
 	respCode := 200
 	for _, app := range apps {
-		_, err = fh.kv.Put(app.KV())
+		if app.Active {
+			_, err = fh.kv.Put(app.KV())
+		} else {
+			_, err = fh.kv.Delete(app.Key())
+		}
 		if err != nil {
 			resp += err.Error() + "\n"
 			log.Printf("[ERROR] response generated error: %s", err.Error())
