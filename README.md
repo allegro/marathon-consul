@@ -89,15 +89,16 @@ curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callback
 
 ### Options
 
-Argument | Default | Description
----------|---------|------------
-`listen` | :4000 | accept connections at this address
-`registry` | http://localhost:8500 | root location of the Consul registry
-`registry-auth` | None | basic auth for the Consul registry
-`registry-datacenter` | None | datacenter to use in writes
-`registry-token` | None | Consul registry ACL token
-`registry-noverify` | False | don't verify registry SSL certificates
-`verbose` | False | enable verbose logging
+Argument               | Default               | Description
+-----------------------|-----------------------|--------------------------------------------
+`listen`               | :4000                 | accept connections at this address
+`registry`             | http://localhost:8500 | root location of the Consul registry
+`registry-auth`        | None                  | basic auth for the Consul registry
+`registry-datacenter`  | None                  | datacenter to use in writes
+`registry-token`       | None                  | Consul registry ACL token
+`registry-noverify`    | False                 | don't verify registry SSL certificates
+`registry-prefix`      | `marathon`            | prefix for all values sent to the registry
+`verbose`              | False                 | enable verbose logging
 
 ### Adding New Root Certificate Authorities
 
@@ -109,50 +110,112 @@ root certificates in the container on boot.
 
 ### Endpoints
 
-Endpoint | Description
----------|------------
+Endpoint  | Description
+----------|------------------------------------------------------------------------------------
 `/health` | healthcheck - returns `OK`
 `/events` | event sink - returns `OK` if all keys are set in an event, error message otherwise
 
 ## Keys and Values
 
-The entire app configuration is forwarded to Consul. Simple values (strings,
-ints, and so on) are represented by their string form. Complex values (lists,
-hashes) are represented by their JSONified form.
+The entire app configuration is forwarded to Consul as a JSON blob. It might
+looks something like this (example from the Marathon documentation):
 
-Key | Example Value
-----|--------------
-`marathon/myApp/args` | `["arg"]`
-`marathon/myApp/backoffFactor` | `0.5`
-`marathon/myApp/backoffSeconds` | `1`
-`marathon/myApp/cmd` | `command`
-`marathon/myApp/constraints` | `[["HOSTNAME","unique"]]`
-`marathon/myApp/container/docker/forcePullImage` | `true`
-`marathon/myApp/container/docker/image` | `alpine`
-`marathon/myApp/container/docker/network` | `BRIDGED`
-`marathon/myApp/container/docker/parameters` | `[{"key":"hostname","value":"container.example.com"}]`
-`marathon/myApp/container/docker/portMappings` | `[{"containerPort":8080,"hostPort":8080,"servicePort":0,"protocol":"tcp"}]`
-`marathon/myApp/container/docker/privileged` | `true`
-`marathon/myApp/container/type` | `DOCKER`
-`marathon/myApp/container/volumes` | `[{"containerPath":"/tmp","hostPath":"/tmp/container","mode":"rw"}]`
-`marathon/myApp/cpus` | `0.1`
-`marathon/myApp/dependencies` | `["/otherApp"]`
-`marathon/myApp/disk` | `128`
-`marathon/myApp/env` | `{"HOME":"/tmp"}`
-`marathon/myApp/executor` | `executor`
-`marathon/myApp/healthChecks` | `[{"path":"/","portIndex":0,"protocol":"http","gracePeriodSeconds":30,"intervalSeconds":15,"timeoutSeconds":30,"maxConsecutiveFailures":5}]`
-`marathon/myApp/id` | `/test`
-`marathon/myApp/instances` | `2`
-`marathon/myApp/labels` | `{"BALANCE":"yes"}`
-`marathon/myApp/mem` | `256`
-`marathon/myApp/ports` | `[10001]`
-`marathon/myApp/requirePorts` | `true`
-`marathon/myApp/storeUrls` | `["http://example.com/resource/"]`
-`marathon/myApp/upgradeStrategy/maximumOverCapacity` | `1`
-`marathon/myApp/upgradeStrategy/minimumHealthCapacity` | `1`
-`marathon/myApp/uris` | `["http://example.com/"]`
-`marathon/myApp/user` | `user`
-`marathon/myApp/version` | `2015-01-01T00:00:00Z`
+```
+{
+    "id": "/product/service/my-app",
+    "cmd": "env && sleep 300",
+    "args": ["/bin/sh", "-c", "env && sleep 300"],
+    "container": {
+        "type": "DOCKER",
+        "docker": {
+            "image": "group/image",
+            "network": "BRIDGE",
+            "portMappings": [
+                {
+                    "containerPort": 8080,
+                    "hostPort": 0,
+                    "servicePort": 9000,
+                    "protocol": "tcp"
+                },
+                {
+                    "containerPort": 161,
+                    "hostPort": 0,
+                    "protocol": "udp"
+                }
+            ],
+            "privileged": false,
+            "parameters": [
+                { "key": "a-docker-option", "value": "xxx" },
+                { "key": "b-docker-option", "value": "yyy" }
+            ]
+        },
+        "volumes": [
+            {
+                "containerPath": "/etc/a",
+                "hostPath": "/var/data/a",
+                "mode": "RO"
+            },
+            {
+                "containerPath": "/etc/b",
+                "hostPath": "/var/data/b",
+                "mode": "RW"
+            }
+        ]
+    },
+    "cpus": 1.5,
+    "mem": 256.0,
+    "env": {
+        "LD_LIBRARY_PATH": "/usr/local/lib/myLib"
+    },
+    "executor": "",
+    "constraints": [
+        ["attribute", "OPERATOR", "value"]
+    ],
+    "labels": {
+        "environment": "staging"
+    },
+    "healthChecks": [
+        {
+            "protocol": "HTTP",
+            "path": "/health",
+            "gracePeriodSeconds": 3,
+            "intervalSeconds": 10,
+            "portIndex": 0,
+            "timeoutSeconds": 10,
+            "maxConsecutiveFailures": 3
+        },
+        {
+            "protocol": "TCP",
+            "gracePeriodSeconds": 3,
+            "intervalSeconds": 5,
+            "portIndex": 1,
+            "timeoutSeconds": 5,
+            "maxConsecutiveFailures": 3
+        },
+        {
+            "protocol": "COMMAND",
+            "command": { "value": "curl -f -X GET http://$HOST:$PORT0/health" },
+            "maxConsecutiveFailures": 3
+        }
+    ],
+    "instances": 3,
+    "ports": [
+        8080,
+        9000
+    ],
+    "backoffSeconds": 1,
+    "backoffFactor": 1.15,
+    "uris": [
+        "https://raw.github.com/mesosphere/marathon/master/README.md"
+    ],
+    "dependencies": ["/product/db/mongo", "/product/db", "../../db"],
+    "upgradeStrategy": {
+        "minimumHealthCapacity": 0.5,
+        "maximumOverCapacity": 0.2
+    },
+    "version": "2014-03-01T23:29:30.158Z"
+}
+```
 
 ## License
 

@@ -20,6 +20,7 @@ type Config struct {
 		Listen string
 	}
 	Verbose bool
+	Debug   bool
 }
 
 func New() (config *Config) {
@@ -39,12 +40,14 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Registry.Location, "registry", "http://localhost:8500", "Registry location")
 	flag.StringVar(&config.Registry.Token, "registry-token", "", "Registry ACL token")
 	flag.BoolVar(&config.Registry.NoVerifySSL, "registry-noverify", false, "don't verify registry SSL certificates")
+	flag.StringVar(&config.Registry.Prefix, "registry-prefix", "marathon", "prefix for all values sent to the registry")
 
 	// Web
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "accept connections at this address")
 
 	// General
 	flag.BoolVar(&config.Verbose, "verbose", false, "enable verbose logging")
+	flag.BoolVar(&config.Debug, "debug", false, "enable debug logging")
 
 	flag.Parse()
 }
@@ -55,6 +58,7 @@ type Registry struct {
 	Location    string
 	Token       string
 	NoVerifySSL bool
+	Prefix      string
 }
 
 func (r Registry) GetAuth() (auth *api.HttpBasicAuth, err error) {
