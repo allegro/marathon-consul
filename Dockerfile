@@ -1,4 +1,4 @@
-FROM gliderlabs/alpine
+FROM gliderlabs/alpine:3.2
 MAINTAINER Brian Hicks <brian@brianthicks.com>
 
 RUN apk add --update ca-certificates bash
