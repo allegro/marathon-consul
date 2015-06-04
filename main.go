@@ -6,6 +6,9 @@ import (
 	"net/http"
 )
 
+const Name = "marathon-consul"
+const Version = "0.1.0"
+
 func main() {
 	config := config.New()
 	apiConfig, err := config.Registry.Config()
