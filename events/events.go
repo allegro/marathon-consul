@@ -6,6 +6,7 @@ import (
 
 type Event interface {
 	Apps() []*apps.App
+	GetType() string
 }
 
 type BaseEvent struct {
@@ -19,6 +20,10 @@ type APIPostEvent struct {
 
 func (event APIPostEvent) Apps() []*apps.App {
 	return []*apps.App{event.App}
+}
+
+func (event APIPostEvent) GetType() string {
+	return event.Type
 }
 
 type DeploymentInfoEvent struct {
@@ -38,6 +43,10 @@ func (event DeploymentInfoEvent) Apps() []*apps.App {
 	return event.Plan.Target.Apps
 }
 
+func (event DeploymentInfoEvent) GetType() string {
+	return event.Type
+}
+
 type AppTerminatedEvent struct {
 	Type      string `json:"eventType"`
 	AppID     string `json:"appId"`
@@ -48,4 +57,8 @@ func (event AppTerminatedEvent) Apps() []*apps.App {
 	return []*apps.App{
 		&apps.App{ID: event.AppID},
 	}
+}
+
+func (event AppTerminatedEvent) GetType() string {
+	return event.Type
 }
