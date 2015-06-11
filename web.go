@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/CiscoCloud/marathon-consul/tasks"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -120,7 +121,7 @@ func (fh *ForwardHandler) HandleTerminationEvent(w http.ResponseWriter, body []b
 }
 
 func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) {
-	task, err := ParseTask(body)
+	task, err := tasks.ParseTask(body)
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, err.Error())

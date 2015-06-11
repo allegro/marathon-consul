@@ -4,12 +4,24 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/CiscoCloud/marathon-consul/mocks"
+	"github.com/CiscoCloud/marathon-consul/tasks"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+var testTask = &tasks.Task{
+	Timestamp:  "2014-03-01T23:29:30.158Z",
+	SlaveID:    "20140909-054127-177048842-5050-1494-0",
+	TaskID:     "my-app_0-1396592784349",
+	TaskStatus: "TASK_RUNNING",
+	AppID:      "/my-app",
+	Host:       "slave-1234.acme.org",
+	Ports:      []int{31372},
+	Version:    "2014-04-04T06:26:23.051Z",
+}
 
 func TestHealthHandler(t *testing.T) {
 	t.Parallel()
@@ -122,7 +134,7 @@ func TestForwardHandlerHandleStatusEvent(t *testing.T) {
 	// puts
 	for _, status := range []string{"TASK_STAGING", "TASK_STARTING", "TASK_RUNNING"} {
 		tempBody := tempTaskBody(status)
-		tempTask, _ := ParseTask(tempBody)
+		tempTask, _ := tasks.ParseTask(tempBody)
 		// good update
 		kv.On("Put", tempTask.KV()).Return(nil, nil).Once()
 		recorder := httptest.NewRecorder()
