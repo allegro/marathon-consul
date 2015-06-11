@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"github.com/CiscoCloud/marathon-consul/apps"
+	"github.com/CiscoCloud/marathon-consul/events"
 	"github.com/CiscoCloud/marathon-consul/mocks"
 	"github.com/CiscoCloud/marathon-consul/tasks"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +24,8 @@ var testTask = &tasks.Task{
 	Ports:      []int{31372},
 	Version:    "2014-04-04T06:26:23.051Z",
 }
+
+var testApp = &apps.App{ID: "test"}
 
 func TestHealthHandler(t *testing.T) {
 	t.Parallel()
@@ -44,7 +48,7 @@ func TestForwardHandlerHandleAppEvent(t *testing.T) {
 	errKV := errors.New("test error")
 	handler := ForwardHandler{kv, false, false}
 
-	body, err := json.Marshal(APIPostEvent{"api_post_event", testApp})
+	body, err := json.Marshal(events.APIPostEvent{"api_post_event", testApp})
 	assert.Nil(t, err)
 
 	// test a good update
@@ -72,7 +76,7 @@ func TestForwardHandlerHandleTerminationEvent(t *testing.T) {
 	errKV := errors.New("test error")
 	handler := ForwardHandler{kv, false, false}
 
-	body, err := json.Marshal(AppTerminatedEvent{
+	body, err := json.Marshal(events.AppTerminatedEvent{
 		Type:  "app_terminated_event",
 		AppID: testApp.ID,
 	})
