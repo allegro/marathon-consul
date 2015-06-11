@@ -12,11 +12,13 @@ var (
 func EventType(jsonBlob []byte) (string, error) {
 	event := BaseEvent{}
 	err := json.Unmarshal(jsonBlob, &event)
-	if err != nil || event.Type == "" {
+	if err != nil {
+		return "", err
+	} else if event.Type == "" {
 		return "", ErrNoEvent
+	} else {
+		return event.Type, nil
 	}
-
-	return event.Type, nil
 }
 
 // ParseAPIPostEvent parses api_post_event
