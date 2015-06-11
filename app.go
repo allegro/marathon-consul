@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/CiscoCloud/marathon-consul/utils"
 	"github.com/hashicorp/consul/api"
-	"strings"
 )
 
 type PortMapping struct {
@@ -90,12 +90,5 @@ func (app *App) KV() *api.KVPair {
 }
 
 func (app *App) Key() string {
-	return cleanID(app.ID)
-}
-
-func cleanID(ID string) string {
-	return strings.Replace(
-		strings.Trim(ID, "/"),
-		"/", "-", -1,
-	)
+	return utils.CleanID(app.ID)
 }

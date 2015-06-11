@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/CiscoCloud/marathon-consul/utils"
 	"github.com/hashicorp/consul/api"
 )
 
@@ -26,7 +27,7 @@ func ParseTask(event []byte) (*Task, error) {
 func (task *Task) Key() string {
 	return fmt.Sprintf(
 		"%s/tasks/%s",
-		cleanID(task.AppID),
+		utils.CleanID(task.AppID),
 		task.TaskID,
 	)
 }
