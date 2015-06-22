@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/tls"
 	"errors"
+	log "github.com/Sirupsen/logrus"
 	"github.com/hashicorp/consul/api"
 	flag "github.com/ogier/pflag"
 	"net/http"
@@ -19,16 +20,15 @@ type Config struct {
 	Web      struct {
 		Listen string
 	}
-	Verbose bool
-	Debug   bool
+	LogLevel string
 }
 
 func New() (config *Config) {
 	config = &Config{
 		Registry: Registry{},
-		Verbose:  false,
 	}
 	config.parseFlags()
+	config.setLogLevel()
 
 	return config
 }
@@ -46,10 +46,17 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "accept connections at this address")
 
 	// General
-	flag.BoolVar(&config.Verbose, "verbose", false, "enable verbose logging")
-	flag.BoolVar(&config.Debug, "debug", false, "enable debug logging")
+	flag.StringVar(&config.LogLevel, "log-level", "info", "log level: panic, fatal, error, warn, info, or debug")
 
 	flag.Parse()
+}
+
+func (config *Config) setLogLevel() {
+	level, err := log.ParseLevel(config.LogLevel)
+	if err != nil {
+		log.WithField("level", config.LogLevel).Fatal("bad level")
+	}
+	log.SetLevel(level)
 }
 
 type Registry struct {

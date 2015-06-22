@@ -2,7 +2,8 @@ package main
 
 import (
 	"github.com/CiscoCloud/marathon-consul/config"
-	"log"
+	"github.com/CiscoCloud/marathon-consul/consul"
+	log "github.com/Sirupsen/logrus"
 	"net/http"
 )
 
@@ -16,19 +17,18 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	kv, err := NewKV(apiConfig)
+	kv, err := consul.NewKV(apiConfig)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	kv.Prefix = config.Registry.Prefix
+
+	consul := consul.NewConsul(kv, config.Registry.Prefix)
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)
-	forwarderHandler := &ForwardHandler{
-		*kv, config.Verbose, config.Debug,
-	}
+	forwarderHandler := &ForwardHandler{consul}
 	http.HandleFunc("/events", forwarderHandler.Handle)
 
-	log.Printf(`listening on "%s"`, config.Web.Listen)
+	log.WithField("port", config.Web.Listen).Info("listening")
 	log.Fatal(http.ListenAndServe(config.Web.Listen, nil))
 }
