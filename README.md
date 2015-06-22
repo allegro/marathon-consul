@@ -5,7 +5,8 @@
 Marathon to Consul bridge for metadata discovery.
 
 `marathon-consul` takes information provided by the Marathon event bus and
-forwards it to Consul's KV tree.
+forwards it to Consul's KV tree. It also re-syncs all the information from
+Marathon to Consul on startup.
 
 <!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc/generate-toc again -->
 **Table of Contents**
