@@ -6,8 +6,8 @@ import (
 	"github.com/CiscoCloud/marathon-consul/consul"
 	"github.com/CiscoCloud/marathon-consul/events"
 	"github.com/CiscoCloud/marathon-consul/tasks"
+	log "github.com/Sirupsen/logrus"
 	"io/ioutil"
-	"log"
 	"net/http"
 )
 
@@ -16,21 +16,7 @@ func HealthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type ForwardHandler struct {
-	consul  consul.Consul
-	Verbose bool
-	Debug   bool
-}
-
-func (fh *ForwardHandler) LogVerbose(s string) {
-	if fh.Verbose {
-		log.Printf("[INFO] %s\n", s)
-	}
-}
-
-func (fh *ForwardHandler) LogDebug(s string) {
-	if fh.Debug {
-		log.Printf("[DEBUG] %s\n", s)
-	}
+	consul consul.Consul
 }
 
 func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
@@ -50,20 +36,20 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	switch eventType {
 	case "api_post_event", "deployment_info":
-		fh.LogVerbose(fmt.Sprintf("handling \"%s\"", eventType))
+		log.WithField("eventType", eventType).Info("handling event")
 		fh.HandleAppEvent(w, body)
 	case "app_terminated_event":
-		fh.LogVerbose("handling \"app_terminated_event\"")
+		log.WithField("eventType", "app_terminated_event").Info("handling event")
 		fh.HandleTerminationEvent(w, body)
 	case "status_update_event":
-		fh.LogVerbose("handling \"sdeployment_infotatus_update_event\"")
+		log.WithField("eventType", "status_update_event").Info("handling event")
 		fh.HandleStatusEvent(w, body)
 	default:
-		fh.LogVerbose(fmt.Sprintf("not handling \"%s\"", eventType))
+		log.WithField("eventType", eventType).Info("not handling event")
 		w.WriteHeader(200)
 		fmt.Fprintf(w, "cannot handle %s\n", eventType)
 	}
-	fh.LogDebug(string(body))
+	log.Debug(string(body))
 }
 
 func (fh *ForwardHandler) HandleAppEvent(w http.ResponseWriter, body []byte) {

@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/CiscoCloud/marathon-consul/config"
 	"github.com/CiscoCloud/marathon-consul/consul"
-	"log"
+	log "github.com/Sirupsen/logrus"
 	"net/http"
 )
 
@@ -26,11 +26,9 @@ func main() {
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)
-	forwarderHandler := &ForwardHandler{
-		consul, config.Verbose, config.Debug,
-	}
+	forwarderHandler := &ForwardHandler{consul}
 	http.HandleFunc("/events", forwarderHandler.Handle)
 
-	log.Printf(`listening on "%s"`, config.Web.Listen)
+	log.WithField("port", config.Web.Listen).Info("listening")
 	log.Fatal(http.ListenAndServe(config.Web.Listen, nil))
 }

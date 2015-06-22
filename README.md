@@ -91,7 +91,7 @@ curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callback
 ### Options
 
 Argument               | Default               | Description
------------------------|-----------------------|--------------------------------------------
+-----------------------|-----------------------|------------------------------------------------------
 `listen`               | :4000                 | accept connections at this address
 `registry`             | http://localhost:8500 | root location of the Consul registry
 `registry-auth`        | None                  | basic auth for the Consul registry
@@ -99,7 +99,7 @@ Argument               | Default               | Description
 `registry-token`       | None                  | Consul registry ACL token
 `registry-noverify`    | False                 | don't verify registry SSL certificates
 `registry-prefix`      | `marathon`            | prefix for all values sent to the registry
-`verbose`              | False                 | enable verbose logging
+`log-level`            | `info`                | log level: panic, fatal, error, warn, info, or debug
 
 ### Adding New Root Certificate Authorities
 

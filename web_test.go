@@ -50,7 +50,7 @@ func TestForwardHandlerHandleAppEvent(t *testing.T) {
 	// create a handler
 	kv := mocks.NewKVer()
 	consul := consul.NewConsul(kv, "")
-	handler := ForwardHandler{consul, false, false}
+	handler := ForwardHandler{consul}
 
 	body, err := json.Marshal(events.APIPostEvent{"api_post_event", testApp})
 	assert.Nil(t, err)
@@ -73,7 +73,7 @@ func TestForwardHandlerHandleTerminationEvent(t *testing.T) {
 	// create a handler
 	kv := mocks.NewKVer()
 	consul := consul.NewConsul(kv, "")
-	handler := ForwardHandler{consul, false, false}
+	handler := ForwardHandler{consul}
 
 	err := consul.UpdateApp(testApp)
 	assert.Nil(t, err)
@@ -112,7 +112,7 @@ func TestForwardHandlerHandleStatusEvent(t *testing.T) {
 	// create a handler
 	kv := mocks.NewKVer()
 	consul := consul.NewConsul(kv, "")
-	handler := ForwardHandler{consul, false, false}
+	handler := ForwardHandler{consul}
 
 	// deletes
 	for _, status := range []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"} {
