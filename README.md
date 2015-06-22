@@ -1,5 +1,6 @@
-
 # marathon-consul
+
+[![Build Status](https://travis-ci.org/CiscoCloud/marathon-consul.svg)](https://travis-ci.org/CiscoCloud/marathon-consul)
 
 Marathon to Consul bridge for metadata discovery.
 
