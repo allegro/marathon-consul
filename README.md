@@ -101,6 +101,9 @@ Argument               | Default               | Description
 `registry-noverify`    | False                 | don't verify registry SSL certificates
 `registry-prefix`      | `marathon`            | prefix for all values sent to the registry
 `log-level`            | `info`                | log level: panic, fatal, error, warn, info, or debug
+`marathon-location`    | `localhost:8080`      | Marathon location (for resyncing)
+`marathon-protocol`    | `http`                | Marathon prototocol (http or https)
+`marathon-auth`        | None                  | Basic auth in the form "username:password"
 
 ### Adding New Root Certificate Authorities
 

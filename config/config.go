@@ -20,12 +20,14 @@ type Config struct {
 	Web      struct {
 		Listen string
 	}
+	Marathon MarathonConfig
 	LogLevel string
 }
 
 func New() (config *Config) {
 	config = &Config{
 		Registry: Registry{},
+		Marathon: MarathonConfig{},
 	}
 	config.parseFlags()
 	config.setLogLevel()
@@ -44,6 +46,11 @@ func (config *Config) parseFlags() {
 
 	// Web
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "accept connections at this address")
+
+	// Marathon
+	flag.StringVar(&config.Marathon.Location, "marathon-location", "localhost:8080", "marathon URL")
+	flag.StringVar(&config.Marathon.Protocol, "marathon-protocol", "http", "marathon protocol (http or https)")
+	flag.StringVar(&config.Marathon.Auth, "marathon-auth", "", "marathon auth")
 
 	// General
 	flag.StringVar(&config.LogLevel, "log-level", "info", "log level: panic, fatal, error, warn, info, or debug")
