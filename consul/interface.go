@@ -1,9 +1,16 @@
-package main
+package consul
 
 import (
-	"fmt"
 	"github.com/hashicorp/consul/api"
 )
+
+type Getter interface {
+	Get(string) (*api.KVPair, *api.QueryMeta, error)
+}
+
+type Lister interface {
+	List(string) (api.KVPairs, *api.QueryMeta, error)
+}
 
 type Putter interface {
 	Put(*api.KVPair) (*api.WriteMeta, error)
@@ -13,7 +20,9 @@ type Deleter interface {
 	Delete(string) (*api.WriteMeta, error)
 }
 
-type PutDeleter interface {
+type KVer interface {
+	Getter
+	Lister
 	Putter
 	Deleter
 }
@@ -21,6 +30,7 @@ type PutDeleter interface {
 type KV struct {
 	kv           *api.KV
 	WriteOptions *api.WriteOptions
+	QueryOptions *api.QueryOptions
 	Prefix       string
 }
 
@@ -30,24 +40,28 @@ func NewKV(config *api.Config) (*KV, error) {
 		return nil, err
 	}
 
-	return &KV{
+	kv := &KV{
 		kv:           client.KV(),
 		WriteOptions: &api.WriteOptions{},
-	}, nil
+		QueryOptions: &api.QueryOptions{},
+		Prefix:       "",
+	}
+
+	return kv, nil
 }
 
-func (kv KV) ensurePrefix(key string) string {
-	if kv.Prefix != "" {
-		key = fmt.Sprintf("%s/%s", kv.Prefix, key)
-	}
-	return key
+func (kv KV) Get(key string) (*api.KVPair, *api.QueryMeta, error) {
+	return kv.kv.Get(key, kv.QueryOptions)
+}
+
+func (kv KV) List(key string) (api.KVPairs, *api.QueryMeta, error) {
+	return kv.kv.List(key, kv.QueryOptions)
 }
 
 func (kv KV) Put(pair *api.KVPair) (*api.WriteMeta, error) {
-	pair.Key = kv.ensurePrefix(pair.Key)
 	return kv.kv.Put(pair, kv.WriteOptions)
 }
 
 func (kv KV) Delete(key string) (*api.WriteMeta, error) {
-	return kv.kv.Delete(kv.ensurePrefix(key), kv.WriteOptions)
+	return kv.kv.Delete(key, kv.WriteOptions)
 }

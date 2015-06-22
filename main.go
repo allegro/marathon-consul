@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/CiscoCloud/marathon-consul/config"
+	"github.com/CiscoCloud/marathon-consul/consul"
 	"log"
 	"net/http"
 )
@@ -16,16 +17,17 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	kv, err := NewKV(apiConfig)
+	kv, err := consul.NewKV(apiConfig)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	kv.Prefix = config.Registry.Prefix
+
+	consul := consul.NewConsul(kv, config.Registry.Prefix)
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)
 	forwarderHandler := &ForwardHandler{
-		*kv, config.Verbose, config.Debug,
+		consul, config.Verbose, config.Debug,
 	}
 	http.HandleFunc("/events", forwarderHandler.Handle)
 

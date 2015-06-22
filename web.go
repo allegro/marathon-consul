@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/CiscoCloud/marathon-consul/consul"
 	"github.com/CiscoCloud/marathon-consul/events"
 	"github.com/CiscoCloud/marathon-consul/tasks"
 	"io/ioutil"
@@ -15,7 +16,7 @@ func HealthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type ForwardHandler struct {
-	kv      PutDeleter
+	consul  consul.Consul
 	Verbose bool
 	Debug   bool
 }
@@ -77,7 +78,7 @@ func (fh *ForwardHandler) HandleAppEvent(w http.ResponseWriter, body []byte) {
 	resp := ""
 	respCode := 200
 	for _, app := range event.Apps() {
-		_, err = fh.kv.Put(app.KV())
+		err = fh.consul.UpdateApp(app)
 		if err != nil {
 			resp += err.Error() + "\n"
 			log.Printf("[ERROR] response generated error: %s", err.Error())
@@ -104,7 +105,7 @@ func (fh *ForwardHandler) HandleTerminationEvent(w http.ResponseWriter, body []b
 
 	// app_terminated_event only has one app in it, so we will just take care of
 	// it instead of looping
-	_, err = fh.kv.Delete(event.Apps()[0].Key())
+	err = fh.consul.DeleteApp(event.Apps()[0])
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, err.Error())
@@ -126,9 +127,9 @@ func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) 
 
 	switch task.TaskStatus {
 	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
-		_, err = fh.kv.Delete(task.Key())
+		err = fh.consul.DeleteTask(task)
 	case "TASK_STAGING", "TASK_STARTING", "TASK_RUNNING":
-		_, err = fh.kv.Put(task.KV())
+		err = fh.consul.UpdateTask(task)
 	default:
 		err = errors.New("unknown task status")
 	}
