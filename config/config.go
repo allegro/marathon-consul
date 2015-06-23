@@ -50,7 +50,8 @@ func (config *Config) parseFlags() {
 	// Marathon
 	flag.StringVar(&config.Marathon.Location, "marathon-location", "localhost:8080", "marathon URL")
 	flag.StringVar(&config.Marathon.Protocol, "marathon-protocol", "http", "marathon protocol (http or https)")
-	flag.StringVar(&config.Marathon.Auth, "marathon-auth", "", "marathon auth")
+	flag.StringVar(&config.Marathon.Username, "marathon-username", "", "marathon username for basic auth")
+	flag.StringVar(&config.Marathon.Password, "marathon-password", "", "marathon password for basic auth")
 
 	// General
 	flag.StringVar(&config.LogLevel, "log-level", "info", "log level: panic, fatal, error, warn, info, or debug")

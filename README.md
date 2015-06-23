@@ -103,7 +103,8 @@ Argument               | Default               | Description
 `log-level`            | `info`                | log level: panic, fatal, error, warn, info, or debug
 `marathon-location`    | `localhost:8080`      | Marathon location (for resyncing)
 `marathon-protocol`    | `http`                | Marathon prototocol (http or https)
-`marathon-auth`        | None                  | Basic auth in the form "username:password"
+`marathon-username`    | None                  | Marathon username for basic auth
+`marathon-password`    | None                  | Marathon password for basic auth
 
 ### Adding New Root Certificate Authorities
 

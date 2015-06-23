@@ -2,6 +2,7 @@ package marathon
 
 import (
 	"github.com/CiscoCloud/marathon-consul/apps"
+	"net/url"
 )
 
 type Marathoner interface {
@@ -11,9 +12,9 @@ type Marathoner interface {
 type Marathon struct {
 	Location string
 	Protocol string
-	Auth     string
+	Auth     *url.Userinfo
 }
 
-func NewMarathon(location, protocol, auth string) (*Marathon, error) {
-	return nil, nil
+func NewMarathon(location, protocol string, auth *url.Userinfo) (*Marathon, error) {
+	return &Marathon{location, protocol, auth}, nil
 }
