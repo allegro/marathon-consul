@@ -28,7 +28,17 @@ func (m *MarathonSync) Sync() error {
 
 	// tasks
 	log.Info("syncing tasks")
-	// TODO: sync tasks
+	for _, app := range apps {
+		log.WithField("app", app.ID).Debug("syncing tasks for app")
+		tasks, err := m.marathon.Tasks(app.ID)
+		if err != nil {
+			return err
+		}
+		err = m.consul.SyncTasks(app.ID, tasks)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
