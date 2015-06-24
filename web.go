@@ -104,6 +104,12 @@ func (fh *ForwardHandler) HandleTerminationEvent(w http.ResponseWriter, body []b
 }
 
 func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) {
+	// for every other use of Tasks, Marathon uses the "id" field for the task ID.
+	// Here, it uses "taskId", with most of the other fields being equal. We'll
+	// just swap "taskId" for "id" in the body so that we can successfully parse
+	// incoming events.
+	body = bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
+
 	task, err := tasks.ParseTask(body)
 	if err != nil {
 		w.WriteHeader(500)
@@ -111,12 +117,6 @@ func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) 
 		log.Printf("[ERROR] body generated error: %s", err.Error())
 		return
 	}
-
-	// for every other use of Tasks, Marathon uses the "id" field for the task ID.
-	// Here, it uses "taskId", with most of the other fields being equal. We'll
-	// just swap "taskId" for "id" in the body so that we can successfully parse
-	// incoming events.
-	body = bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
 
 	switch task.TaskStatus {
 	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
