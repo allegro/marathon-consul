@@ -76,3 +76,36 @@ func TestParseApps(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, len(apps), 1)
 }
+
+func TestParseTasks(t *testing.T) {
+	t.Parallel()
+
+	tasksBlob := []byte(`{
+    "tasks": [
+        {
+            "appId": "/test",
+            "host": "192.168.2.114",
+            "id": "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8",
+            "ports": [31315],
+            "stagedAt": "2015-06-24T14:57:06.353Z",
+            "startedAt": "2015-06-24T14:57:06.466Z",
+            "version": "2015-06-24T14:56:57.466Z"
+        },
+        {
+            "appId": "/test",
+            "host": "192.168.2.114",
+            "id": "test.4453212c-1a81-11e5-bdb6-e6cb6734eaf8",
+            "ports": [31797],
+            "stagedAt": "2015-06-24T14:57:00.474Z",
+            "startedAt": "2015-06-24T14:57:00.611Z",
+            "version": "2015-06-24T14:56:57.466Z"
+        }
+    ]
+}
+`)
+
+	m, _ := NewMarathon("localhost:8080", "http", nil)
+	tasks, err := m.ParseTasks(tasksBlob)
+	assert.Nil(t, err)
+	assert.Equal(t, len(tasks), 2)
+}
