@@ -3,6 +3,7 @@ package consul
 import (
 	"fmt"
 	"github.com/CiscoCloud/marathon-consul/apps"
+	"github.com/CiscoCloud/marathon-consul/tasks"
 	"github.com/hashicorp/consul/api"
 	"strings"
 )
@@ -30,6 +31,15 @@ func MapKVPairs(source api.KVPairs) map[string]*api.KVPair {
 }
 
 func MapApps(source []*apps.App) map[string]*api.KVPair {
+	pairs := make(map[string]*api.KVPair, len(source))
+	for _, app := range source {
+		pair := app.KV()
+		pairs[pair.Key] = pair
+	}
+	return pairs
+}
+
+func MapTasks(source []*tasks.Task) map[string]*api.KVPair {
 	pairs := make(map[string]*api.KVPair, len(source))
 	for _, app := range source {
 		pair := app.KV()
