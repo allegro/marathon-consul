@@ -22,7 +22,7 @@ func (m MarathonConfig) Validate() {
 	}
 }
 
-func (m MarathonConfig) NewMarathon() (*marathon.Marathon, error) {
+func (m MarathonConfig) NewMarathon() (marathon.Marathon, error) {
 	m.Validate()
 
 	return marathon.NewMarathon(

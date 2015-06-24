@@ -22,11 +22,11 @@ type Marathon struct {
 	NoVerifySsl bool
 }
 
-func NewMarathon(location, protocol string, auth *url.Userinfo) (*Marathon, error) {
-	return &Marathon{location, protocol, auth, false}, nil
+func NewMarathon(location, protocol string, auth *url.Userinfo) (Marathon, error) {
+	return Marathon{location, protocol, auth, false}, nil
 }
 
-func (m *Marathon) Url(path string) string {
+func (m Marathon) Url(path string) string {
 	marathon := url.URL{
 		Scheme: m.Protocol,
 		User:   m.Auth,
@@ -37,7 +37,7 @@ func (m *Marathon) Url(path string) string {
 	return marathon.String()
 }
 
-func (m *Marathon) getClient() *pester.Client {
+func (m Marathon) getClient() *pester.Client {
 	client := pester.New()
 	client.Transport = &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
@@ -49,7 +49,7 @@ func (m *Marathon) getClient() *pester.Client {
 	return client
 }
 
-func (m *Marathon) Apps(path string) ([]*apps.App, error) {
+func (m Marathon) Apps() ([]*apps.App, error) {
 	log.WithField("location", m.Location).Info("asking Marathon for apps")
 	client := m.getClient()
 
@@ -73,7 +73,7 @@ func (m *Marathon) Apps(path string) ([]*apps.App, error) {
 	return appList, err
 }
 
-func (m *Marathon) logHTTPError(rep *http.Response, err error) {
+func (m Marathon) logHTTPError(rep *http.Response, err error) {
 	log.WithFields(log.Fields{
 		"location":   m.Location,
 		"statusCode": rep.StatusCode,
@@ -84,7 +84,7 @@ type AppResponse struct {
 	Apps []*apps.App `json:"apps"`
 }
 
-func (m *Marathon) ParseApps(jsonBlob []byte) ([]*apps.App, error) {
+func (m Marathon) ParseApps(jsonBlob []byte) ([]*apps.App, error) {
 	apps := &AppResponse{}
 	err := json.Unmarshal(jsonBlob, apps)
 
