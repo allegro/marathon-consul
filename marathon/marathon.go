@@ -94,6 +94,10 @@ func (m Marathon) Tasks(app string) ([]*tasks.Task, error) {
 	}).Debug("asking Marathon for tasks")
 	client := m.getClient()
 
+	if app[0] == '/' {
+		app = app[1:]
+	}
+
 	tasksResponse, err := client.Get(m.Url(fmt.Sprintf("/v2/apps/%s/tasks", app)))
 	if err != nil || (tasksResponse.StatusCode != 200) {
 		m.logHTTPError(tasksResponse, err)
