@@ -129,9 +129,14 @@ func (m Marathon) ParseTasks(jsonBlob []byte) ([]*tasks.Task, error) {
 	return tasks.Tasks, err
 }
 
-func (m Marathon) logHTTPError(rep *http.Response, err error) {
+func (m Marathon) logHTTPError(resp *http.Response, err error) {
+	var statusCode string = "???"
+	if resp != nil {
+		statusCode = string(resp.StatusCode)
+	}
+
 	log.WithFields(log.Fields{
 		"location":   m.Location,
-		"statusCode": rep.StatusCode,
+		"statusCode": statusCode,
 	}).Error(err)
 }
