@@ -56,7 +56,14 @@ func (m Marathon) Apps() ([]*apps.App, error) {
 	log.WithField("location", m.Location).Debug("asking Marathon for apps")
 	client := m.getClient()
 
-	appsResponse, err := client.Get(m.Url("/v2/apps"))
+	request, err := http.NewRequest("GET", m.Url("/v2/apps"), nil)
+	if err != nil {
+		log.Error(err.Error())
+		return nil, err
+	}
+	request.Header.Add("Accept", "application/json")
+
+	appsResponse, err := client.Do(request)
 	if err != nil || (appsResponse.StatusCode != 200) {
 		m.logHTTPError(appsResponse, err)
 		return nil, err
@@ -98,7 +105,14 @@ func (m Marathon) Tasks(app string) ([]*tasks.Task, error) {
 		app = app[1:]
 	}
 
-	tasksResponse, err := client.Get(m.Url(fmt.Sprintf("/v2/apps/%s/tasks", app)))
+	request, err := http.NewRequest("GET", m.Url(fmt.Sprintf("/v2/apps/%s/tasks", app)), nil)
+	if err != nil {
+		log.Error(err.Error())
+		return nil, err
+	}
+	request.Header.Add("Accept", "application/json")
+
+	tasksResponse, err := client.Do(request)
 	if err != nil || (tasksResponse.StatusCode != 200) {
 		m.logHTTPError(tasksResponse, err)
 		return nil, err
@@ -137,6 +151,7 @@ func (m Marathon) logHTTPError(resp *http.Response, err error) {
 
 	log.WithFields(log.Fields{
 		"location":   m.Location,
+		"protocol":   m.Protocol,
 		"statusCode": statusCode,
 	}).Error(err)
 }
