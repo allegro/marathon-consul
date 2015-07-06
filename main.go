@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/CiscoCloud/marathon-consul/config"
 	"github.com/CiscoCloud/marathon-consul/consul"
+	"github.com/CiscoCloud/marathon-consul/marathon"
 	log "github.com/Sirupsen/logrus"
 	"net/http"
 )
@@ -23,6 +24,14 @@ func main() {
 	}
 
 	consul := consul.NewConsul(kv, config.Registry.Prefix)
+
+	// set up initial sync
+	remote, err := config.Marathon.NewMarathon()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	sync := marathon.NewMarathonSync(remote, consul)
+	go sync.Sync()
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)

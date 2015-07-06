@@ -3,6 +3,7 @@ package consul
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/CiscoCloud/marathon-consul/apps"
 	"github.com/CiscoCloud/marathon-consul/tasks"
 	"strings"
@@ -103,7 +104,46 @@ func (consul *Consul) DeleteApp(app *apps.App) error {
 // them against the tasks in Consul. It performs any necessary updates, then
 // deletes any tasks that are present in Consul but not the list.
 func (consul *Consul) SyncTasks(appId string, tasks []*tasks.Task) error {
-	panic("not implemented")
+	// remove prefix from app ID if present
+	if appId[0] == '/' {
+		appId = appId[1:]
+	}
+
+	remoteKeys, _, err := consul.kv.List(fmt.Sprintf(
+		"%s/%s/tasks", consul.AppsPrefix, appId,
+	))
+	if err != nil {
+		return err
+	}
+
+	remotePairs := MapKVPairs(remoteKeys)
+	localPairs := MapTasks(tasks)
+
+	// add/update any new tasks
+	for _, local := range localPairs {
+		// make sure local pairs have prefix
+		local.Key = WithPrefix(consul.AppsPrefix, local.Key)
+
+		remote, exists := remotePairs[local.Key]
+		if !exists || !bytes.Equal(local.Value, remote.Value) {
+			_, err := consul.kv.Put(local)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// remove any outdated tasks
+	for _, remote := range remotePairs {
+		if _, exists := localPairs[WithoutPrefix(consul.AppsPrefix, remote.Key)]; !exists {
+			_, err := consul.kv.Delete(remote.Key)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // UpdateTask takes a Task and updates it in Consul

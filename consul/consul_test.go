@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"bytes"
 	"github.com/CiscoCloud/marathon-consul/apps"
 	"github.com/CiscoCloud/marathon-consul/mocks"
 	"github.com/CiscoCloud/marathon-consul/tasks"
@@ -11,7 +12,7 @@ import (
 
 var (
 	testApp   = &apps.App{ID: "testApp"}
-	testTask  = &tasks.Task{TaskID: "testTask", AppID: "testApp", Host: "test"}
+	testTask  = &tasks.Task{ID: "testTask", AppID: "testApp", Host: "test"}
 	appPrefix = "marathon"
 )
 
@@ -87,6 +88,35 @@ func TestDeleteApp(t *testing.T) {
 	newAppKV, _, err := kv.Get(oldAppKV.Key)
 	assert.Nil(t, err)
 	assert.Nil(t, newAppKV)
+}
+
+func TestSyncTasks(t *testing.T) {
+	t.Parallel()
+
+	kv := mocks.NewKVer()
+
+	testAppKV := &api.KVPair{Key: "marathon/testApp", Value: []byte("app")}
+	deleteTaskKV := &api.KVPair{Key: "marathon/testApp/tasks/delete", Value: []byte("task")}
+	kv.Put(testAppKV)
+	kv.Put(deleteTaskKV)
+
+	tasks := []*tasks.Task{testTask}
+
+	// test!
+	consul := Consul{kv, appPrefix}
+	err := consul.SyncTasks(testApp.ID, tasks)
+	assert.Nil(t, err)
+
+	// deleteTaskKV should not be present
+	newDeleteTaskKV, _, err := kv.Get(deleteTaskKV.Key)
+	assert.Nil(t, err)
+	assert.Nil(t, newDeleteTaskKV)
+
+	// a new task (with ID "new" should have been added)
+	newTask, _, err := kv.Get("marathon/testApp/tasks/testTask")
+	if assert.NotNil(t, newTask) {
+		assert.True(t, bytes.Equal(newTask.Value, testTask.KV().Value))
+	}
 }
 
 func TestUpdateTask(t *testing.T) {

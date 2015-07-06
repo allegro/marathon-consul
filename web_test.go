@@ -18,7 +18,7 @@ var (
 	testTask = &tasks.Task{
 		Timestamp:  "2014-03-01T23:29:30.158Z",
 		SlaveID:    "20140909-054127-177048842-5050-1494-0",
-		TaskID:     "my-app_0-1396592784349",
+		ID:         "my-app_0-1396592784349",
 		TaskStatus: "TASK_RUNNING",
 		AppID:      "/my-app",
 		Host:       "slave-1234.acme.org",

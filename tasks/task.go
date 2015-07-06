@@ -10,7 +10,7 @@ import (
 type Task struct {
 	Timestamp  string `json:"timestamp"`
 	SlaveID    string `json:"slaveId"`
-	TaskID     string `json:"taskId"`
+	ID         string `json:"id"`
 	TaskStatus string `json:"taskStatus"`
 	AppID      string `json:"appId"`
 	Host       string `json:"host"`
@@ -28,7 +28,7 @@ func (task *Task) Key() string {
 	return fmt.Sprintf(
 		"%s/tasks/%s",
 		utils.CleanID(task.AppID),
-		task.TaskID,
+		task.ID,
 	)
 }
 
