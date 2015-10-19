@@ -18,7 +18,7 @@ build: deps
 	go build -o bin/$(NAME)
 
 test: deps
-	go test $(TEST) $(TESTARGS) -timeout=30s -parallel=4
+	go test $(TEST) $(TESTARGS)
 	go vet $(TEST)
 
 xcompile: deps test
