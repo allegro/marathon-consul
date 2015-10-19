@@ -13,6 +13,7 @@ import (
 
 var (
 	ErrBadCredentials = errors.New("credentials must be of the form `user:pass`")
+	ErrNoScheme       = errors.New("please specify a scheme for the registry")
 )
 
 type Config struct {
@@ -98,6 +99,9 @@ func (r Registry) Config() (*api.Config, error) {
 	url, err := url.Parse(r.Location)
 	if err != nil {
 		return nil, err
+	}
+	if url.Scheme == "" {
+		return nil, ErrNoScheme
 	}
 
 	auth, err := r.GetAuth()
