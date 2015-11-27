@@ -3,13 +3,18 @@ package main
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"fmt"
 	"github.com/CiscoCloud/marathon-consul/consul"
+	marathon "github.com/CiscoCloud/marathon-consul/marathon"
+	service "github.com/CiscoCloud/marathon-consul/consul-services"
 	"github.com/CiscoCloud/marathon-consul/events"
 	"github.com/CiscoCloud/marathon-consul/tasks"
 	log "github.com/Sirupsen/logrus"
 	"io/ioutil"
+
 	"net/http"
+	"github.com/CiscoCloud/mesos-consul/registry"
 )
 
 func HealthHandler(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +22,9 @@ func HealthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type ForwardHandler struct {
-	consul consul.Consul
+	consul   consul.Consul
+	service  service.Consul
+	marathon marathon.Marathoner
 }
 
 func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
@@ -45,6 +52,9 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	case "status_update_event":
 		log.WithField("eventType", "status_update_event").Info("handling event")
 		fh.HandleStatusEvent(w, body)
+	case "health_status_changed_event":
+		log.WithField("eventType", "health_status_changed_event").Info("handling event")
+		fh.HandleHealthStatusEvent(w, body)
 	default:
 		log.WithField("eventType", eventType).Info("not handling event")
 		w.WriteHeader(200)
@@ -103,6 +113,40 @@ func (fh *ForwardHandler) HandleTerminationEvent(w http.ResponseWriter, body []b
 	}
 }
 
+func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []byte) {
+	//	TODO: Implement me (Register task on "alive":true)
+	body = bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
+	taskHealthChange, err := tasks.ParseTaskHealthChange(body)
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintln(w, err.Error())
+		log.Printf("[ERROR] body generated error: %s", err.Error())
+		return
+	}
+
+
+	if (taskHealthChange.Alive) {
+		tasks, _ := fh.marathon.Tasks(taskHealthChange.AppID)
+		for _, task := range tasks {
+			if task.ID == taskHealthChange.ID {
+				service := &registry.Service{
+					ID: task.ID,
+					Name: strings.Replace(strings.Trim(task.AppID, "/"), "/", ".", -1),
+					Port: task.Ports[0], /*By default app should use ist 1st port*/
+					Address: task.Host,
+					Tags: []string{},
+					Check: &registry.Check{},
+					Agent: task.Host,
+				}
+				fh.service.Register(service)
+			}
+		}
+
+	}
+}
+
+
+
 func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) {
 	// for every other use of Tasks, Marathon uses the "id" field for the task ID.
 	// Here, it uses "taskId", with most of the other fields being equal. We'll
@@ -120,8 +164,10 @@ func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) 
 
 	switch task.TaskStatus {
 	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
+		//		TODO: unregister task
 		err = fh.consul.DeleteTask(task)
 	case "TASK_STAGING", "TASK_STARTING", "TASK_RUNNING":
+		//		TODO: Noting (Task will be registered when it's healthy)
 		err = fh.consul.UpdateTask(task)
 	default:
 		err = errors.New("unknown task status")

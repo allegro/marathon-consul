@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/CiscoCloud/marathon-consul/apps"
 	"github.com/CiscoCloud/marathon-consul/consul"
+	services "github.com/CiscoCloud/marathon-consul/consul-services"
 	"github.com/CiscoCloud/marathon-consul/events"
 	"github.com/CiscoCloud/marathon-consul/mocks"
 	"github.com/CiscoCloud/marathon-consul/tasks"
@@ -12,6 +13,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"github.com/CiscoCloud/marathon-consul/marathon"
 )
 
 var (
@@ -28,7 +30,7 @@ var (
 	testApp = &apps.App{ID: "test"}
 
 	testTaskKV = testTask.KV()
-	testAppKV  = testApp.KV()
+	testAppKV = testApp.KV()
 )
 
 func TestHealthHandler(t *testing.T) {
@@ -50,7 +52,9 @@ func TestForwardHandlerHandleAppEvent(t *testing.T) {
 	// create a handler
 	kv := mocks.NewKVer()
 	consul := consul.NewConsul(kv, "")
-	handler := ForwardHandler{consul}
+	marathon, _ := marathon.NewMarathon("localhost", "http", nil)
+	services := *services.New()
+	handler := ForwardHandler{consul, services, &marathon}
 
 	body, err := json.Marshal(events.APIPostEvent{"api_post_event", testApp})
 	assert.Nil(t, err)
@@ -73,7 +77,9 @@ func TestForwardHandlerHandleTerminationEvent(t *testing.T) {
 	// create a handler
 	kv := mocks.NewKVer()
 	consul := consul.NewConsul(kv, "")
-	handler := ForwardHandler{consul}
+	marathon, _ := marathon.NewMarathon("localhost", "http", nil)
+	services := *services.New()
+	handler := ForwardHandler{consul, services, &marathon}
 
 	err := consul.UpdateApp(testApp)
 	assert.Nil(t, err)
@@ -112,7 +118,9 @@ func TestForwardHandlerHandleStatusEvent(t *testing.T) {
 	// create a handler
 	kv := mocks.NewKVer()
 	consul := consul.NewConsul(kv, "")
-	handler := ForwardHandler{consul}
+	marathon, _ := marathon.NewMarathon("localhost", "http", nil)
+	services := *services.New()
+	handler := ForwardHandler{consul, services, &marathon}
 
 	// deletes
 	for _, status := range []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"} {

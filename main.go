@@ -3,9 +3,11 @@ package main
 import (
 	"github.com/CiscoCloud/marathon-consul/config"
 	"github.com/CiscoCloud/marathon-consul/consul"
+	service "github.com/CiscoCloud/marathon-consul/consul-services"
 	"github.com/CiscoCloud/marathon-consul/marathon"
 	log "github.com/Sirupsen/logrus"
 	"net/http"
+	"github.com/ogier/pflag"
 )
 
 const Name = "marathon-consul"
@@ -24,6 +26,9 @@ func main() {
 	}
 
 	consul := consul.NewConsul(kv, config.Registry.Prefix)
+	service.AddCmdFlags(pflag.NewFlagSet("marathon-consul", pflag.ContinueOnError))
+	service := *service.New()
+	service.CacheCreate()
 
 	// set up initial sync
 	remote, err := config.Marathon.NewMarathon()
@@ -35,7 +40,7 @@ func main() {
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)
-	forwarderHandler := &ForwardHandler{consul}
+	forwarderHandler := &ForwardHandler{consul, service, remote}
 	http.HandleFunc("/events", forwarderHandler.Handle)
 
 	log.WithField("port", config.Web.Listen).Info("listening")
