@@ -28,7 +28,6 @@ func main() {
 	consul := consul.NewConsul(kv, config.Registry.Prefix)
 	service.AddCmdFlags(pflag.NewFlagSet("marathon-consul", pflag.ContinueOnError))
 	service := *service.New()
-	service.CacheCreate()
 
 	// set up initial sync
 	remote, err := config.Marathon.NewMarathon()

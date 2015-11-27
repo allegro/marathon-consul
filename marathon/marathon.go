@@ -93,7 +93,7 @@ func (m Marathon) ParseApps(jsonBlob []byte) ([]*apps.App, error) {
 
 	return apps.Apps, err
 }
-
+//TODO: Get app configuration
 func (m Marathon) Tasks(app string) ([]*tasks.Task, error) {
 	log.WithFields(log.Fields{
 		"location": m.Location,

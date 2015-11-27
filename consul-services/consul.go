@@ -89,12 +89,6 @@ func (c *Consul) newAgent(address string) *consulapi.Client {
 }
 
 func (c *Consul) Register(service *registry.Service) {
-	if _, ok := serviceCache[service.ID]; ok {
-		log.Debugf("Service found. Not registering: %s", service.ID)
-		serviceCache[service.ID].isRegistered = true
-		return 
-	}
-
 	if _, ok := c.agents[service.Agent]; !ok {
 		// Agent connection not saved. Connect.
 		c.agents[service.Agent] = c.newAgent(service.Agent)
@@ -124,32 +118,21 @@ func (c *Consul) Register(service *registry.Service) {
 		log.Warnf("Unable to register %s: %s", s.ID, err.Error())
 		return
 	}
-
-	serviceCache[s.ID] = &cacheEntry{
-		agent:        service.Agent,
-		service:      s,
-		isRegistered: true,
-	}
 }
 
-// Deregister()
-//   Deregister services that no longer exist
-//
-func (c *Consul) Deregister() error {
-	for s, b := range serviceCache {
-		if !b.isRegistered {
-			log.Infof("Deregistering %s", s)
-			err := c.deregister(b.agent, b.service)
-			if err != nil {
-				return err
-			}
-			delete(serviceCache, s)
-		} else {
-			serviceCache[s].isRegistered = false
-		}
+func (c *Consul) Deregister(serviceId string, agent string) {
+	if _, ok := c.agents[agent]; !ok {
+		// Agent connection not saved. Connect.
+		c.agents[agent] = c.newAgent(agent)
 	}
 
-	return nil
+	log.Info("Deregistering ", serviceId)
+
+	err := c.agents[agent].Agent().ServiceDeregister(serviceId)
+	if err != nil {
+		log.Warnf("Unable to deregister %s: %s", serviceId, err.Error())
+		return
+	}
 }
 
 func (c *Consul) deregister(agent string, service *consulapi.AgentServiceRegistration) error {

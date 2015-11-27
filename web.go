@@ -131,10 +131,12 @@ func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []
 			if task.ID == taskHealthChange.ID {
 				service := &registry.Service{
 					ID: task.ID,
-					Name: strings.Replace(strings.Trim(task.AppID, "/"), "/", ".", -1),
+					Name: appIdToServiceName(task.AppID),
 					Port: task.Ports[0], /*By default app should use ist 1st port*/
 					Address: task.Host,
+//					TODO: Pass labels as tags
 					Tags: []string{},
+//					TODO: Pass marathon checks as checks
 					Check: &registry.Check{},
 					Agent: task.Host,
 				}
@@ -145,7 +147,10 @@ func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []
 	}
 }
 
-
+func appIdToServiceName(appId string) (serviceId string) {
+	serviceId = strings.Replace(strings.Trim(appId, "/"), "/", ".", -1)
+	return serviceId
+}
 
 func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) {
 	// for every other use of Tasks, Marathon uses the "id" field for the task ID.
@@ -164,7 +169,7 @@ func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) 
 
 	switch task.TaskStatus {
 	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
-		//		TODO: unregister task
+		fh.service.Deregister(task.ID, task.Host)
 		err = fh.consul.DeleteTask(task)
 	case "TASK_STAGING", "TASK_STARTING", "TASK_RUNNING":
 		//		TODO: Noting (Task will be registered when it's healthy)

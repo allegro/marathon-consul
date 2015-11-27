@@ -6,7 +6,7 @@ import (
 
 	flag "github.com/ogier/pflag"
 )
-
+//TODO: Include this functionality into consul/consul
 type consulConfig struct {
 	enabled    bool
 	auth       auth
