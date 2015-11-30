@@ -15,6 +15,7 @@ import (
 
 type Marathoner interface {
 	Apps() ([]*apps.App, error)
+	App(string) (*apps.App, error)
 	Tasks(string) ([]*tasks.Task, error)
 }
 
@@ -56,6 +57,38 @@ func (m Marathon) getClient() *pester.Client {
 	return client
 }
 
+func (m Marathon) App(appId string) (*apps.App, error) {
+	log.WithField("location", m.Location).Debug("asking Marathon for " + appId)
+	client := m.getClient()
+
+	request, err := http.NewRequest("GET", m.UrlWithQuery("/v2/apps/"+appId, "embed=apps.tasks"), nil)
+	if err != nil {
+		log.Error(err.Error())
+		return nil, err
+	}
+	request.Header.Add("Accept", "application/json")
+
+	appsResponse, err := client.Do(request)
+	if err != nil || (appsResponse.StatusCode != 200) {
+		m.logHTTPError(appsResponse, err)
+		return nil, err
+	}
+
+	body, err := ioutil.ReadAll(appsResponse.Body)
+	if err != nil {
+		m.logHTTPError(appsResponse, err)
+		return nil, err
+	}
+
+	app, err := m.ParseApp(body)
+	if err != nil {
+		m.logHTTPError(appsResponse, err)
+		return nil, err
+	}
+
+	return app, err
+}
+
 func (m Marathon) Apps() ([]*apps.App, error) {
 	log.WithField("location", m.Location).Debug("asking Marathon for apps")
 	client := m.getClient()
@@ -87,15 +120,22 @@ func (m Marathon) Apps() ([]*apps.App, error) {
 	return appList, err
 }
 
-type AppResponse struct {
+type AppsResponse struct {
 	Apps []*apps.App `json:"apps"`
 }
 
 func (m Marathon) ParseApps(jsonBlob []byte) ([]*apps.App, error) {
-	apps := &AppResponse{}
+	apps := &AppsResponse{}
 	err := json.Unmarshal(jsonBlob, apps)
 
 	return apps.Apps, err
+}
+
+func (m Marathon) ParseApp(jsonBlob []byte) (*apps.App, error) {
+	app := &apps.App{}
+	err := json.Unmarshal(jsonBlob, app)
+
+	return app, err
 }
 
 //TODO: Get app configuration

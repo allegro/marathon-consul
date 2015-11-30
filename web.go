@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/CiscoCloud/marathon-consul/apps"
 	"github.com/CiscoCloud/mesos-consul/registry"
 	"net/http"
 )
@@ -114,7 +115,6 @@ func (fh *ForwardHandler) HandleTerminationEvent(w http.ResponseWriter, body []b
 }
 
 func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []byte) {
-	//	TODO: Implement me (Register task on "alive":true)
 	body = bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
 	taskHealthChange, err := tasks.ParseTaskHealthChange(body)
 	if err != nil {
@@ -125,25 +125,70 @@ func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []
 	}
 
 	if taskHealthChange.Alive {
-		tasks, _ := fh.marathon.Tasks(taskHealthChange.AppID)
+		appId := taskHealthChange.AppID
+		app, err := fh.marathon.App(appId)
+		tasks := app.Tasks
+
+		if err != nil {
+			log.Error("There was a problem obtaining app %s info %v", appId, err)
+			return
+		}
+
+		healthCheck := app.HealthChecks
+		labels := app.Labels
+
 		for _, task := range tasks {
 			if task.ID == taskHealthChange.ID {
 				service := &registry.Service{
 					ID:      task.ID,
 					Name:    appIdToServiceName(task.AppID),
-					Port:    task.Ports[0], /*By default app should use ist 1st port*/
+					Port:    task.Ports[0], /*By default app should use its 1st port*/
 					Address: task.Host,
-					//					TODO: Pass labels as tags
-					Tags: []string{},
-					//					TODO: Pass marathon checks as checks
-					Check: &registry.Check{},
-					Agent: task.Host,
+					Tags:    marathonLabelsToConsulTags(labels),
+					Check:   marathonToConsulCheck(healthCheck),
+					Agent:   task.Host,
 				}
-				fh.service.Register(service)
+
+				if shouldRegister(task.HealthCheckResults) {
+					fh.service.Register(service)
+				}
+			}
+			break
+		}
+	}
+}
+
+// Wont register app without health check
+func shouldRegister(healthChecksResults []tasks.HealthCheckResult) bool {
+	register := false
+	for _, healthCheckResult := range healthChecksResults {
+		register = register && healthCheckResult.Alive
+	}
+	return register
+}
+
+// Takes first HTTP check and convert it to consul healtcheck
+// Returns empty check when there is no HTTP check
+func marathonToConsulCheck(healthChecks []apps.HealthCheck) *registry.Check {
+	for _, v := range healthChecks {
+		if v.Protocol == "HTTP" {
+			return &registry.Check{
+				HTTP: v.Path,
 			}
 		}
-
 	}
+	return &registry.Check{}
+}
+
+// Extract labels keys with value tag and return as slice
+func marathonLabelsToConsulTags(labels map[string]string) []string {
+	tags := []string{"marathon"}
+	for key, value := range labels {
+		if value == "tag" {
+			tags = append(tags, key)
+		}
+	}
+	return tags
 }
 
 func appIdToServiceName(appId string) (serviceId string) {

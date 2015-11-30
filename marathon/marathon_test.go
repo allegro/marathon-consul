@@ -107,6 +107,117 @@ func TestParseApps(t *testing.T) {
 	assert.Equal(t, len(apps), 1)
 }
 
+func TestParseApp(t *testing.T) {
+	t.Parallel()
+
+	appBlob := []byte(`{
+    "id":"/tests",
+    "cmd":"sleep 10 && python -m SimpleHTTPServer $PORT0",
+    "args":null,
+    "user":null,
+    "env":{
+
+    },
+    "instances":1,
+    "cpus":0.1,
+    "mem":16,
+    "disk":0,
+    "executor":"",
+    "constraints":[
+
+    ],
+    "uris":[
+
+    ],
+    "storeUrls":[
+
+    ],
+    "ports":[
+        10002
+    ],
+    "requirePorts":false,
+    "backoffSeconds":1,
+    "backoffFactor":1.15,
+    "maxLaunchDelaySeconds":3600,
+    "container":null,
+    "healthChecks":[
+        {
+            "path":"/",
+            "protocol":"HTTP",
+            "portIndex":0,
+            "gracePeriodSeconds":5,
+            "intervalSeconds":60,
+            "timeoutSeconds":10,
+            "maxConsecutiveFailures":3,
+            "ignoreHttp1xx":false
+        }
+    ],
+    "dependencies":[
+
+    ],
+    "upgradeStrategy":{
+        "minimumHealthCapacity":1,
+        "maximumOverCapacity":1
+    },
+    "labels":{
+
+    },
+    "acceptedResourceRoles":null,
+    "version":"2015-11-27T12:35:14.601Z",
+    "versionInfo":{
+        "lastScalingAt":"2015-11-27T12:35:14.601Z",
+        "lastConfigChangeAt":"2015-11-27T12:35:14.601Z"
+    },
+    "tasksStaged":0,
+    "tasksRunning":1,
+    "tasksHealthy":1,
+    "tasksUnhealthy":0,
+    "deployments":[
+
+    ],
+    "tasks":[
+        {
+            "id":"tests.a8ad5a76-974c-11e5-a62c-024237193611",
+            "host":"localhost",
+            "ports":[
+                31334
+            ],
+            "startedAt":"2015-11-30T10:25:21.146Z",
+            "stagedAt":"2015-11-30T10:25:20.863Z",
+            "version":"2015-11-27T12:35:14.601Z",
+            "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
+            "appId":"/tests",
+            "healthCheckResults":[
+                {
+                    "alive":true,
+                    "consecutiveFailures":0,
+                    "firstSuccess":"2015-11-30T10:26:04.770Z",
+                    "lastFailure":null,
+                    "lastSuccess":"2015-11-30T12:57:07.784Z",
+                    "taskId":"tests.a8ad5a76-974c-11e5-a62c-024237193611"
+                }
+            ]
+        }
+    ],
+    "lastTaskFailure":{
+        "appId":"/tests",
+        "host":"c50940.allegrogroup.internal",
+        "message":"Reconciliation: Task is unknown",
+        "state":"TASK_LOST",
+        "taskId":"tests.4ef0c377-9503-11e5-bf51-0242eaaee42f",
+        "timestamp":"2015-11-30T10:25:19.623Z",
+        "version":"2015-11-27T12:35:14.601Z",
+        "slaveId":"20151126-090640-16842879-5050-3336-S0"
+    }
+}
+`)
+
+	m, _ := NewMarathon("localhost:8080", "http", nil)
+	app, err := m.ParseApp(appBlob)
+	assert.Nil(t, err)
+	assert.Equal(t, len(app.Tasks), 1)
+}
+
 func TestParseTasks(t *testing.T) {
 	t.Parallel()
 
