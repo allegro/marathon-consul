@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/CiscoCloud/marathon-consul/consul"
 	service "github.com/CiscoCloud/marathon-consul/consul-services"
 	"github.com/CiscoCloud/marathon-consul/events"
 	marathon "github.com/CiscoCloud/marathon-consul/marathon"
@@ -19,7 +18,6 @@ func HealthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type ForwardHandler struct {
-	consul   consul.Consul
 	service  service.Consul
 	marathon marathon.Marathoner
 }
@@ -40,9 +38,6 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch eventType {
-	case "api_post_event", "deployment_info":
-		log.WithField("eventType", eventType).Info("handling event")
-		fh.HandleAppEvent(w, body)
 	case "app_terminated_event":
 		log.WithField("eventType", "app_terminated_event").Info("handling event")
 		fh.HandleTerminationEvent(w, body)
@@ -60,34 +55,6 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	log.Debug(string(body))
 }
 
-func (fh *ForwardHandler) HandleAppEvent(w http.ResponseWriter, body []byte) {
-	event, err := events.ParseEvent(body)
-	if err != nil {
-		w.WriteHeader(500)
-		fmt.Fprintln(w, err.Error())
-		log.Printf("[ERROR] body generated error: %s", err.Error())
-		return
-	}
-
-	resp := ""
-	respCode := 200
-	for _, app := range event.Apps() {
-		err = fh.consul.UpdateApp(app)
-		if err != nil {
-			resp += err.Error() + "\n"
-			log.Printf("[ERROR] response generated error: %s", err.Error())
-			respCode = 500
-		}
-	}
-
-	if resp == "" {
-		resp = "OK\n"
-	}
-
-	w.WriteHeader(respCode)
-	fmt.Fprint(w, resp)
-}
-
 func (fh *ForwardHandler) HandleTerminationEvent(w http.ResponseWriter, body []byte) {
 	event, err := events.ParseEvent(body)
 	if err != nil {
@@ -99,11 +66,17 @@ func (fh *ForwardHandler) HandleTerminationEvent(w http.ResponseWriter, body []b
 
 	// app_terminated_event only has one app in it, so we will just take care of
 	// it instead of looping
-	err = fh.consul.DeleteApp(event.Apps()[0])
+	app := event.Apps()[0]
+
+	tasks, err := fh.marathon.Tasks(app.ID)
+	for _, task := range tasks {
+		fh.service.Deregister(task.ID, task.Host)
+	}
+
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, err.Error())
-		log.Printf("[ERROR] response generated error: %s", err.Error())
+		log.WithError(err).WithField("Name", app.ID).Error("There where problems processing request")
 	} else {
 		w.WriteHeader(200)
 		fmt.Fprintln(w, "OK")
@@ -167,9 +140,7 @@ func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) 
 	switch task.TaskStatus {
 	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
 		fh.service.Deregister(task.ID, task.Host)
-		err = fh.consul.DeleteTask(task)
 	case "TASK_STAGING", "TASK_STARTING", "TASK_RUNNING":
-		err = fh.consul.UpdateTask(task)
 	default:
 		err = errors.New("unknown task status")
 	}

@@ -55,6 +55,10 @@ type UpgradeStrategy struct {
 	MaximumOverCapacity   float64 `json:"maximumOverCapacity"`
 }
 
+type AppWrapper struct {
+	App App `json:"app"`
+}
+
 type App struct {
 	Args            []string          `json:"args"`
 	BackoffFactor   float64           `json:"backoffFactor"`

@@ -1,19 +1,17 @@
 package marathon
 
 import (
-	"github.com/CiscoCloud/marathon-consul/consul"
 	service "github.com/CiscoCloud/marathon-consul/consul-services"
 	log "github.com/Sirupsen/logrus"
 )
 
 type MarathonSync struct {
 	marathon Marathoner
-	consul   consul.Consul
 	service  service.Consul
 }
 
-func NewMarathonSync(marathon Marathoner, consul consul.Consul, service service.Consul) *MarathonSync {
-	return &MarathonSync{marathon, consul, service}
+func NewMarathonSync(marathon Marathoner, service service.Consul) *MarathonSync {
+	return &MarathonSync{marathon, service}
 }
 
 func (m *MarathonSync) SyncServices() error {
@@ -64,35 +62,5 @@ func (m *MarathonSync) SyncServices() error {
 		}
 	}
 	log.Info("syncing services finished")
-	return nil
-}
-
-func (m *MarathonSync) Sync() error {
-
-	// apps
-	log.Info("syncing apps")
-	apps, err := m.marathon.Apps()
-	if err != nil {
-		return err
-	}
-	err = m.consul.SyncApps(apps)
-	if err != nil {
-		return err
-	}
-
-	// tasks
-	log.Info("syncing tasks")
-	for _, app := range apps {
-		log.WithField("app", app.ID).Debug("syncing tasks for app")
-		tasks, err := m.marathon.Tasks(app.ID)
-		if err != nil {
-			return err
-		}
-		err = m.consul.SyncTasks(app.ID, tasks)
-		if err != nil {
-			return err
-		}
-	}
-
 	return nil
 }

@@ -132,10 +132,10 @@ func (m Marathon) ParseApps(jsonBlob []byte) ([]*apps.App, error) {
 }
 
 func (m Marathon) ParseApp(jsonBlob []byte) (*apps.App, error) {
-	app := &apps.App{}
-	err := json.Unmarshal(jsonBlob, app)
+	wrapper := &apps.AppWrapper{}
+	err := json.Unmarshal(jsonBlob, wrapper)
 
-	return app, err
+	return &wrapper.App, err
 }
 
 func (m Marathon) Tasks(app string) ([]*tasks.Task, error) {
