@@ -56,7 +56,7 @@ func (m Marathon) Apps() ([]*apps.App, error) {
 	log.WithField("location", m.Location).Debug("asking Marathon for apps")
 	client := m.getClient()
 
-	request, err := http.NewRequest("GET", m.Url("/v2/apps"), nil)
+	request, err := http.NewRequest("GET", m.Url("/v2/apps?embed=apps.tasks"), nil)
 	if err != nil {
 		log.Error(err.Error())
 		return nil, err

@@ -66,7 +66,37 @@ func TestParseApps(t *testing.T) {
         "upgradeStrategy": {"minimumHealthCapacity": 1.0},
         "uris": [],
         "user": null,
-        "version": "2014-09-25T02:26:59.256Z"
+        "version": "2014-09-25T02:26:59.256Z",
+		"tasks": [
+			{
+				"appId": "/test",
+				"host": "192.168.2.114",
+				"id": "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8",
+				"ports": [31315],
+				"stagedAt": "2015-06-24T14:57:06.353Z",
+				"startedAt": "2015-06-24T14:57:06.466Z",
+				"version": "2015-06-24T14:56:57.466Z",
+				"healthCheckResults":[
+					{
+						"alive":true,
+						"consecutiveFailures":0,
+						"firstSuccess":"2015-11-28T18:21:11.957Z",
+						"lastFailure":null,
+						"lastSuccess":"2015-11-30T10:08:19.477Z",
+						"taskId":"bridged-webapp.a9b051fb-95fc-11e5-9571-02818b42970e"
+					}
+				]
+			},
+			{
+				"appId": "/test",
+				"host": "192.168.2.114",
+				"id": "test.4453212c-1a81-11e5-bdb6-e6cb6734eaf8",
+				"ports": [31797],
+				"stagedAt": "2015-06-24T14:57:00.474Z",
+				"startedAt": "2015-06-24T14:57:00.611Z",
+				"version": "2015-06-24T14:56:57.466Z"
+			}
+		]
     }
 ]}
 `)
@@ -89,7 +119,17 @@ func TestParseTasks(t *testing.T) {
             "ports": [31315],
             "stagedAt": "2015-06-24T14:57:06.353Z",
             "startedAt": "2015-06-24T14:57:06.466Z",
-            "version": "2015-06-24T14:56:57.466Z"
+            "version": "2015-06-24T14:56:57.466Z",
+            "healthCheckResults":[
+				{
+					"alive":true,
+					"consecutiveFailures":0,
+					"firstSuccess":"2015-11-28T18:21:11.957Z",
+					"lastFailure":null,
+					"lastSuccess":"2015-11-30T10:08:19.477Z",
+					"taskId":"bridged-webapp.a9b051fb-95fc-11e5-9571-02818b42970e"
+				}
+			]
         },
         {
             "appId": "/test",

@@ -16,6 +16,11 @@ type Task struct {
 	Host       string `json:"host"`
 	Ports      []int  `json:"ports"`
 	Version    string `json:"version"`
+	HealthCheckResults []HealthCheckResult `json:"healthCheckResults"`
+}
+
+type HealthCheckResult struct {
+	Alive bool `json:"alive"`
 }
 
 func ParseTask(event []byte) (*Task, error) {

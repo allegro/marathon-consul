@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/CiscoCloud/marathon-consul/utils"
 	"github.com/hashicorp/consul/api"
+	"github.com/CiscoCloud/marathon-consul/tasks"
 )
 
 type PortMapping struct {
@@ -78,6 +79,7 @@ type App struct {
 	Uris            []string          `json:"uris"`
 	User            string            `json:"user"`
 	Version         string            `json:"version"`
+	Tasks           []tasks.Task `json:"tasks"`
 }
 
 func (app *App) KV() *api.KVPair {

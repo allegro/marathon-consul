@@ -16,6 +16,7 @@ var testTask = &Task{
 	Host:       "slave-1234.acme.org",
 	Ports:      []int{31372},
 	Version:    "2014-04-04T06:26:23.051Z",
+	HealthCheckResults: []HealthCheckResult{HealthCheckResult{Alive:true}},
 }
 
 func TestParseTask(t *testing.T) {
@@ -35,6 +36,7 @@ func TestParseTask(t *testing.T) {
 	assert.Equal(t, testTask.Host, service.Host)
 	assert.Equal(t, testTask.Ports, service.Ports)
 	assert.Equal(t, testTask.Version, service.Version)
+	assert.Equal(t, testTask.HealthCheckResults[0].Alive, service.HealthCheckResults[0].Alive)
 }
 
 func TestKV(t *testing.T) {
