@@ -11,10 +11,6 @@ import (
 	"github.com/CiscoCloud/marathon-consul/tasks"
 	log "github.com/Sirupsen/logrus"
 	"io/ioutil"
-	"strings"
-
-	"github.com/CiscoCloud/marathon-consul/apps"
-	"github.com/CiscoCloud/mesos-consul/registry"
 	"net/http"
 )
 
@@ -120,7 +116,7 @@ func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, err.Error())
-		log.Printf("[ERROR] body generated error: %s", err.Error())
+		log.WithError(err).Error("[ERROR] body generated error: %s")
 		return
 	}
 
@@ -130,7 +126,12 @@ func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []
 		tasks := app.Tasks
 
 		if err != nil {
-			log.Error("There was a problem obtaining app %s info %v", appId, err)
+			log.WithField("ID", taskHealthChange.ID).WithError(err).Error("There was a problem obtaining app info")
+			return
+		}
+
+		if value, ok := app.Labels["consul"]; !ok || value != "true" {
+			log.WithField("Name", appId).Info("App should not be registered in Consul")
 			return
 		}
 
@@ -139,61 +140,13 @@ func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []
 
 		for _, task := range tasks {
 			if task.ID == taskHealthChange.ID {
-				service := &registry.Service{
-					ID:      task.ID,
-					Name:    appIdToServiceName(task.AppID),
-					Port:    task.Ports[0], /*By default app should use its 1st port*/
-					Address: task.Host,
-					Tags:    marathonLabelsToConsulTags(labels),
-					Check:   marathonToConsulCheck(healthCheck),
-					Agent:   task.Host,
-				}
-
-				if shouldRegister(task.HealthCheckResults) {
-					fh.service.Register(service)
+				if service.IsTaskHealthy(task.HealthCheckResults) {
+					fh.service.Register(service.MarathonTaskToConsulService(task, healthCheck, labels))
 				}
 			}
 			break
 		}
 	}
-}
-
-// Wont register app without health check
-func shouldRegister(healthChecksResults []tasks.HealthCheckResult) bool {
-	register := false
-	for _, healthCheckResult := range healthChecksResults {
-		register = register && healthCheckResult.Alive
-	}
-	return register
-}
-
-// Takes first HTTP check and convert it to consul healtcheck
-// Returns empty check when there is no HTTP check
-func marathonToConsulCheck(healthChecks []apps.HealthCheck) *registry.Check {
-	for _, v := range healthChecks {
-		if v.Protocol == "HTTP" {
-			return &registry.Check{
-				HTTP: v.Path,
-			}
-		}
-	}
-	return &registry.Check{}
-}
-
-// Extract labels keys with value tag and return as slice
-func marathonLabelsToConsulTags(labels map[string]string) []string {
-	tags := []string{"marathon"}
-	for key, value := range labels {
-		if value == "tag" {
-			tags = append(tags, key)
-		}
-	}
-	return tags
-}
-
-func appIdToServiceName(appId string) (serviceId string) {
-	serviceId = strings.Replace(strings.Trim(appId, "/"), "/", ".", -1)
-	return serviceId
 }
 
 func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) {
@@ -207,7 +160,7 @@ func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) 
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, err.Error())
-		log.Printf("[ERROR] body generated error: %s", err.Error())
+		log.WithError(err).WithField("Body", body).Error("[ERROR] body generated error")
 		return
 	}
 
@@ -216,7 +169,6 @@ func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) 
 		fh.service.Deregister(task.ID, task.Host)
 		err = fh.consul.DeleteTask(task)
 	case "TASK_STAGING", "TASK_STARTING", "TASK_RUNNING":
-		//		TODO: Noting (Task will be registered when it's healthy)
 		err = fh.consul.UpdateTask(task)
 	default:
 		err = errors.New("unknown task status")
@@ -225,6 +177,7 @@ func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) 
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, err.Error())
+		log.WithError(err).WithField("ID", task.ID).Error("There where problems processing request")
 	} else {
 		w.WriteHeader(200)
 		fmt.Fprintln(w, "OK")

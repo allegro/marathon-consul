@@ -26,6 +26,7 @@ func main() {
 	}
 
 	consul := consul.NewConsul(kv, config.Registry.Prefix)
+	//	TODO: Handle command line flags
 	service.AddCmdFlags(pflag.NewFlagSet("marathon-consul", pflag.ContinueOnError))
 	service := *service.New()
 
@@ -34,8 +35,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	sync := marathon.NewMarathonSync(remote, consul)
+	sync := marathon.NewMarathonSync(remote, consul, service)
 	go sync.Sync()
+	go sync.SyncServices()
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)

@@ -88,13 +88,67 @@ func (c *Consul) newAgent(address string) *consulapi.Client {
 	return client
 }
 
+func (c *Consul) GetAllServices() ([]*consulapi.CatalogService, error) {
+	agent, err := c.GetAnyAgent()
+	if err != nil {
+		return nil, err
+	}
+	datacenters, err := agent.Catalog().Datacenters()
+	if err != nil {
+		return nil, err
+	}
+	var allInstances []*consulapi.CatalogService
+
+	for _, dc := range datacenters {
+		dcAwareQuery := &consulapi.QueryOptions{
+			Datacenter: dc,
+		}
+		services, _, err := agent.Catalog().Services(dcAwareQuery)
+		if err != nil {
+			return nil, err
+		}
+		for service, tags := range services {
+			if contains(tags, "marathon") {
+				serviceInstances, _, err := agent.Catalog().Service(service, "marathon", dcAwareQuery)
+				if err != nil {
+					return nil, err
+				}
+				allInstances = append(allInstances, serviceInstances...)
+			}
+		}
+	}
+	return allInstances, nil
+}
+
+func contains(slice []string, search string) bool {
+	for _, element := range slice {
+		if element == search {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Consul) GetAnyAgent() (*consulapi.Client, error) {
+	for _, agent := range c.agents {
+		return agent, nil
+	}
+	return nil, fmt.Errorf("No consul agent available")
+}
+
 func (c *Consul) Register(service *registry.Service) {
 	if _, ok := c.agents[service.Agent]; !ok {
 		// Agent connection not saved. Connect.
 		c.agents[service.Agent] = c.newAgent(service.Agent)
 	}
 
-	log.Info("Registering ", service.ID)
+	log.WithFields(log.Fields{
+		"Name": service.Name,
+		"Id":   service.ID,
+		"Tags": service.Tags,
+		"Host": service.Address,
+		"Port": service.Port,
+	}).Info("Registering")
 
 	s := &consulapi.AgentServiceRegistration{
 		ID:      service.ID,
@@ -115,7 +169,13 @@ func (c *Consul) Register(service *registry.Service) {
 
 	err := c.agents[service.Agent].Agent().ServiceRegister(s)
 	if err != nil {
-		log.Warnf("Unable to register %s: %s", s.ID, err.Error())
+		log.WithError(err).WithFields(log.Fields{
+			"Name": s.Name,
+			"Id":   s.ID,
+			"Tags": s.Tags,
+			"Host": s.Address,
+			"Port": s.Port,
+		}).Warnf("Unable to register")
 		return
 	}
 }
@@ -126,11 +186,11 @@ func (c *Consul) Deregister(serviceId string, agent string) {
 		c.agents[agent] = c.newAgent(agent)
 	}
 
-	log.Info("Deregistering ", serviceId)
+	log.WithField("Id", serviceId).Info("Deregistering")
 
 	err := c.agents[agent].Agent().ServiceDeregister(serviceId)
 	if err != nil {
-		log.Warnf("Unable to deregister %s: %s", serviceId, err.Error())
+		log.WithError(err).WithField("Id", serviceId).Info("Deregistering")
 		return
 	}
 }
