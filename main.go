@@ -6,8 +6,8 @@ import (
 	service "github.com/CiscoCloud/marathon-consul/consul-services"
 	"github.com/CiscoCloud/marathon-consul/marathon"
 	log "github.com/Sirupsen/logrus"
-	"net/http"
 	"github.com/ogier/pflag"
+	"net/http"
 )
 
 const Name = "marathon-consul"

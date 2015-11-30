@@ -7,8 +7,8 @@ import (
 
 	"github.com/CiscoCloud/mesos-consul/registry"
 
-	consulapi "github.com/hashicorp/consul/api"
 	log "github.com/Sirupsen/logrus"
+	consulapi "github.com/hashicorp/consul/api"
 )
 
 type Consul struct {

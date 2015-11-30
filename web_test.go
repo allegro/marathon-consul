@@ -6,6 +6,7 @@ import (
 	"github.com/CiscoCloud/marathon-consul/consul"
 	services "github.com/CiscoCloud/marathon-consul/consul-services"
 	"github.com/CiscoCloud/marathon-consul/events"
+	"github.com/CiscoCloud/marathon-consul/marathon"
 	"github.com/CiscoCloud/marathon-consul/mocks"
 	"github.com/CiscoCloud/marathon-consul/tasks"
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"github.com/CiscoCloud/marathon-consul/marathon"
 )
 
 var (
@@ -30,7 +30,7 @@ var (
 	testApp = &apps.App{ID: "test"}
 
 	testTaskKV = testTask.KV()
-	testAppKV = testApp.KV()
+	testAppKV  = testApp.KV()
 )
 
 func TestHealthHandler(t *testing.T) {

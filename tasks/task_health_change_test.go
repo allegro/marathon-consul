@@ -9,7 +9,7 @@ import (
 var testHealthChange = &TaskHealthChange{
 	Timestamp:  "2014-03-01T23:29:30.158Z",
 	ID:         "my-app_0-1396592784349",
-	Alive: true,
+	Alive:      true,
 	TaskStatus: "TASK_RUNNING",
 	AppID:      "/my-app",
 	Version:    "2014-04-04T06:26:23.051Z",

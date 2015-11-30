@@ -12,7 +12,7 @@ type TaskHealthChange struct {
 	TaskStatus string `json:"taskStatus"`
 	AppID      string `json:"appId"`
 	Version    string `json:"version"`
-	Alive      bool `json:"alive"`
+	Alive      bool   `json:"alive"`
 }
 
 func ParseTaskHealthChange(event []byte) (*TaskHealthChange, error) {
@@ -28,4 +28,3 @@ func (task *TaskHealthChange) Key() string {
 		task.ID,
 	)
 }
-

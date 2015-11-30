@@ -30,11 +30,15 @@ func NewMarathon(location, protocol string, auth *url.Userinfo) (Marathon, error
 }
 
 func (m Marathon) Url(path string) string {
+	return m.UrlWithQuery(path, "")
+}
+func (m Marathon) UrlWithQuery(path string, query string) string {
 	marathon := url.URL{
-		Scheme: m.Protocol,
-		User:   m.Auth,
-		Host:   m.Location,
-		Path:   path,
+		Scheme:   m.Protocol,
+		User:     m.Auth,
+		Host:     m.Location,
+		Path:     path,
+		RawQuery: query,
 	}
 
 	return marathon.String()
@@ -56,7 +60,7 @@ func (m Marathon) Apps() ([]*apps.App, error) {
 	log.WithField("location", m.Location).Debug("asking Marathon for apps")
 	client := m.getClient()
 
-	request, err := http.NewRequest("GET", m.Url("/v2/apps?embed=apps.tasks"), nil)
+	request, err := http.NewRequest("GET", m.UrlWithQuery("/v2/apps", "embed=apps.tasks"), nil)
 	if err != nil {
 		log.Error(err.Error())
 		return nil, err
@@ -93,6 +97,7 @@ func (m Marathon) ParseApps(jsonBlob []byte) ([]*apps.App, error) {
 
 	return apps.Apps, err
 }
+
 //TODO: Get app configuration
 func (m Marathon) Tasks(app string) ([]*tasks.Task, error) {
 	log.WithFields(log.Fields{

@@ -16,7 +16,7 @@ func NewMarathonSync(marathon Marathoner, consul consul.Consul) *MarathonSync {
 
 func (m *MarathonSync) Sync() error {
 
-//	TODO: Register and unregister services
+	//	TODO: Register and unregister services
 
 	// apps
 	log.Info("syncing apps")

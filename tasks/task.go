@@ -8,14 +8,14 @@ import (
 )
 
 type Task struct {
-	Timestamp  string `json:"timestamp"`
-	SlaveID    string `json:"slaveId"`
-	ID         string `json:"id"`
-	TaskStatus string `json:"taskStatus"`
-	AppID      string `json:"appId"`
-	Host       string `json:"host"`
-	Ports      []int  `json:"ports"`
-	Version    string `json:"version"`
+	Timestamp          string              `json:"timestamp"`
+	SlaveID            string              `json:"slaveId"`
+	ID                 string              `json:"id"`
+	TaskStatus         string              `json:"taskStatus"`
+	AppID              string              `json:"appId"`
+	Host               string              `json:"host"`
+	Ports              []int               `json:"ports"`
+	Version            string              `json:"version"`
 	HealthCheckResults []HealthCheckResult `json:"healthCheckResults"`
 }
 

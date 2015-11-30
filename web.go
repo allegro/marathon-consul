@@ -3,18 +3,18 @@ package main
 import (
 	"bytes"
 	"errors"
-	"strings"
 	"fmt"
 	"github.com/CiscoCloud/marathon-consul/consul"
-	marathon "github.com/CiscoCloud/marathon-consul/marathon"
 	service "github.com/CiscoCloud/marathon-consul/consul-services"
 	"github.com/CiscoCloud/marathon-consul/events"
+	marathon "github.com/CiscoCloud/marathon-consul/marathon"
 	"github.com/CiscoCloud/marathon-consul/tasks"
 	log "github.com/Sirupsen/logrus"
 	"io/ioutil"
+	"strings"
 
-	"net/http"
 	"github.com/CiscoCloud/mesos-consul/registry"
+	"net/http"
 )
 
 func HealthHandler(w http.ResponseWriter, r *http.Request) {
@@ -124,19 +124,18 @@ func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []
 		return
 	}
 
-
-	if (taskHealthChange.Alive) {
+	if taskHealthChange.Alive {
 		tasks, _ := fh.marathon.Tasks(taskHealthChange.AppID)
 		for _, task := range tasks {
 			if task.ID == taskHealthChange.ID {
 				service := &registry.Service{
-					ID: task.ID,
-					Name: appIdToServiceName(task.AppID),
-					Port: task.Ports[0], /*By default app should use ist 1st port*/
+					ID:      task.ID,
+					Name:    appIdToServiceName(task.AppID),
+					Port:    task.Ports[0], /*By default app should use ist 1st port*/
 					Address: task.Host,
-//					TODO: Pass labels as tags
+					//					TODO: Pass labels as tags
 					Tags: []string{},
-//					TODO: Pass marathon checks as checks
+					//					TODO: Pass marathon checks as checks
 					Check: &registry.Check{},
 					Agent: task.Host,
 				}
