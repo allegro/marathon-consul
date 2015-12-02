@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	service "github.com/CiscoCloud/marathon-consul/consul-services"
+	service "github.com/CiscoCloud/marathon-consul/consul"
 	"github.com/CiscoCloud/marathon-consul/events"
 	marathon "github.com/CiscoCloud/marathon-consul/marathon"
 	"github.com/CiscoCloud/marathon-consul/metrics"
@@ -19,7 +19,7 @@ func HealthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type ForwardHandler struct {
-	service  service.Consul
+	service  service.ConsulServices
 	marathon marathon.Marathoner
 }
 

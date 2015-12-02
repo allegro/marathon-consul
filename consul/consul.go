@@ -3,21 +3,24 @@ package consul
 import (
 	"crypto/tls"
 	"fmt"
-	"net/http"
-
-	"github.com/CiscoCloud/mesos-consul/registry"
-
 	log "github.com/Sirupsen/logrus"
 	consulapi "github.com/hashicorp/consul/api"
+	"net/http"
+	"github.com/CiscoCloud/marathon-consul/metrics"
 )
+
+type ConsulServices interface {
+	GetAllServices() ([]*consulapi.CatalogService, error)
+	Register(service *consulapi.AgentServiceRegistration)
+	Deregister(serviceId string, agent string)
+}
 
 type Consul struct {
 	agents map[string]*consulapi.Client
-	config consulConfig
+	config ConsulConfig
 }
 
-//
-func New() *Consul {
+func New(config ConsulConfig) *Consul {
 	return &Consul{
 		agents: make(map[string]*consulapi.Client),
 		config: config,
@@ -51,20 +54,20 @@ func (c *Consul) newAgent(address string) *consulapi.Client {
 
 	config := consulapi.DefaultConfig()
 
-	config.Address = fmt.Sprintf("%s:%s", address, c.config.port)
+	config.Address = fmt.Sprintf("%s:%s", address, c.config.Port)
 	log.Debugf("consul address: %s", config.Address)
 
-	if c.config.token != "" {
-		log.Debugf("setting token to %s", c.config.token)
-		config.Token = c.config.token
+	if c.config.Token != "" {
+		log.Debugf("setting token to %s", c.config.Token)
+		config.Token = c.config.Token
 	}
 
-	if c.config.sslEnabled {
+	if c.config.SslEnabled {
 		log.Debugf("enabling SSL")
 		config.Scheme = "https"
 	}
 
-	if !c.config.sslVerify {
+	if !c.config.SslVerify {
 		log.Debugf("disabled SSL verification")
 		config.HttpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -73,11 +76,11 @@ func (c *Consul) newAgent(address string) *consulapi.Client {
 		}
 	}
 
-	if c.config.auth.Enabled {
+	if c.config.Auth.Enabled {
 		log.Debugf("setting basic auth")
 		config.HttpAuth = &consulapi.HttpBasicAuth{
-			Username: c.config.auth.Username,
-			Password: c.config.auth.Password,
+			Username: c.config.Auth.Username,
+			Password: c.config.Auth.Password,
 		}
 	}
 
@@ -89,6 +92,7 @@ func (c *Consul) newAgent(address string) *consulapi.Client {
 }
 
 func (c *Consul) GetAllServices() ([]*consulapi.CatalogService, error) {
+	// TODO: first returned agent might already be unavailable (slave failure etc.), should retry with another
 	agent, err := c.GetAnyAgent()
 	if err != nil {
 		return nil, err
@@ -136,10 +140,14 @@ func (c *Consul) GetAnyAgent() (*consulapi.Client, error) {
 	return nil, fmt.Errorf("No consul agent available")
 }
 
-func (c *Consul) Register(service *registry.Service) {
-	if _, ok := c.agents[service.Agent]; !ok {
+func (c *Consul) Register(service *consulapi.AgentServiceRegistration) {
+	metrics.Time("consul.register", func() { c.register(service) })
+}
+
+func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
+	if _, ok := c.agents[service.Address]; !ok {
 		// Agent connection not saved. Connect.
-		c.agents[service.Agent] = c.newAgent(service.Agent)
+		c.agents[service.Address] = c.newAgent(service.Address)
 	}
 
 	log.WithFields(log.Fields{
@@ -150,37 +158,24 @@ func (c *Consul) Register(service *registry.Service) {
 		"Port": service.Port,
 	}).Info("Registering")
 
-	s := &consulapi.AgentServiceRegistration{
-		ID:      service.ID,
-		Name:    service.Name,
-		Port:    service.Port,
-		Address: service.Address,
-		Check: &consulapi.AgentServiceCheck{
-			TTL:      service.Check.TTL,
-			Script:   service.Check.Script,
-			HTTP:     service.Check.HTTP,
-			Interval: service.Check.Interval,
-		},
-	}
-
-	if len(service.Tags) > 0 {
-		s.Tags = service.Tags
-	}
-
-	err := c.agents[service.Agent].Agent().ServiceRegister(s)
+	err := c.agents[service.Address].Agent().ServiceRegister(service)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
-			"Name": s.Name,
-			"Id":   s.ID,
-			"Tags": s.Tags,
-			"Host": s.Address,
-			"Port": s.Port,
+			"Name": service.Name,
+			"Id":   service.ID,
+			"Tags": service.Tags,
+			"Host": service.Address,
+			"Port": service.Port,
 		}).Warnf("Unable to register")
-		return
 	}
+	return err
 }
 
 func (c *Consul) Deregister(serviceId string, agent string) {
+	metrics.Time("consul.deregister", func() { c.deregister(serviceId, agent) })
+}
+
+func (c *Consul) deregister(serviceId string, agent string) error {
 	if _, ok := c.agents[agent]; !ok {
 		// Agent connection not saved. Connect.
 		c.agents[agent] = c.newAgent(agent)
@@ -191,15 +186,6 @@ func (c *Consul) Deregister(serviceId string, agent string) {
 	err := c.agents[agent].Agent().ServiceDeregister(serviceId)
 	if err != nil {
 		log.WithError(err).WithField("Id", serviceId).Info("Deregistering")
-		return
 	}
-}
-
-func (c *Consul) deregister(agent string, service *consulapi.AgentServiceRegistration) error {
-	if _, ok := c.agents[agent]; !ok {
-		// Agent connection not saved. Connect.
-		c.agents[agent] = c.newAgent(agent)
-	}
-
-	return c.agents[agent].Agent().ServiceDeregister(service.ID)
+	return err
 }

@@ -1,8 +1,9 @@
 package consul
 
 import (
-	"github.com/CiscoCloud/mesos-consul/registry"
+	consulapi "github.com/hashicorp/consul/api"
 
+	"fmt"
 	"github.com/CiscoCloud/marathon-consul/apps"
 	"github.com/CiscoCloud/marathon-consul/tasks"
 	"net/url"
@@ -10,15 +11,14 @@ import (
 	"strings"
 )
 
-func MarathonTaskToConsulService(task tasks.Task, healthChecks []apps.HealthCheck, labels map[string]string) *registry.Service {
-	return &registry.Service{
+func MarathonTaskToConsulService(task tasks.Task, healthChecks []apps.HealthCheck, labels map[string]string) *consulapi.AgentServiceRegistration {
+	return &consulapi.AgentServiceRegistration{
 		ID:      task.ID,
 		Name:    appIdToServiceName(task.AppID),
-		Port:    task.Ports[0], /*By default app should use its 1st port*/
+		Port:    task.Ports[0],
 		Address: task.Host,
 		Tags:    marathonLabelsToConsulTags(labels),
 		Check:   marathonToConsulCheck(task, healthChecks),
-		Agent:   task.Host,
 	}
 }
 
@@ -32,21 +32,22 @@ func IsTaskHealthy(healthChecksResults []tasks.HealthCheckResult) bool {
 
 // Takes first HTTP check and convert it to consul healtcheck
 // Returns empty check when there is no HTTP check
-func marathonToConsulCheck(task tasks.Task, healthChecks []apps.HealthCheck) *registry.Check {
+func marathonToConsulCheck(task tasks.Task, healthChecks []apps.HealthCheck) *consulapi.AgentServiceCheck {
 	//	TODO: Handle all types of checks
 	for _, check := range healthChecks {
 		if check.Protocol == "HTTP" {
-			return &registry.Check{
+			return &consulapi.AgentServiceCheck{
 				HTTP: (&url.URL{
 					Scheme: "http",
 					Host:   task.Host + ":" + strconv.Itoa(task.Ports[check.PortIndex]),
 					Path:   check.Path,
 				}).String(),
-				Interval: strconv.Itoa(check.IntervalSeconds) + "s",
+				Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
+				Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
 			}
 		}
 	}
-	return &registry.Check{}
+	return nil
 }
 
 // Extract labels keys with value tag and return as slice

@@ -22,3 +22,23 @@ func (m MarathonerStub) App(id string) (*apps.App, error) {
 func (m MarathonerStub) Tasks(appId string) ([]*tasks.Task, error) {
 	return m.TasksStub[appId], nil
 }
+
+func MarathonerStubForApps(args ...*apps.App) *MarathonerStub {
+	appsMap := make(map[string]*apps.App)
+	tasksMap := make(map[string][]*tasks.Task)
+
+	for _, app := range args {
+		appsMap[app.ID] = app
+		tasks := []*tasks.Task{}
+		for _, task := range app.Tasks {
+			tasks = append(tasks, &task)
+		}
+		tasksMap[app.ID] = tasks
+	}
+
+	return &MarathonerStub{
+		AppsStub:  args,
+		AppStub:   appsMap,
+		TasksStub: tasksMap,
+	}
+}

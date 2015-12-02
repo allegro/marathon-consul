@@ -1,26 +1,52 @@
 package marathon
 
 import (
-	service "github.com/CiscoCloud/marathon-consul/consul-services"
+	"github.com/CiscoCloud/marathon-consul/apps"
+	service "github.com/CiscoCloud/marathon-consul/consul"
 	log "github.com/Sirupsen/logrus"
+	consul "github.com/hashicorp/consul/api"
+	"github.com/CiscoCloud/marathon-consul/metrics"
 )
 
 type MarathonSync struct {
 	marathon Marathoner
-	service  service.Consul
+	service  service.ConsulServices
 }
 
-func NewMarathonSync(marathon Marathoner, service service.Consul) *MarathonSync {
+func NewMarathonSync(marathon Marathoner, service service.ConsulServices) *MarathonSync {
 	return &MarathonSync{marathon, service}
 }
 
 func (m *MarathonSync) SyncServices() error {
+	var err error
+	metrics.Time("sync.services", func() { err = m.syncServices() })
+	return err
+}
+
+func (m *MarathonSync) syncServices() error {
 	//	TODO: Add metrics about registered and unregistered services
 	log.Info("syncing services")
+
 	apps, err := m.marathon.Apps()
 	if err != nil {
 		return err
 	}
+
+	m.registerMarathonApps(apps)
+
+	services, err := m.service.GetAllServices()
+	if err != nil {
+		log.WithError(err).Error("Cant get all Consul services")
+		return err
+	}
+
+	m.deregisterConsulServicesThatAreNotInMarathonApps(apps, services)
+
+	log.Info("syncing services finished")
+	return nil
+}
+
+func (m *MarathonSync) registerMarathonApps(apps []*apps.App) {
 
 	for _, app := range apps {
 		tasks := app.Tasks
@@ -42,13 +68,9 @@ func (m *MarathonSync) SyncServices() error {
 			}
 		}
 	}
+}
 
-	services, err := m.service.GetAllServices()
-	if err != nil {
-		log.WithError(err).Error("Cant get all Consul services")
-		return err
-	}
-
+func (m MarathonSync) deregisterConsulServicesThatAreNotInMarathonApps(apps []*apps.App, services []*consul.CatalogService) {
 	//	TODO: Change it to map implementation
 	for _, instance := range services {
 		found := false
@@ -61,6 +83,4 @@ func (m *MarathonSync) SyncServices() error {
 			m.service.Deregister(instance.ServiceID, instance.Node)
 		}
 	}
-	log.Info("syncing services finished")
-	return nil
 }

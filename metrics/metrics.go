@@ -26,11 +26,13 @@ func Init(cfg Config) error {
 }
 
 func Mark(name string) {
-	if meter, ok := metrics.GetOrRegister(name, metrics.NewMeter()).(metrics.Meter); ok {
-		meter.Mark(1)
-	} else {
-		log.Print("Cannot Mark on " + name + ". It has wrong type. Probably name was used before")
-	}
+	meter := metrics.GetOrRegisterMeter(name, metrics.DefaultRegistry)
+	meter.Mark(1)
+}
+
+func Time(name string, function func()) {
+	timer := metrics.GetOrRegisterTimer(name, metrics.DefaultRegistry)
+	timer.Time(function)
 }
 
 func initMetrics(cfg Config) error {
