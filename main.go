@@ -4,15 +4,23 @@ import (
 	"github.com/CiscoCloud/marathon-consul/config"
 	service "github.com/CiscoCloud/marathon-consul/consul-services"
 	"github.com/CiscoCloud/marathon-consul/marathon"
+	"github.com/CiscoCloud/marathon-consul/metrics"
 	log "github.com/Sirupsen/logrus"
 	"github.com/ogier/pflag"
 	"net/http"
+	"time"
 )
 
 const Name = "marathon-consul"
 const Version = "0.2.0"
 
 func main() {
+
+	metrics.Init(metrics.Config{
+		Target:   "stdout",
+		Prefix:   "stats.tech.marathon-consul",
+		Interval: 10 * time.Second,
+	})
 
 	//	TODO: Handle command line flags
 	service.AddCmdFlags(pflag.NewFlagSet("marathon-consul", pflag.ContinueOnError))

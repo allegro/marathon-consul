@@ -7,6 +7,7 @@ import (
 	service "github.com/CiscoCloud/marathon-consul/consul-services"
 	"github.com/CiscoCloud/marathon-consul/events"
 	marathon "github.com/CiscoCloud/marathon-consul/marathon"
+	"github.com/CiscoCloud/marathon-consul/metrics"
 	"github.com/CiscoCloud/marathon-consul/tasks"
 	log "github.com/Sirupsen/logrus"
 	"io/ioutil"
@@ -23,19 +24,23 @@ type ForwardHandler struct {
 }
 
 func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
+
+	fh.markRequest()
+
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil || len(body) == 0 {
-		w.WriteHeader(500)
+		fh.handleError(err, w)
 		fmt.Fprintln(w, "could not read request body")
 		return
 	}
 
 	eventType, err := events.EventType(body)
 	if err != nil {
-		w.WriteHeader(500)
-		fmt.Fprintln(w, err.Error())
+		fh.handleError(err, w)
 		return
 	}
+
+	fh.markEventRequest(eventType)
 
 	switch eventType {
 	case "app_terminated_event":
@@ -74,8 +79,7 @@ func (fh *ForwardHandler) HandleTerminationEvent(w http.ResponseWriter, body []b
 	}
 
 	if err != nil {
-		w.WriteHeader(500)
-		fmt.Fprintln(w, err.Error())
+		fh.handleError(err, w)
 		log.WithError(err).WithField("Name", app.ID).Error("There where problems processing request")
 	} else {
 		w.WriteHeader(200)
@@ -87,9 +91,8 @@ func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []
 	body = bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
 	taskHealthChange, err := tasks.ParseTaskHealthChange(body)
 	if err != nil {
-		w.WriteHeader(500)
-		fmt.Fprintln(w, err.Error())
-		log.WithError(err).Error("[ERROR] body generated error: %s")
+		fh.handleError(err, w)
+		log.WithError(err).Error("Body generated error")
 		return
 	}
 
@@ -131,8 +134,7 @@ func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) 
 
 	task, err := tasks.ParseTask(body)
 	if err != nil {
-		w.WriteHeader(500)
-		fmt.Fprintln(w, err.Error())
+		fh.handleError(err, w)
 		log.WithError(err).WithField("Body", body).Error("[ERROR] body generated error")
 		return
 	}
@@ -146,11 +148,28 @@ func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) 
 	}
 
 	if err != nil {
-		w.WriteHeader(500)
-		fmt.Fprintln(w, err.Error())
+		fh.handleError(err, w)
 		log.WithError(err).WithField("ID", task.ID).Error("There where problems processing request")
 	} else {
 		w.WriteHeader(200)
 		fmt.Fprintln(w, "OK")
 	}
+}
+
+func (fh *ForwardHandler) markRequest() {
+	metrics.Mark("events.requests")
+}
+
+func (fh *ForwardHandler) markEventRequest(event string) {
+	metrics.Mark("events.requests." + event)
+}
+
+func (fh *ForwardHandler) markResponse() {
+	metrics.Mark("events.response")
+}
+
+func (fh *ForwardHandler) handleError(err error, w http.ResponseWriter) {
+	metrics.Mark("events.error")
+	w.WriteHeader(500)
+	fmt.Fprintln(w, err.Error())
 }
