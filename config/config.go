@@ -51,10 +51,10 @@ func (config *Config) parseFlags() {
 	flag.DurationVar(&config.Sync.Interval, "sync-interval", 15*time.Minute, "Marathon-consul sync interval")
 
 	// Marathon
-	flag.StringVar(&config.Marathon.Location, "marathon-location", "localhost:8080", "marathon URL")
-	flag.StringVar(&config.Marathon.Protocol, "marathon-protocol", "http", "marathon protocol (http or https)")
-	flag.StringVar(&config.Marathon.Username, "marathon-username", "", "marathon username for basic auth")
-	flag.StringVar(&config.Marathon.Password, "marathon-password", "", "marathon password for basic auth")
+	flag.StringVar(&config.Marathon.Location, "marathon-location", "localhost:8080", "Marathon URL")
+	flag.StringVar(&config.Marathon.Protocol, "marathon-protocol", "http", "Marathon protocol (http or https)")
+	flag.StringVar(&config.Marathon.Username, "marathon-username", "", "Marathon username for basic auth")
+	flag.StringVar(&config.Marathon.Password, "marathon-password", "", "Marathon password for basic auth")
 
 	// Metrics
 	flag.StringVar(&config.Metrics.Target, "metrics-target", "stdout", "Metrics destination stdout or graphite")
@@ -63,7 +63,7 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Metrics.Addr, "metrics-location", "", "Graphite URL (used when metrics-target is set to graphite)")
 
 	// General
-	flag.StringVar(&config.LogLevel, "log-level", "info", "log level: panic, fatal, error, warn, info, or debug")
+	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level: panic, fatal, error, warn, info, or debug")
 
 	flag.Parse()
 }
