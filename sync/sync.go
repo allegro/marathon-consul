@@ -70,20 +70,21 @@ func (s *Sync) registerMarathonApps(apps []*apps.App) {
 		labels := app.Labels
 
 		if value, ok := app.Labels["consul"]; !ok || value != "true" {
-			log.WithField("APP", app.ID).Info("App should not be registered in Consul")
+			log.WithField("APP", app.ID).Debug("App should not be registered in Consul")
 			continue
 		}
 
 		for _, task := range tasks {
 			if service.IsTaskHealthy(task.HealthCheckResults) {
-				err := s.service.Register(service.MarathonTaskToConsulService(task, healthCheck, labels))
+				service := service.MarathonTaskToConsulService(task, healthCheck, labels)
+				err := s.service.Register(service)
 				if err != nil {
 					log.WithError(err).WithField("ID", task.ID).Error("Can't register task")
 				}
 			} else {
 				log.WithFields(log.Fields{
 					"APP": app.ID, "ID": task.ID,
-				}).Info("Task is not healthy. Not Registering")
+				}).Debug("Task is not healthy. Not Registering")
 			}
 		}
 	}

@@ -18,7 +18,7 @@ func TestGetAllServices(t *testing.T) {
 	server1.JoinWAN(server2.LANAddr)
 
 	// create client
-	consul, _ := ConsulClientAtServer(server1)
+	consul := ConsulClientAtServer(server1)
 
 	// given
 	// register services in both servers
@@ -30,7 +30,10 @@ func TestGetAllServices(t *testing.T) {
 	server2.AddService("serviceB", "passing", []string{"zookeeper"})
 
 	// when
-	services, _ := consul.GetAllServices()
+	services, err := consul.GetAllServices()
+	if err != nil {
+		t.Fatal("Could not get services from consul")
+	}
 
 	// then
 	assert.Equal(t, 3, len(services))
@@ -49,7 +52,7 @@ func TestRegisterServices(t *testing.T) {
 	server := CreateConsulTestServer("dc1", t)
 	defer server.Stop()
 
-	consul, _ := ConsulClientAtServer(server)
+	consul := ConsulClientAtServer(server)
 
 	// given
 	service := &consulapi.AgentServiceRegistration{

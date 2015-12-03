@@ -1,11 +1,9 @@
 package sync
 
 import (
-	"fmt"
-	"github.com/CiscoCloud/marathon-consul/apps"
 	"github.com/CiscoCloud/marathon-consul/consul"
 	"github.com/CiscoCloud/marathon-consul/marathon"
-	"github.com/CiscoCloud/marathon-consul/tasks"
+	. "github.com/CiscoCloud/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -16,7 +14,7 @@ import (
 func TestSyncJob(t *testing.T) {
 	t.Parallel()
 	// given
-	app := consulApp("app1", 1)
+	app := ConsulApp("app1", 1)
 	marathon := marathon.MarathonerStubForApps(app)
 	services := newConsulServicesMock()
 	sync := New(marathon, services)
@@ -62,9 +60,9 @@ func (c *ConsulServicesMock) Deregister(serviceId string, agent string) error {
 func TestSyncAppsFromMarathonToConsul(t *testing.T) {
 	// given
 	marathoner := marathon.MarathonerStubForApps(
-		consulApp("app1", 2),
-		consulApp("app2", 1),
-		nonConsulApp("app3", 1),
+		ConsulApp("app1", 2),
+		ConsulApp("app2", 1),
+		NonConsulApp("app3", 1),
 	)
 
 	consul := consul.NewConsulStub()
@@ -84,8 +82,8 @@ func TestSyncAppsFromMarathonToConsul(t *testing.T) {
 func TestRemoveInvalidServicesFromConsul(t *testing.T) {
 	// given
 	marathoner := marathon.MarathonerStubForApps(
-		consulApp("app1-invalid", 1),
-		consulApp("app2", 1),
+		ConsulApp("app1-invalid", 1),
+		ConsulApp("app2", 1),
 	)
 	consul := consul.NewConsulStub()
 	marathonSync := New(marathoner, consul)
@@ -93,7 +91,7 @@ func TestRemoveInvalidServicesFromConsul(t *testing.T) {
 
 	// when
 	marathoner = marathon.MarathonerStubForApps(
-		app("app2", 1, true),
+		ConsulApp("app2", 1),
 	)
 	marathonSync = New(marathoner, consul)
 	marathonSync.SyncServices()
@@ -104,33 +102,23 @@ func TestRemoveInvalidServicesFromConsul(t *testing.T) {
 	assert.Equal(t, "app2", services[0].ServiceName)
 }
 
-func consulApp(name string, instances int) *apps.App {
-	return app(name, instances, true)
-}
+func TestSyncOnlyHealthyServices(t *testing.T) {
+	// given
+	marathoner := marathon.MarathonerStubForApps(
+		ConsulApp("app1", 1),
+		ConsulAppWithUnhealthyInstances("app2-one-unhealthy", 2, 1),
+		ConsulAppWithUnhealthyInstances("app3-all-unhealthy", 2, 2),
+	)
+	consul := consul.NewConsulStub()
+	marathonSync := New(marathoner, consul)
 
-func nonConsulApp(name string, instances int) *apps.App {
-	return app(name, instances, false)
-}
+	// when
+	marathonSync.SyncServices()
 
-func app(name string, instances int, consul bool) *apps.App {
-	var appTasks []tasks.Task
-	for i := 0; i < instances; i++ {
-		appTasks = append(appTasks, tasks.Task{
-			AppID: name,
-			ID:    fmt.Sprintf("%s.%d", name, i),
-			Ports: []int{8080 + i},
-			Host:  "",
-		})
-	}
-
-	labels := make(map[string]string)
-	if consul {
-		labels["consul"] = "true"
-	}
-
-	return &apps.App{
-		ID:     name,
-		Tasks:  appTasks,
-		Labels: labels,
+	// then
+	services, _ := consul.GetAllServices()
+	assert.Equal(t, 2, len(services))
+	for _, s := range services {
+		assert.NotEqual(t, "app3-all-unhealthy", s.ServiceName)
 	}
 }

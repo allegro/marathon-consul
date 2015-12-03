@@ -31,7 +31,8 @@ func MarathonerStubForApps(args ...*apps.App) *MarathonerStub {
 		appsMap[app.ID] = app
 		tasks := []*tasks.Task{}
 		for _, task := range app.Tasks {
-			tasks = append(tasks, &task)
+			t := task
+			tasks = append(tasks, &t)
 		}
 		tasksMap[app.ID] = tasks
 	}

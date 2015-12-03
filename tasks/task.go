@@ -2,9 +2,6 @@ package tasks
 
 import (
 	"encoding/json"
-	"fmt"
-	"github.com/CiscoCloud/marathon-consul/utils"
-	"github.com/hashicorp/consul/api"
 )
 
 type Task struct {
@@ -27,21 +24,4 @@ func ParseTask(event []byte) (*Task, error) {
 	task := &Task{}
 	err := json.Unmarshal(event, task)
 	return task, err
-}
-
-func (task *Task) Key() string {
-	return fmt.Sprintf(
-		"%s/tasks/%s",
-		utils.CleanID(task.AppID),
-		task.ID,
-	)
-}
-
-func (task *Task) KV() *api.KVPair {
-	serialized, _ := json.Marshal(task)
-
-	return &api.KVPair{
-		Key:   task.Key(),
-		Value: serialized,
-	}
 }

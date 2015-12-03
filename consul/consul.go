@@ -1,12 +1,9 @@
 package consul
 
 import (
-	"crypto/tls"
-	"fmt"
 	"github.com/CiscoCloud/marathon-consul/metrics"
 	log "github.com/Sirupsen/logrus"
 	consulapi "github.com/hashicorp/consul/api"
-	"net/http"
 )
 
 type ConsulServices interface {
@@ -16,84 +13,18 @@ type ConsulServices interface {
 }
 
 type Consul struct {
-	agents map[string]*consulapi.Client
-	config ConsulConfig
+	agents Agents
 }
 
 func New(config ConsulConfig) *Consul {
 	return &Consul{
-		agents: make(map[string]*consulapi.Client),
-		config: config,
+		agents: NewAgents(&config),
 	}
-}
-
-// client()
-//   Return a consul client at the specified address
-func (c *Consul) client(address string) *consulapi.Client {
-	if address == "" {
-		log.Warn("No address to Consul.Agent")
-		return nil
-	}
-
-	if _, ok := c.agents[address]; !ok {
-		// Agent connection not saved. Connect.
-		c.agents[address] = c.newAgent(address)
-	}
-
-	return c.agents[address]
-}
-
-// newAgent()
-//   Connect to a new agent specified by address
-//
-func (c *Consul) newAgent(address string) *consulapi.Client {
-	if address == "" {
-		log.Warnf("No address to Consul.NewAgent")
-		return nil
-	}
-
-	config := consulapi.DefaultConfig()
-
-	config.Address = fmt.Sprintf("%s:%s", address, c.config.Port)
-	log.Debugf("consul address: %s", config.Address)
-
-	if c.config.Token != "" {
-		log.Debugf("setting token to %s", c.config.Token)
-		config.Token = c.config.Token
-	}
-
-	if c.config.SslEnabled {
-		log.Debugf("enabling SSL")
-		config.Scheme = "https"
-	}
-
-	if !c.config.SslVerify {
-		log.Debugf("disabled SSL verification")
-		config.HttpClient.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		}
-	}
-
-	if c.config.Auth.Enabled {
-		log.Debugf("setting basic auth")
-		config.HttpAuth = &consulapi.HttpBasicAuth{
-			Username: c.config.Auth.Username,
-			Password: c.config.Auth.Password,
-		}
-	}
-
-	client, err := consulapi.NewClient(config)
-	if err != nil {
-		log.Fatal("consul: ", address)
-	}
-	return client
 }
 
 func (c *Consul) GetAllServices() ([]*consulapi.CatalogService, error) {
 	// TODO: first returned agent might already be unavailable (slave failure etc.), should retry with another
-	agent, err := c.GetAnyAgent()
+	agent, err := c.agents.GetAnyAgent()
 	if err != nil {
 		return nil, err
 	}
@@ -133,13 +64,6 @@ func contains(slice []string, search string) bool {
 	return false
 }
 
-func (c *Consul) GetAnyAgent() (*consulapi.Client, error) {
-	for _, agent := range c.agents {
-		return agent, nil
-	}
-	return nil, fmt.Errorf("No consul agent available")
-}
-
 func (c *Consul) Register(service *consulapi.AgentServiceRegistration) error {
 	var err error
 	metrics.Time("consul.register", func() { err = c.register(service) })
@@ -147,9 +71,9 @@ func (c *Consul) Register(service *consulapi.AgentServiceRegistration) error {
 }
 
 func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
-	if _, ok := c.agents[service.Address]; !ok {
-		// Agent connection not saved. Connect.
-		c.agents[service.Address] = c.newAgent(service.Address)
+	agent, err := c.agents.GetAgent(service.Address)
+	if err != nil {
+		return err
 	}
 
 	log.WithFields(log.Fields{
@@ -160,7 +84,7 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 		"Port": service.Port,
 	}).Info("Registering")
 
-	err := c.agents[service.Address].Agent().ServiceRegister(service)
+	err = agent.Agent().ServiceRegister(service)
 	if err != nil {
 		log.WithError(err).WithFields(log.Fields{
 			"Name": service.Name,
@@ -179,15 +103,15 @@ func (c *Consul) Deregister(serviceId string, agent string) error {
 	return err
 }
 
-func (c *Consul) deregister(serviceId string, agent string) error {
-	if _, ok := c.agents[agent]; !ok {
-		// Agent connection not saved. Connect.
-		c.agents[agent] = c.newAgent(agent)
+func (c *Consul) deregister(serviceId string, agentAddress string) error {
+	agent, err := c.agents.GetAgent(agentAddress)
+	if err != nil {
+		return err
 	}
 
 	log.WithField("Id", serviceId).Info("Deregistering")
 
-	err := c.agents[agent].Agent().ServiceDeregister(serviceId)
+	err = agent.Agent().ServiceDeregister(serviceId)
 	if err != nil {
 		log.WithError(err).WithField("Id", serviceId).Info("Deregistering")
 	}

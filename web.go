@@ -29,14 +29,14 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil || len(body) == 0 {
-		fh.handleError(err, w)
-		fmt.Fprintln(w, "could not read request body")
+		log.WithError(err).Debug("Malformed request")
+		fh.handleBadRequest(err, w)
 		return
 	}
 
 	eventType, err := events.EventType(body)
 	if err != nil {
-		fh.handleError(err, w)
+		fh.handleBadRequest(err, w)
 		return
 	}
 
@@ -45,27 +45,24 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	switch eventType {
 	case "app_terminated_event":
 		log.WithField("eventType", "app_terminated_event").Info("handling event")
-		fh.HandleTerminationEvent(w, body)
+		fh.handleTerminationEvent(w, body)
 	case "status_update_event":
 		log.WithField("eventType", "status_update_event").Info("handling event")
-		fh.HandleStatusEvent(w, body)
+		fh.handleStatusEvent(w, body)
 	case "health_status_changed_event":
 		log.WithField("eventType", "health_status_changed_event").Info("handling event")
-		fh.HandleHealthStatusEvent(w, body)
+		fh.handleHealthStatusEvent(w, body)
 	default:
-		log.WithField("eventType", eventType).Info("not handling event")
-		w.WriteHeader(200)
-		fmt.Fprintf(w, "cannot handle %s\n", eventType)
+		log.WithField("eventType", eventType).Debug("not handling event")
+		fh.handleBadRequest(fmt.Errorf("cannot handle %s", eventType), w)
 	}
 	log.Debug(string(body))
 }
 
-func (fh *ForwardHandler) HandleTerminationEvent(w http.ResponseWriter, body []byte) {
+func (fh *ForwardHandler) handleTerminationEvent(w http.ResponseWriter, body []byte) {
 	event, err := events.ParseEvent(body)
 	if err != nil {
-		w.WriteHeader(500)
-		fmt.Fprintln(w, err.Error())
-		log.Printf("[ERROR] body generated error: %s", err.Error())
+		fh.handleBadRequest(err, w)
 		return
 	}
 
@@ -94,9 +91,9 @@ func (fh *ForwardHandler) HandleTerminationEvent(w http.ResponseWriter, body []b
 	}
 }
 
-func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []byte) {
-	body = bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
-	taskHealthChange, err := tasks.ParseTaskHealthChange(body)
+func (fh *ForwardHandler) handleHealthStatusEvent(w http.ResponseWriter, body []byte) {
+	body = replaceTaskIdWithId(body)
+	taskHealthChange, err := events.ParseTaskHealthChange(body)
 	if err != nil {
 		fh.handleError(err, w)
 		log.WithError(err).Error("Body generated error")
@@ -104,7 +101,7 @@ func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []
 	}
 
 	if !taskHealthChange.Alive {
-		log.WithField("ID", taskHealthChange.ID).Info("Task is not alive. Not registering")
+		log.WithField("ID", taskHealthChange.ID).Debug("Task is not alive. Not registering")
 		return
 	}
 
@@ -121,7 +118,7 @@ func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []
 		log.WithFields(log.Fields{
 			"APP": appId,
 			"ID":  taskHealthChange.ID,
-		}).Info("App should not be registered in Consul")
+		}).Debug("App should not be registered in Consul")
 		return
 	}
 
@@ -140,7 +137,7 @@ func (fh *ForwardHandler) HandleHealthStatusEvent(w http.ResponseWriter, body []
 			log.WithField("ID", task.ID).WithError(err).Error("There was a problem registering task")
 		}
 	} else {
-		log.WithField("ID", task.ID).Info("Task is not healthy. Not registering")
+		log.WithField("ID", task.ID).Debug("Task is not healthy. Not registering")
 	}
 }
 
@@ -153,12 +150,8 @@ func findTaskById(id string, tasks_ []tasks.Task) (tasks.Task, error) {
 	return tasks.Task{}, fmt.Errorf("Task %s not found", id)
 }
 
-func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) {
-	// for every other use of Tasks, Marathon uses the "id" field for the task ID.
-	// Here, it uses "taskId", with most of the other fields being equal. We'll
-	// just swap "taskId" for "id" in the body so that we can successfully parse
-	// incoming events.
-	body = bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
+func (fh *ForwardHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
+	body = replaceTaskIdWithId(body)
 
 	task, err := tasks.ParseTask(body)
 	if err != nil {
@@ -188,6 +181,14 @@ func (fh *ForwardHandler) HandleStatusEvent(w http.ResponseWriter, body []byte) 
 	}
 }
 
+func replaceTaskIdWithId(body []byte) []byte {
+	// for every other use of Tasks, Marathon uses the "id" field for the task ID.
+	// Here, it uses "taskId", with most of the other fields being equal. We'll
+	// just swap "taskId" for "id" in the body so that we can successfully parse
+	// incoming events.
+	return bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
+}
+
 func (fh *ForwardHandler) markRequest() {
 	metrics.Mark("events.requests")
 }
@@ -203,5 +204,11 @@ func (fh *ForwardHandler) markResponse() {
 func (fh *ForwardHandler) handleError(err error, w http.ResponseWriter) {
 	metrics.Mark("events.error")
 	w.WriteHeader(500)
+	fmt.Fprintln(w, err.Error())
+}
+
+func (fh *ForwardHandler) handleBadRequest(err error, w http.ResponseWriter) {
+	metrics.Mark("events.bad_request")
+	w.WriteHeader(400)
 	fmt.Fprintln(w, err.Error())
 }

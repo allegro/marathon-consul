@@ -2,7 +2,6 @@ package tasks
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -37,16 +36,4 @@ func TestParseTask(t *testing.T) {
 	assert.Equal(t, testTask.Ports, service.Ports)
 	assert.Equal(t, testTask.Version, service.Version)
 	assert.Equal(t, testTask.HealthCheckResults[0].Alive, service.HealthCheckResults[0].Alive)
-}
-
-func TestKV(t *testing.T) {
-	t.Parallel()
-
-	kv := testTask.KV()
-
-	jsonified, err := json.Marshal(testTask)
-	assert.Nil(t, err)
-
-	assert.Equal(t, fmt.Sprintf("%s/tasks/%s", "my-app", testTask.ID), kv.Key)
-	assert.Equal(t, jsonified, kv.Value)
 }

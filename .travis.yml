@@ -4,5 +4,4 @@ go:
   - 1.5
   - tip
 
-install: make deps
 script: make test

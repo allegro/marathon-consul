@@ -42,6 +42,7 @@ func NewMarathon(location, protocol string, auth *url.Userinfo) (Marathon, error
 func (m Marathon) Url(path string) string {
 	return m.UrlWithQuery(path, "")
 }
+
 func (m Marathon) UrlWithQuery(path string, query string) string {
 	marathon := url.URL{
 		Scheme:   m.Protocol,

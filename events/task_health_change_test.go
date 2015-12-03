@@ -1,4 +1,4 @@
-package tasks
+package events
 
 import (
 	"encoding/json"

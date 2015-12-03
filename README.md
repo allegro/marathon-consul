@@ -5,9 +5,9 @@ Register Marathon Tasks as Consul Services for service discovery.
 
 `marathon-consul` takes information provided by the Marathon event bus and
 forwards it to Consul's services. It also re-syncs all the information from
-Marathon to Consul on startup and repeat it in given interval.
+Marathon to Consul on startup and repeats it with given interval.
 
-## Running
+## Running the program
 
 Just run `marathon-consul`.
 You can also add some [options](#options).
@@ -19,14 +19,35 @@ set up the event subscription with a call similar to this one:
 curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callbackUrl=http://marathon-consul.service.consul:4000/events'
 ```
 
+## Building from source
+
+To simply compile and run the source code:
+
+```
+go run main.go web.go [options](#options)
+```
+
+To build the binary:
+
+```
+make build
+```
+
+To run the tests:
+
+```
+make test
+```
+
+
 ## Usage
 
 - Only tasks which are labeled as `consul:true` will be registered in Consul.
-- Only services with tag `marathon` will be maintained. This tag is automatically added when new instance is registered.
-- Task is registered when Marathon marks it's as alive. So tasks must have defined healthchecks
-- HTTP healtcheck will be transfered to Consul
+- Only services with tag `marathon` will be maintained. This tag is automatically added during registration.
+- At least one HTTP healthcheck should be defined for a task. The task is registered when Marathon marks it's as alive.
+- Provided HTTP healtcheck will be transfered to Consul.
 - Labels with `tag` value will be converted to Consul tags, `marathon` tag is added by default
- (e.g, `labels: ["public":"tag", "varnish":"tag", "env": "test"]` → `tags: ["public", "varnish", "marathon"]`)   
+ (e.g, `labels: ["public":"tag", "varnish":"tag", "env": "test"]` → `tags: ["public", "varnish", "marathon"]`).
 
 ### Options
 
@@ -72,11 +93,11 @@ Endpoint  | Description
 
 ## Code
 
-Project is based on
+This project is based on
 
 * [mesos-consul](https://github.com/CiscoCloud/mesos-consul)
 * [marathon-consul](https://github.com/CiscoCloud/marathon-consul)
 
 ## License
 
-marathon-consul is released under the Apache 2.0 license (see [LICENSE](LICENSE))
+Marathon-consul is released under the Apache 2.0 license (see [LICENSE](LICENSE))

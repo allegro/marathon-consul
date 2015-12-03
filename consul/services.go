@@ -23,6 +23,9 @@ func MarathonTaskToConsulService(task tasks.Task, healthChecks []apps.HealthChec
 }
 
 func IsTaskHealthy(healthChecksResults []tasks.HealthCheckResult) bool {
+	if len(healthChecksResults) < 1 {
+		return false
+	}
 	register := true
 	for _, healthCheckResult := range healthChecksResults {
 		register = register && healthCheckResult.Alive
