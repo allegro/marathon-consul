@@ -3,16 +3,16 @@ package consul
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/CiscoCloud/marathon-consul/metrics"
 	log "github.com/Sirupsen/logrus"
 	consulapi "github.com/hashicorp/consul/api"
 	"net/http"
-	"github.com/CiscoCloud/marathon-consul/metrics"
 )
 
 type ConsulServices interface {
 	GetAllServices() ([]*consulapi.CatalogService, error)
-	Register(service *consulapi.AgentServiceRegistration)
-	Deregister(serviceId string, agent string)
+	Register(service *consulapi.AgentServiceRegistration) error
+	Deregister(serviceId string, agent string) error
 }
 
 type Consul struct {
@@ -140,8 +140,10 @@ func (c *Consul) GetAnyAgent() (*consulapi.Client, error) {
 	return nil, fmt.Errorf("No consul agent available")
 }
 
-func (c *Consul) Register(service *consulapi.AgentServiceRegistration) {
-	metrics.Time("consul.register", func() { c.register(service) })
+func (c *Consul) Register(service *consulapi.AgentServiceRegistration) error {
+	var err error
+	metrics.Time("consul.register", func() { err = c.register(service) })
+	return err
 }
 
 func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
@@ -171,8 +173,10 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 	return err
 }
 
-func (c *Consul) Deregister(serviceId string, agent string) {
-	metrics.Time("consul.deregister", func() { c.deregister(serviceId, agent) })
+func (c *Consul) Deregister(serviceId string, agent string) error {
+	var err error
+	metrics.Time("consul.deregister", func() { err = c.deregister(serviceId, agent) })
+	return err
 }
 
 func (c *Consul) deregister(serviceId string, agent string) error {

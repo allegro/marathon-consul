@@ -5,6 +5,7 @@ import (
 	service "github.com/CiscoCloud/marathon-consul/consul"
 	"github.com/CiscoCloud/marathon-consul/marathon"
 	"github.com/CiscoCloud/marathon-consul/metrics"
+	"github.com/CiscoCloud/marathon-consul/sync"
 	log "github.com/Sirupsen/logrus"
 	"net/http"
 )
@@ -24,15 +25,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	// TODO: sync should run continuously with some time interval
-	sync := marathon.NewMarathonSync(remote, service)
-	go sync.SyncServices()
+	sync := sync.New(remote, service)
+	go sync.StartSyncServicesJob(config.Sync.Interval)
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)
 	forwarderHandler := &ForwardHandler{service, remote}
 	http.HandleFunc("/events", forwarderHandler.Handle)
 
-	log.WithField("port", config.Web.Listen).Info("listening")
+	log.WithField("port", config.Web.Listen).Info("Listening")
 	log.Fatal(http.ListenAndServe(config.Web.Listen, nil))
 }

@@ -29,10 +29,12 @@ func (c ConsulStub) GetAllServices() ([]*consulapi.CatalogService, error) {
 	return catalog, nil
 }
 
-func (c *ConsulStub) Register(service *consulapi.AgentServiceRegistration) {
+func (c *ConsulStub) Register(service *consulapi.AgentServiceRegistration) error {
 	c.services[service.ID] = service
+	return nil
 }
 
-func (c *ConsulStub) Deregister(serviceId string, agent string) {
+func (c *ConsulStub) Deregister(serviceId string, agent string) error {
 	delete(c.services, serviceId)
+	return nil
 }

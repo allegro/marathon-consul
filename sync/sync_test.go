@@ -1,24 +1,74 @@
-package marathon
+package sync
 
 import (
 	"fmt"
 	"github.com/CiscoCloud/marathon-consul/apps"
 	"github.com/CiscoCloud/marathon-consul/consul"
+	"github.com/CiscoCloud/marathon-consul/marathon"
 	"github.com/CiscoCloud/marathon-consul/tasks"
+	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"time"
 )
+
+func TestSyncJob(t *testing.T) {
+	t.Parallel()
+	// given
+	app := consulApp("app1", 1)
+	marathon := marathon.MarathonerStubForApps(app)
+	services := newConsulServicesMock()
+	sync := New(marathon, services)
+
+	// when
+	ticker := sync.StartSyncServicesJob(10 * time.Millisecond)
+
+	// then
+	select {
+	case <-time.After(15 * time.Millisecond):
+		ticker.Stop()
+		assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID))
+	}
+}
+
+type ConsulServicesMock struct {
+	registrations map[string]int
+}
+
+func newConsulServicesMock() *ConsulServicesMock {
+	return &ConsulServicesMock{
+		registrations: make(map[string]int),
+	}
+}
+
+func (c *ConsulServicesMock) GetAllServices() ([]*consulapi.CatalogService, error) {
+	return nil, nil
+}
+
+func (c *ConsulServicesMock) Register(service *consulapi.AgentServiceRegistration) error {
+	c.registrations[service.ID]++
+	return nil
+}
+
+func (c *ConsulServicesMock) RegistrationsCount(instanceId string) int {
+	return c.registrations[instanceId]
+}
+
+func (c *ConsulServicesMock) Deregister(serviceId string, agent string) error {
+	return nil
+}
 
 func TestSyncAppsFromMarathonToConsul(t *testing.T) {
 	// given
-	marathoner := MarathonerStubForApps(
+	marathoner := marathon.MarathonerStubForApps(
 		consulApp("app1", 2),
 		consulApp("app2", 1),
 		nonConsulApp("app3", 1),
 	)
 
 	consul := consul.NewConsulStub()
-	marathonSync := NewMarathonSync(marathoner, consul)
+	marathonSync := New(marathoner, consul)
 
 	// when
 	marathonSync.SyncServices()
@@ -33,19 +83,19 @@ func TestSyncAppsFromMarathonToConsul(t *testing.T) {
 
 func TestRemoveInvalidServicesFromConsul(t *testing.T) {
 	// given
-	marathoner := MarathonerStubForApps(
+	marathoner := marathon.MarathonerStubForApps(
 		consulApp("app1-invalid", 1),
 		consulApp("app2", 1),
 	)
 	consul := consul.NewConsulStub()
-	marathonSync := NewMarathonSync(marathoner, consul)
+	marathonSync := New(marathoner, consul)
 	marathonSync.SyncServices()
 
 	// when
-	marathoner = MarathonerStubForApps(
+	marathoner = marathon.MarathonerStubForApps(
 		app("app2", 1, true),
 	)
-	marathonSync = NewMarathonSync(marathoner, consul)
+	marathonSync = New(marathoner, consul)
 	marathonSync.SyncServices()
 
 	// then

@@ -4,6 +4,7 @@ import (
 	"github.com/CiscoCloud/marathon-consul/consul"
 	"github.com/CiscoCloud/marathon-consul/marathon"
 	"github.com/CiscoCloud/marathon-consul/metrics"
+	"github.com/CiscoCloud/marathon-consul/sync"
 	log "github.com/Sirupsen/logrus"
 	flag "github.com/ogier/pflag"
 	"time"
@@ -14,6 +15,7 @@ type Config struct {
 	Web    struct {
 		Listen string
 	}
+	Sync     sync.Config
 	Marathon marathon.Config
 	Metrics  metrics.Config
 	LogLevel string
@@ -45,6 +47,9 @@ func (config *Config) parseFlags() {
 	// Web
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "accept connections at this address")
 
+	// Sync
+	flag.DurationVar(&config.Sync.Interval, "sync-interval", 15*time.Minute, "Marathon-consul sync interval")
+
 	// Marathon
 	flag.StringVar(&config.Marathon.Location, "marathon-location", "localhost:8080", "marathon URL")
 	flag.StringVar(&config.Marathon.Protocol, "marathon-protocol", "http", "marathon protocol (http or https)")
@@ -54,7 +59,7 @@ func (config *Config) parseFlags() {
 	// Metrics
 	flag.StringVar(&config.Metrics.Target, "metrics-target", "stdout", "Metrics destination stdout or graphite")
 	flag.StringVar(&config.Metrics.Prefix, "metrics-prefix", "default", "Metrics prefix (default is resolved to <hostname>.<app_name>")
-	config.Metrics.Interval = (time.Duration)(*flag.Int64("metrics-interval", 30, "interval in seconds")) * time.Second
+	flag.DurationVar(&config.Metrics.Interval, "metrics-interval", 30*time.Second, "Metrics reporting interval")
 	flag.StringVar(&config.Metrics.Addr, "metrics-location", "", "Graphite URL (used when metrics-target is set to graphite)")
 
 	// General
