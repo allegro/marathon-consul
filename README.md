@@ -53,7 +53,7 @@ make test
 
 Argument               | Default               | Description
 -----------------------|-----------------------|------------------------------------------------------
-config-file            |                       | Path to a JSON file to read configuration from. **Note:** Will override options set earlier on the command line
+config-file            |                       | Path to a JSON file to read configuration from. **Note:** Will override options set earlier on the command line. See [example](debian/config.json).
 consul-auth            | `false`               | Use Consul with authentication
 consul-auth-password   |                       | The basic authentication password
 consul-auth-username   |                       | The basic authentication username

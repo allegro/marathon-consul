@@ -1,8 +1,11 @@
 TEST?=./...
+TESTARGS?=
 NAME = $(shell awk -F\" '/^const Name/ { print $$2 }' main.go)
 VERSION = $(shell awk -F\" '/^const Version/ { print $$2 }' main.go)
 DEPS = $(shell go list -f '{{range .TestImports}}{{.}} {{end}}' ./...)
 CURRENT_DIR = $(shell pwd)
+SOURCEDIR = $(CURRENT_DIR)
+SOURCES := $(shell find $(SOURCEDIR) -name '*.go')
 
 all: deps build
 
@@ -15,34 +18,20 @@ updatedeps:
 	go get -u -v ./...
 	echo $(DEPS) | xargs -n1 go get -d
 
-build: deps
+build: deps test
 	@mkdir -p bin/
 	go build -o bin/$(NAME)
 
-test: deps
+test: deps $(SOURCES)
 	PATH=$(CURRENT_DIR)/bin:$(PATH) go test $(TEST) $(TESTARGS)
 	go vet $(TEST)
 
-xcompile: deps test
-  # go get github.com/mitchellh/gox
-	@rm -rf build/
-	@mkdir -p build
-	gox \
-		-os="darwin" \
-		-os="dragonfly" \
-		-os="freebsd" \
-		-os="linux" \
-		-os="openbsd" \
-		-os="solaris" \
-		-os="windows" \
-		-output="build/{{.Dir}}_$(VERSION)_{{.OS}}_{{.Arch}}/$(NAME)"
+release:
+	@rm -rf dist
+	@go get github.com/laher/goxc
+	goxc
+	goxc bump
+	git add .goxc.json
+	git commit -m "Bumped version"
 
-package: xcompile
-	$(eval FILES := $(shell ls build))
-	@mkdir -p build/tgz
-	for f in $(FILES); do \
-		(cd $(shell pwd)/build && tar -zcvf tgz/$$f.tar.gz $$f); \
-		echo $$f; \
-	done
-
-.PHONY: all deps updatedeps build test xcompile package
+.PHONY: all deps updatedeps build test xcompile package dist

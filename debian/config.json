@@ -1,0 +1,35 @@
+{
+  "Consul": {
+    "Auth": {
+      "Enabled": false,
+      "Username": "",
+      "Password": ""
+    },
+    "Port": "8500",
+    "SslEnabled": false,
+    "SslVerify": true,
+    "SslCert": "",
+    "SslCaCert": "",
+    "Token": ""
+  },
+  "Web": {
+    "Listen": ":4000"
+  },
+  "Sync": {
+    "Interval": 900000000000
+  },
+  "Marathon": {
+    "Location": "localhost:8080",
+    "Protocol": "http",
+    "Username": "",
+    "Password": "",
+    "VerifySsl": true
+  },
+  "Metrics": {
+    "Target": "",
+    "Prefix": "default",
+    "Interval": 30000000000,
+    "Addr": ""
+  },
+  "LogLevel": "info"
+}

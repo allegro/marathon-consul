@@ -1,0 +1,29 @@
+{
+	"ArtifactsDest": "dist",
+	"Tasks": [
+		"default"
+	],
+	"BuildConstraints": "linux,!arm darwin",
+	"PackageVersion": "0.2.1",
+	"TaskSettings": {
+		"bintray": {
+			"downloadspage": "bintray.md",
+			"include:": "*.deb,",
+			"package": "deb",
+			"repository": "marathon-consul",
+			"subject": "allegro"
+		},
+		"deb": {
+			"other-mapped-files": {
+				"/etc/init/marathon-consul.conf": "debian/marathon-consul.upstart",
+				"/etc/marathon-consul.d/config.json": "debian/config.json"
+			}
+		},
+		"publish-github": {
+			"body": "",
+			"owner": "allegro",
+			"repository": "marathon-consul"
+		}
+	},
+	"ConfigVersion": "0.9"
+}
