@@ -1,7 +1,7 @@
 package events
 
 import (
-	"github.com/CiscoCloud/marathon-consul/apps"
+	"github.com/allegro/marathon-consul/apps"
 )
 
 type Event interface {

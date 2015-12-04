@@ -1,163 +1,119 @@
-// package consul deals with syncing Marathon apps and tasks to Consul.
 package consul
 
 import (
-	"bytes"
-	"fmt"
-	"github.com/CiscoCloud/marathon-consul/apps"
-	"github.com/CiscoCloud/marathon-consul/tasks"
-	"strings"
+	log "github.com/Sirupsen/logrus"
+	"github.com/allegro/marathon-consul/metrics"
+	consulapi "github.com/hashicorp/consul/api"
 )
 
+type ConsulServices interface {
+	GetAllServices() ([]*consulapi.CatalogService, error)
+	Register(service *consulapi.AgentServiceRegistration) error
+	Deregister(serviceId string, agent string) error
+}
+
 type Consul struct {
-	kv         KVer
-	AppsPrefix string
+	agents Agents
 }
 
-func NewConsul(kv KVer, prefix string) Consul {
-	return Consul{kv, prefix}
+func New(config ConsulConfig) *Consul {
+	return &Consul{
+		agents: NewAgents(&config),
+	}
 }
 
-// SyncApps takes a *complete* list of apps from Marathon and compares them
-// against the apps in Consul. It performs any necessary updates, then
-// recursively deletes any apps that are present in Consul but not the given
-// list.
-func (consul *Consul) SyncApps(apps []*apps.App) error {
-	remoteKeys, _, err := consul.kv.List(consul.AppsPrefix)
+func (c *Consul) GetAllServices() ([]*consulapi.CatalogService, error) {
+	// TODO: first returned agent might already be unavailable (slave failure etc.), should retry with another
+	agent, err := c.agents.GetAnyAgent()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	remotePairs := MapKVPairs(remoteKeys)
-	localPairs := MapApps(apps)
-
-	// add/update any new apps
-	for _, local := range localPairs {
-		// make sure local apps have prefix
-		local.Key = WithPrefix(consul.AppsPrefix, local.Key)
-
-		remote, exists := remotePairs[local.Key]
-		if !exists || !bytes.Equal(local.Value, remote.Value) {
-			_, err := consul.kv.Put(local)
-			if err != nil {
-				return err
-			}
-		}
+	datacenters, err := agent.Catalog().Datacenters()
+	if err != nil {
+		return nil, err
 	}
+	var allInstances []*consulapi.CatalogService
 
-	// remove any outdated apps
-	for _, remote := range remotePairs {
-		// we deal with tasks in SyncTasks, we don't need to touch them here.
-		if strings.Contains(remote.Key, "tasks") {
-			continue
+	for _, dc := range datacenters {
+		dcAwareQuery := &consulapi.QueryOptions{
+			Datacenter: dc,
 		}
-
-		if _, exists := localPairs[WithoutPrefix(consul.AppsPrefix, remote.Key)]; !exists {
-			_, err := consul.kv.Delete(remote.Key)
-			if err != nil {
-				return err
-			}
-
-			// delete tasks
-			appTasks, _, err := consul.kv.List(remote.Key)
-			if err != nil {
-				return err
-			}
-
-			for _, task := range appTasks {
-				_, err := consul.kv.Delete(task.Key)
+		services, _, err := agent.Catalog().Services(dcAwareQuery)
+		if err != nil {
+			return nil, err
+		}
+		for service, tags := range services {
+			if contains(tags, "marathon") {
+				serviceInstances, _, err := agent.Catalog().Service(service, "marathon", dcAwareQuery)
 				if err != nil {
-					return err
+					return nil, err
 				}
+				allInstances = append(allInstances, serviceInstances...)
 			}
 		}
 	}
-
-	return nil
+	return allInstances, nil
 }
 
-// UpdateApp takes an App and updates it in Consul
-func (consul *Consul) UpdateApp(app *apps.App) error {
-	var err error = nil
+func contains(slice []string, search string) bool {
+	for _, element := range slice {
+		if element == search {
+			return true
+		}
+	}
+	return false
+}
 
-	local := app.KV()
-	local.Key = WithPrefix(consul.AppsPrefix, local.Key)
+func (c *Consul) Register(service *consulapi.AgentServiceRegistration) error {
+	var err error
+	metrics.Time("consul.register", func() { err = c.register(service) })
+	return err
+}
 
-	remote, _, err := consul.kv.Get(local.Key)
+func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
+	agent, err := c.agents.GetAgent(service.Address)
 	if err != nil {
 		return err
 	}
 
-	if remote == nil || len(remote.Value) == 0 || !bytes.Equal(local.Value, remote.Value) {
-		_, err = consul.kv.Put(local)
-	}
+	log.WithFields(log.Fields{
+		"Name": service.Name,
+		"Id":   service.ID,
+		"Tags": service.Tags,
+		"Host": service.Address,
+		"Port": service.Port,
+	}).Info("Registering")
 
+	err = agent.Agent().ServiceRegister(service)
+	if err != nil {
+		log.WithError(err).WithFields(log.Fields{
+			"Name": service.Name,
+			"Id":   service.ID,
+			"Tags": service.Tags,
+			"Host": service.Address,
+			"Port": service.Port,
+		}).Warnf("Unable to register")
+	}
 	return err
 }
 
-// DeleteApp takes an App and deletes it from Consul
-func (consul *Consul) DeleteApp(app *apps.App) error {
-	_, err := consul.kv.Delete(WithPrefix(consul.AppsPrefix, app.Key()))
+func (c *Consul) Deregister(serviceId string, agent string) error {
+	var err error
+	metrics.Time("consul.deregister", func() { err = c.deregister(serviceId, agent) })
 	return err
 }
 
-// SyncTasks takes a *complete* list of tasks from a Marathon App and compares
-// them against the tasks in Consul. It performs any necessary updates, then
-// deletes any tasks that are present in Consul but not the list.
-func (consul *Consul) SyncTasks(appId string, tasks []*tasks.Task) error {
-	// remove prefix from app ID if present
-	if appId[0] == '/' {
-		appId = appId[1:]
-	}
-
-	remoteKeys, _, err := consul.kv.List(fmt.Sprintf(
-		"%s/%s/tasks", consul.AppsPrefix, appId,
-	))
+func (c *Consul) deregister(serviceId string, agentAddress string) error {
+	agent, err := c.agents.GetAgent(agentAddress)
 	if err != nil {
 		return err
 	}
 
-	remotePairs := MapKVPairs(remoteKeys)
-	localPairs := MapTasks(tasks)
+	log.WithField("Id", serviceId).Info("Deregistering")
 
-	// add/update any new tasks
-	for _, local := range localPairs {
-		// make sure local pairs have prefix
-		local.Key = WithPrefix(consul.AppsPrefix, local.Key)
-
-		remote, exists := remotePairs[local.Key]
-		if !exists || !bytes.Equal(local.Value, remote.Value) {
-			_, err := consul.kv.Put(local)
-			if err != nil {
-				return err
-			}
-		}
+	err = agent.Agent().ServiceDeregister(serviceId)
+	if err != nil {
+		log.WithError(err).WithField("Id", serviceId).Info("Deregistering")
 	}
-
-	// remove any outdated tasks
-	for _, remote := range remotePairs {
-		if _, exists := localPairs[WithoutPrefix(consul.AppsPrefix, remote.Key)]; !exists {
-			_, err := consul.kv.Delete(remote.Key)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-// UpdateTask takes a Task and updates it in Consul
-func (consul *Consul) UpdateTask(task *tasks.Task) error {
-	local := task.KV()
-	local.Key = WithPrefix(consul.AppsPrefix, local.Key)
-
-	// we always want to update tasks
-	_, err := consul.kv.Put(local)
-	return err
-}
-
-// DeleteTask taske a Task and deletes it from Consul
-func (consul *Consul) DeleteTask(task *tasks.Task) error {
-	_, err := consul.kv.Delete(WithPrefix(consul.AppsPrefix, task.Key()))
 	return err
 }

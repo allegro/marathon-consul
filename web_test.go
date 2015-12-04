@@ -1,34 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
-	"github.com/CiscoCloud/marathon-consul/apps"
-	"github.com/CiscoCloud/marathon-consul/consul"
-	"github.com/CiscoCloud/marathon-consul/events"
-	"github.com/CiscoCloud/marathon-consul/mocks"
-	"github.com/CiscoCloud/marathon-consul/tasks"
+	"github.com/allegro/marathon-consul/consul"
+	"github.com/allegro/marathon-consul/events"
+	"github.com/allegro/marathon-consul/marathon"
+	. "github.com/allegro/marathon-consul/utils"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-)
-
-var (
-	testTask = &tasks.Task{
-		Timestamp:  "2014-03-01T23:29:30.158Z",
-		SlaveID:    "20140909-054127-177048842-5050-1494-0",
-		ID:         "my-app_0-1396592784349",
-		TaskStatus: "TASK_RUNNING",
-		AppID:      "/my-app",
-		Host:       "slave-1234.acme.org",
-		Ports:      []int{31372},
-		Version:    "2014-04-04T06:26:23.051Z",
-	}
-	testApp = &apps.App{ID: "test"}
-
-	testTaskKV = testTask.KV()
-	testAppKV  = testApp.KV()
 )
 
 func TestHealthHandler(t *testing.T) {
@@ -44,120 +26,79 @@ func TestHealthHandler(t *testing.T) {
 	assert.Equal(t, "OK\n", recorder.Body.String())
 }
 
-func TestForwardHandlerHandleAppEvent(t *testing.T) {
+func TestForwardHandler_NotHandleUnknownEventType(t *testing.T) {
 	t.Parallel()
-
-	// create a handler
-	kv := mocks.NewKVer()
-	consul := consul.NewConsul(kv, "")
-	handler := ForwardHandler{consul}
-
-	body, err := json.Marshal(events.APIPostEvent{"api_post_event", testApp})
-	assert.Nil(t, err)
-
-	// test!
+	// given
+	handler := ForwardHandler{nil, nil}
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":"test_event"}`)))
+	// when
 	recorder := httptest.NewRecorder()
-	handler.HandleAppEvent(recorder, body)
-
-	assert.Equal(t, 200, recorder.Code)
-	assert.Equal(t, "OK\n", recorder.Body.String())
-
-	result, _, err := kv.Get(testApp.Key())
-	assert.Nil(t, err)
-	assert.Equal(t, result, testAppKV)
+	handler.Handle(recorder, req)
+	// then
+	assert.Equal(t, 400, recorder.Code)
+	assert.Equal(t, "cannot handle test_event\n", recorder.Body.String())
 }
 
-func TestForwardHandlerHandleTerminationEvent(t *testing.T) {
+func TestForwardHandler_NotHandleMalformedEventType(t *testing.T) {
 	t.Parallel()
+	// given
+	handler := ForwardHandler{nil, nil}
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{eventType:"test_event"}`)))
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+	// then
+	assert.Equal(t, 400, recorder.Code)
+	assert.Equal(t, "invalid character 'e' looking for beginning of object key string\n", recorder.Body.String())
+}
 
-	// create a handler
-	kv := mocks.NewKVer()
-	consul := consul.NewConsul(kv, "")
-	handler := ForwardHandler{consul}
+func TestForwardHandler_HandleMalformedEventType(t *testing.T) {
+	t.Parallel()
+	// given
+	handler := ForwardHandler{nil, nil}
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{eventType:"test_event"}`)))
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+	// then
+	assert.Equal(t, 400, recorder.Code)
+	assert.Equal(t, "invalid character 'e' looking for beginning of object key string\n", recorder.Body.String())
+}
 
-	err := consul.UpdateApp(testApp)
-	assert.Nil(t, err)
+func TestForwardHandler_NotHandleInvalidEventType(t *testing.T) {
+	t.Parallel()
+	// given
+	handler := ForwardHandler{nil, nil}
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":[1,2]}`)))
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+	// then
+	assert.Equal(t, 400, recorder.Code)
+	assert.Equal(t, "json: cannot unmarshal array into Go value of type string\n", recorder.Body.String())
+}
 
-	body, err := json.Marshal(events.AppTerminatedEvent{
+func TestForwardHandler_HandleAppTerminatedEvent(t *testing.T) {
+	t.Parallel()
+	// given
+	app := ConsulApp("/test/app", 3)
+	marathon := marathon.MarathonerStubForApps(app)
+	service := consul.NewConsulStub()
+	for _, task := range app.Tasks {
+		service.Register(consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
+	}
+	handler := ForwardHandler{service, marathon}
+	body, _ := json.Marshal(events.AppTerminatedEvent{
 		Type:  "app_terminated_event",
-		AppID: testApp.ID,
+		AppID: app.ID,
 	})
-	assert.Nil(t, err)
-
-	// test!
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+	// when
 	recorder := httptest.NewRecorder()
-	handler.HandleTerminationEvent(recorder, body)
-
+	handler.Handle(recorder, req)
+	services, _ := service.GetAllServices()
+	// then
 	assert.Equal(t, 200, recorder.Code)
 	assert.Equal(t, "OK\n", recorder.Body.String())
-
-	result, _, err := kv.Get(testApp.Key())
-	assert.Nil(t, err)
-	assert.Nil(t, result)
-}
-
-func tempTaskBody(status string) []byte {
-	body, _ := json.Marshal(testTask)
-	return []byte(strings.Replace(
-		string(body),
-		testTask.TaskStatus,
-		status,
-		1,
-	))
-}
-
-func TestForwardHandlerHandleStatusEvent(t *testing.T) {
-	t.Parallel()
-
-	// create a handler
-	kv := mocks.NewKVer()
-	consul := consul.NewConsul(kv, "")
-	handler := ForwardHandler{consul}
-
-	// deletes
-	for _, status := range []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"} {
-		tempBody := tempTaskBody(status)
-
-		err := consul.UpdateTask(testTask)
-		assert.Nil(t, err)
-
-		// test
-		recorder := httptest.NewRecorder()
-		handler.HandleStatusEvent(recorder, tempBody)
-		assert.Equal(t, 200, recorder.Code)
-		assert.Equal(t, "OK\n", recorder.Body.String())
-
-		// assert
-		result, _, err := kv.Get(testTask.Key())
-		assert.Nil(t, err)
-		assert.Nil(t, result)
-	}
-
-	// puts
-	for _, status := range []string{"TASK_STAGING", "TASK_STARTING", "TASK_RUNNING"} {
-		tempBody := tempTaskBody(status)
-		tempTask, _ := tasks.ParseTask(tempBody)
-
-		// test
-		recorder := httptest.NewRecorder()
-		handler.HandleStatusEvent(recorder, tempBody)
-		assert.Equal(t, 200, recorder.Code)
-		assert.Equal(t, "OK\n", recorder.Body.String())
-
-		// assert
-		result, _, err := kv.Get(tempTask.Key())
-		assert.Nil(t, err)
-		assert.Equal(t, result, tempTask.KV())
-
-		// cleanup
-		_, err = kv.Delete(testTask.Key())
-		assert.Nil(t, err)
-	}
-
-	// bad status
-	tempBody := tempTaskBody("TASK_BATMAN")
-	recorder := httptest.NewRecorder()
-	handler.HandleStatusEvent(recorder, tempBody)
-	assert.Equal(t, 500, recorder.Code)
-	assert.Equal(t, "unknown task status\n", recorder.Body.String())
+	assert.Empty(t, services)
 }

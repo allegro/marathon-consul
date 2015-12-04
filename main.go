@@ -1,10 +1,12 @@
 package main
 
 import (
-	"github.com/CiscoCloud/marathon-consul/config"
-	"github.com/CiscoCloud/marathon-consul/consul"
-	"github.com/CiscoCloud/marathon-consul/marathon"
 	log "github.com/Sirupsen/logrus"
+	"github.com/allegro/marathon-consul/config"
+	service "github.com/allegro/marathon-consul/consul"
+	"github.com/allegro/marathon-consul/marathon"
+	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/sync"
 	"net/http"
 )
 
@@ -12,32 +14,25 @@ const Name = "marathon-consul"
 const Version = "0.2.0"
 
 func main() {
+
 	config := config.New()
-	apiConfig, err := config.Registry.Config()
+
+	metrics.Init(config.Metrics)
+
+	service := service.New(config.Consul)
+	remote, err := marathon.New(config.Marathon)
+
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-
-	kv, err := consul.NewKV(apiConfig)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	consul := consul.NewConsul(kv, config.Registry.Prefix)
-
-	// set up initial sync
-	remote, err := config.Marathon.NewMarathon()
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	sync := marathon.NewMarathonSync(remote, consul)
-	go sync.Sync()
+	sync := sync.New(remote, service)
+	go sync.StartSyncServicesJob(config.Sync.Interval)
 
 	// set up routes
 	http.HandleFunc("/health", HealthHandler)
-	forwarderHandler := &ForwardHandler{consul}
+	forwarderHandler := &ForwardHandler{service, remote}
 	http.HandleFunc("/events", forwarderHandler.Handle)
 
-	log.WithField("port", config.Web.Listen).Info("listening")
+	log.WithField("port", config.Web.Listen).Info("Listening")
 	log.Fatal(http.ListenAndServe(config.Web.Listen, nil))
 }

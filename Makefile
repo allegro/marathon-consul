@@ -2,10 +2,12 @@ TEST?=./...
 NAME = $(shell awk -F\" '/^const Name/ { print $$2 }' main.go)
 VERSION = $(shell awk -F\" '/^const Version/ { print $$2 }' main.go)
 DEPS = $(shell go list -f '{{range .TestImports}}{{.}} {{end}}' ./...)
+CURRENT_DIR = $(shell pwd)
 
 all: deps build
 
 deps:
+	@./install_consul.sh
 	go get -d -v ./...
 	echo $(DEPS) | xargs -n1 go get -d
 
@@ -18,7 +20,7 @@ build: deps
 	go build -o bin/$(NAME)
 
 test: deps
-	go test $(TEST) $(TESTARGS)
+	PATH=$(CURRENT_DIR)/bin:$(PATH) go test $(TEST) $(TESTARGS)
 	go vet $(TEST)
 
 xcompile: deps test

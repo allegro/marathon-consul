@@ -4,9 +4,9 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/CiscoCloud/marathon-consul/apps"
-	"github.com/CiscoCloud/marathon-consul/tasks"
 	log "github.com/Sirupsen/logrus"
+	"github.com/allegro/marathon-consul/apps"
+	"github.com/allegro/marathon-consul/tasks"
 	"github.com/sethgrid/pester"
 	"io/ioutil"
 	"net/http"
@@ -15,6 +15,7 @@ import (
 
 type Marathoner interface {
 	Apps() ([]*apps.App, error)
+	App(string) (*apps.App, error)
 	Tasks(string) ([]*tasks.Task, error)
 }
 
@@ -25,16 +26,30 @@ type Marathon struct {
 	NoVerifySsl bool
 }
 
+func New(config Config) (Marathon, error) {
+	return Marathon{
+		Location:    config.Location,
+		Protocol:    config.Protocol,
+		Auth:        url.UserPassword(config.Username, config.Password),
+		NoVerifySsl: false,
+	}, nil
+}
+
 func NewMarathon(location, protocol string, auth *url.Userinfo) (Marathon, error) {
 	return Marathon{location, protocol, auth, false}, nil
 }
 
 func (m Marathon) Url(path string) string {
+	return m.UrlWithQuery(path, "")
+}
+
+func (m Marathon) UrlWithQuery(path string, query string) string {
 	marathon := url.URL{
-		Scheme: m.Protocol,
-		User:   m.Auth,
-		Host:   m.Location,
-		Path:   path,
+		Scheme:   m.Protocol,
+		User:     m.Auth,
+		Host:     m.Location,
+		Path:     path,
+		RawQuery: query,
 	}
 
 	return marathon.String()
@@ -52,11 +67,43 @@ func (m Marathon) getClient() *pester.Client {
 	return client
 }
 
+func (m Marathon) App(appId string) (*apps.App, error) {
+	log.WithField("location", m.Location).Debug("asking Marathon for " + appId)
+	client := m.getClient()
+
+	request, err := http.NewRequest("GET", m.UrlWithQuery("/v2/apps/"+appId, "embed=apps.tasks"), nil)
+	if err != nil {
+		log.Error(err.Error())
+		return nil, err
+	}
+	request.Header.Add("Accept", "application/json")
+
+	appsResponse, err := client.Do(request)
+	if err != nil || (appsResponse.StatusCode != 200) {
+		m.logHTTPError(appsResponse, err)
+		return nil, err
+	}
+
+	body, err := ioutil.ReadAll(appsResponse.Body)
+	if err != nil {
+		m.logHTTPError(appsResponse, err)
+		return nil, err
+	}
+
+	app, err := m.ParseApp(body)
+	if err != nil {
+		m.logHTTPError(appsResponse, err)
+		return nil, err
+	}
+
+	return app, err
+}
+
 func (m Marathon) Apps() ([]*apps.App, error) {
 	log.WithField("location", m.Location).Debug("asking Marathon for apps")
 	client := m.getClient()
 
-	request, err := http.NewRequest("GET", m.Url("/v2/apps"), nil)
+	request, err := http.NewRequest("GET", m.UrlWithQuery("/v2/apps", "embed=apps.tasks"), nil)
 	if err != nil {
 		log.Error(err.Error())
 		return nil, err
@@ -83,15 +130,22 @@ func (m Marathon) Apps() ([]*apps.App, error) {
 	return appList, err
 }
 
-type AppResponse struct {
+type AppsResponse struct {
 	Apps []*apps.App `json:"apps"`
 }
 
 func (m Marathon) ParseApps(jsonBlob []byte) ([]*apps.App, error) {
-	apps := &AppResponse{}
+	apps := &AppsResponse{}
 	err := json.Unmarshal(jsonBlob, apps)
 
 	return apps.Apps, err
+}
+
+func (m Marathon) ParseApp(jsonBlob []byte) (*apps.App, error) {
+	wrapper := &apps.AppWrapper{}
+	err := json.Unmarshal(jsonBlob, wrapper)
+
+	return &wrapper.App, err
 }
 
 func (m Marathon) Tasks(app string) ([]*tasks.Task, error) {

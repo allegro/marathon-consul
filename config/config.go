@@ -1,34 +1,29 @@
 package config
 
 import (
-	"crypto/tls"
-	"errors"
 	log "github.com/Sirupsen/logrus"
-	"github.com/hashicorp/consul/api"
+	"github.com/allegro/marathon-consul/consul"
+	"github.com/allegro/marathon-consul/marathon"
+	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/sync"
 	flag "github.com/ogier/pflag"
-	"net/http"
-	"net/url"
-	"strings"
-)
-
-var (
-	ErrBadCredentials = errors.New("credentials must be of the form `user:pass`")
-	ErrNoScheme       = errors.New("please specify a scheme for the registry")
+	"time"
 )
 
 type Config struct {
-	Registry Registry
-	Web      struct {
+	Consul consul.ConsulConfig
+	Web    struct {
 		Listen string
 	}
-	Marathon MarathonConfig
+	Sync     sync.Config
+	Marathon marathon.Config
+	Metrics  metrics.Config
 	LogLevel string
 }
 
 func New() (config *Config) {
 	config = &Config{
-		Registry: Registry{},
-		Marathon: MarathonConfig{},
+		Marathon: marathon.Config{},
 	}
 	config.parseFlags()
 	config.setLogLevel()
@@ -37,25 +32,38 @@ func New() (config *Config) {
 }
 
 func (config *Config) parseFlags() {
-	// registry
-	flag.StringVar(&config.Registry.Auth, "registry-auth", "", "Registry basic auth")
-	flag.StringVar(&config.Registry.Datacenter, "registry-datacenter", "", "Registry datacenter")
-	flag.StringVar(&config.Registry.Location, "registry", "http://localhost:8500", "Registry location")
-	flag.StringVar(&config.Registry.Token, "registry-token", "", "Registry ACL token")
-	flag.BoolVar(&config.Registry.NoVerifySSL, "registry-noverify", false, "don't verify registry SSL certificates")
-	flag.StringVar(&config.Registry.Prefix, "registry-prefix", "marathon", "prefix for all values sent to the registry")
+	// Consul
+	flag.BoolVar(&config.Consul.Enabled, "consul", true, "Use Consul backend")
+	flag.StringVar(&config.Consul.Port, "consul-port", "8500", "Consul port")
+	flag.BoolVar(&config.Consul.Auth.Enabled, "consul-auth", false, "Use Consul with authentication")
+	flag.StringVar(&config.Consul.Auth.Username, "consul-auth-username", "", "The basic authentication username")
+	flag.StringVar(&config.Consul.Auth.Password, "consul-auth-password", "", "The basic authentication password")
+	flag.BoolVar(&config.Consul.SslEnabled, "consul-ssl", false, "Use HTTPS when talking to Consul")
+	flag.BoolVar(&config.Consul.SslVerify, "consul-ssl-verify", true, "Verify certificates when connecting via SSL")
+	flag.StringVar(&config.Consul.SslCert, "consul-ssl-cert", "", "Path to an SSL client certificate to use to authenticate to the Consul server")
+	flag.StringVar(&config.Consul.SslCaCert, "consul-ssl-ca-cert", "", "Path to a CA certificate file, containing one or more CA certificates to use to validate the certificate sent by the Consul server to us")
+	flag.StringVar(&config.Consul.Token, "consul-token", "", "The Consul ACL token")
 
 	// Web
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "accept connections at this address")
 
+	// Sync
+	flag.DurationVar(&config.Sync.Interval, "sync-interval", 15*time.Minute, "Marathon-consul sync interval")
+
 	// Marathon
-	flag.StringVar(&config.Marathon.Location, "marathon-location", "localhost:8080", "marathon URL")
-	flag.StringVar(&config.Marathon.Protocol, "marathon-protocol", "http", "marathon protocol (http or https)")
-	flag.StringVar(&config.Marathon.Username, "marathon-username", "", "marathon username for basic auth")
-	flag.StringVar(&config.Marathon.Password, "marathon-password", "", "marathon password for basic auth")
+	flag.StringVar(&config.Marathon.Location, "marathon-location", "localhost:8080", "Marathon URL")
+	flag.StringVar(&config.Marathon.Protocol, "marathon-protocol", "http", "Marathon protocol (http or https)")
+	flag.StringVar(&config.Marathon.Username, "marathon-username", "", "Marathon username for basic auth")
+	flag.StringVar(&config.Marathon.Password, "marathon-password", "", "Marathon password for basic auth")
+
+	// Metrics
+	flag.StringVar(&config.Metrics.Target, "metrics-target", "stdout", "Metrics destination stdout or graphite")
+	flag.StringVar(&config.Metrics.Prefix, "metrics-prefix", "default", "Metrics prefix (default is resolved to <hostname>.<app_name>")
+	flag.DurationVar(&config.Metrics.Interval, "metrics-interval", 30*time.Second, "Metrics reporting interval")
+	flag.StringVar(&config.Metrics.Addr, "metrics-location", "", "Graphite URL (used when metrics-target is set to graphite)")
 
 	// General
-	flag.StringVar(&config.LogLevel, "log-level", "info", "log level: panic, fatal, error, warn, info, or debug")
+	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level: panic, fatal, error, warn, info, or debug")
 
 	flag.Parse()
 }
@@ -66,64 +74,4 @@ func (config *Config) setLogLevel() {
 		log.WithField("level", config.LogLevel).Fatal("bad level")
 	}
 	log.SetLevel(level)
-}
-
-type Registry struct {
-	Auth        string
-	Datacenter  string
-	Location    string
-	Token       string
-	NoVerifySSL bool
-	Prefix      string
-}
-
-func (r Registry) GetAuth() (auth *api.HttpBasicAuth, err error) {
-	if r.Auth == "" {
-		return nil, nil
-	}
-
-	creds := strings.SplitN(r.Auth, ":", 2)
-	if len(creds) != 2 {
-		return nil, ErrBadCredentials
-	}
-
-	auth = &api.HttpBasicAuth{
-		Username: creds[0],
-		Password: creds[1],
-	}
-
-	return auth, err
-}
-
-func (r Registry) Config() (*api.Config, error) {
-	url, err := url.Parse(r.Location)
-	if err != nil {
-		return nil, err
-	}
-	if url.Scheme == "" {
-		return nil, ErrNoScheme
-	}
-
-	auth, err := r.GetAuth()
-	if err != nil {
-		return nil, err
-	}
-
-	config := &api.Config{
-		Address:    url.Host,
-		Scheme:     url.Scheme,
-		Datacenter: r.Datacenter,
-		HttpAuth:   auth,
-		Token:      r.Token,
-		HttpClient: &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: r.NoVerifySSL,
-				},
-			},
-		},
-	}
-
-	return config, nil
 }
