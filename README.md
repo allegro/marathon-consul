@@ -1,11 +1,11 @@
-# marathon-consul
+# marathon-consul [![Build Status](https://travis-ci.org/allegro/marathon-consul.svg?branch=master)](https://travis-ci.org/allegro/marathon-consul)
 
 
 Register Marathon Tasks as Consul Services for service discovery.
 
-`marathon-consul` takes information provided by the Marathon event bus and
-forwards it to Consul's services. It also re-syncs all the information from
-Marathon to Consul on startup and repeats it with given interval.
+`Marathon-consul` takes information provided by the Marathon event bus and
+forwards it to Consul agents. It also re-syncs all the information from Marathon 
+to Consul on startup and repeats it with given interval.
 
 ## Running the program
 
@@ -24,7 +24,7 @@ curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callback
 To simply compile and run the source code:
 
 ```
-go run main.go web.go [options](#options)
+go run main.go web.go [options]
 ```
 
 To build the binary:
