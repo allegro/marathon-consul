@@ -1,8 +1,8 @@
 package consul
 
 import (
-	"github.com/CiscoCloud/marathon-consul/metrics"
 	log "github.com/Sirupsen/logrus"
+	"github.com/allegro/marathon-consul/metrics"
 	consulapi "github.com/hashicorp/consul/api"
 )
 

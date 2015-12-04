@@ -1,9 +1,9 @@
 package sync
 
 import (
-	"github.com/CiscoCloud/marathon-consul/consul"
-	"github.com/CiscoCloud/marathon-consul/marathon"
-	. "github.com/CiscoCloud/marathon-consul/utils"
+	"github.com/allegro/marathon-consul/consul"
+	"github.com/allegro/marathon-consul/marathon"
+	. "github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 	"testing"

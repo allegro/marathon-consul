@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/CiscoCloud/marathon-consul/config"
-	service "github.com/CiscoCloud/marathon-consul/consul"
-	"github.com/CiscoCloud/marathon-consul/marathon"
-	"github.com/CiscoCloud/marathon-consul/metrics"
-	"github.com/CiscoCloud/marathon-consul/sync"
 	log "github.com/Sirupsen/logrus"
+	"github.com/allegro/marathon-consul/config"
+	service "github.com/allegro/marathon-consul/consul"
+	"github.com/allegro/marathon-consul/marathon"
+	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/sync"
 	"net/http"
 )
 

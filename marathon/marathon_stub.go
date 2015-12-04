@@ -1,8 +1,8 @@
 package marathon
 
 import (
-	"github.com/CiscoCloud/marathon-consul/apps"
-	"github.com/CiscoCloud/marathon-consul/tasks"
+	"github.com/allegro/marathon-consul/apps"
+	"github.com/allegro/marathon-consul/tasks"
 )
 
 type MarathonerStub struct {

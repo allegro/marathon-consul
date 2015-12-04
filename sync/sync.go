@@ -1,11 +1,11 @@
 package sync
 
 import (
-	"github.com/CiscoCloud/marathon-consul/apps"
-	service "github.com/CiscoCloud/marathon-consul/consul"
-	"github.com/CiscoCloud/marathon-consul/marathon"
-	"github.com/CiscoCloud/marathon-consul/metrics"
 	log "github.com/Sirupsen/logrus"
+	"github.com/allegro/marathon-consul/apps"
+	service "github.com/allegro/marathon-consul/consul"
+	"github.com/allegro/marathon-consul/marathon"
+	"github.com/allegro/marathon-consul/metrics"
 	consul "github.com/hashicorp/consul/api"
 	"time"
 )

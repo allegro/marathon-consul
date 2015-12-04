@@ -1,7 +1,7 @@
 package apps
 
 import (
-	"github.com/CiscoCloud/marathon-consul/tasks"
+	"github.com/allegro/marathon-consul/tasks"
 )
 
 type HealthCheck struct {

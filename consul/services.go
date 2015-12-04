@@ -4,8 +4,8 @@ import (
 	consulapi "github.com/hashicorp/consul/api"
 
 	"fmt"
-	"github.com/CiscoCloud/marathon-consul/apps"
-	"github.com/CiscoCloud/marathon-consul/tasks"
+	"github.com/allegro/marathon-consul/apps"
+	"github.com/allegro/marathon-consul/tasks"
 	"net/url"
 	"strconv"
 	"strings"
