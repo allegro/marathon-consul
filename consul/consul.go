@@ -92,28 +92,28 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 			"Tags": service.Tags,
 			"Host": service.Address,
 			"Port": service.Port,
-		}).Warnf("Unable to register")
+		}).Error("Unable to register")
 	}
 	return err
 }
 
-func (c *Consul) Deregister(serviceId string, agent string) error {
+func (c *Consul) Deregister(serviceId string, agentHost string) error {
 	var err error
-	metrics.Time("consul.deregister", func() { err = c.deregister(serviceId, agent) })
+	metrics.Time("consul.deregister", func() { err = c.deregister(serviceId, agentHost) })
 	return err
 }
 
-func (c *Consul) deregister(serviceId string, agentAddress string) error {
-	agent, err := c.agents.GetAgent(agentAddress)
+func (c *Consul) deregister(serviceId string, agentHost string) error {
+	agent, err := c.agents.GetAgent(agentHost)
 	if err != nil {
 		return err
 	}
 
-	log.WithField("Id", serviceId).Info("Deregistering")
+	log.WithField("ServiceId", serviceId).WithField("Host", agentHost).Info("Deregistering")
 
 	err = agent.Agent().ServiceDeregister(serviceId)
 	if err != nil {
-		log.WithError(err).WithField("Id", serviceId).Info("Deregistering")
+		log.WithError(err).WithField("Id", serviceId).WithField("Host", agentHost).Error("Unable to deregister")
 	}
 	return err
 }

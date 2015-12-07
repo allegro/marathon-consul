@@ -36,13 +36,13 @@ func TestGetAllServices(t *testing.T) {
 	}
 
 	// then
-	assert.Equal(t, 3, len(services))
+	assert.Len(t, services, 3)
 
 	serviceNames := make(map[string]struct{})
 	for _, s := range services {
 		serviceNames[s.ServiceName] = struct{}{}
 	}
-	assert.Equal(t, 2, len(serviceNames))
+	assert.Len(t, serviceNames, 2)
 	assert.Contains(t, serviceNames, "serviceA")
 	assert.Contains(t, serviceNames, "serviceB")
 }
@@ -71,7 +71,29 @@ func TestRegisterServices(t *testing.T) {
 
 	// then
 	services, _ := consul.GetAllServices()
-	assert.Equal(t, 1, len(services))
+	assert.Len(t, services, 1)
 	assert.Equal(t, "serviceA", services[0].ServiceName)
 	assert.Equal(t, []string{"test", "marathon"}, services[0].ServiceTags)
+}
+
+func TestDeregisterServices(t *testing.T) {
+	t.Parallel()
+	server := CreateConsulTestServer("dc1", t)
+	defer server.Stop()
+
+	consul := ConsulClientAtServer(server)
+
+	// given
+	server.AddService("serviceA", "passing", []string{"marathon"})
+	server.AddService("serviceB", "passing", []string{"marathon"})
+	services, _ := consul.GetAllServices()
+	assert.Len(t, services, 2)
+
+	// when
+	consul.Deregister("serviceA", server.Config.NodeName)
+
+	// then
+	services, _ = consul.GetAllServices()
+	assert.Len(t, services, 1)
+	assert.Equal(t, "serviceB", services[0].ServiceName)
 }
