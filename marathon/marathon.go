@@ -2,7 +2,6 @@ package marathon
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
@@ -11,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 type Marathoner interface {
@@ -20,132 +20,51 @@ type Marathoner interface {
 }
 
 type Marathon struct {
-	Location    string
-	Protocol    string
-	Auth        *url.Userinfo
-	NoVerifySsl bool
+	Location  string
+	Protocol  string
+	Auth      *url.Userinfo
+	transport http.RoundTripper
 }
 
 func New(config Config) (Marathon, error) {
+	var auth *url.Userinfo
+	if len(config.Username) == 0 && len(config.Password) == 0 {
+		auth = nil
+	} else {
+		auth = url.UserPassword(config.Username, config.Password)
+	}
 	return Marathon{
-		Location:    config.Location,
-		Protocol:    config.Protocol,
-		Auth:        url.UserPassword(config.Username, config.Password),
-		NoVerifySsl: false,
-	}, nil
-}
-
-func NewMarathon(location, protocol string, auth *url.Userinfo) (Marathon, error) {
-	return Marathon{location, protocol, auth, false}, nil
-}
-
-func (m Marathon) Url(path string) string {
-	return m.UrlWithQuery(path, "")
-}
-
-func (m Marathon) UrlWithQuery(path string, query string) string {
-	marathon := url.URL{
-		Scheme:   m.Protocol,
-		User:     m.Auth,
-		Host:     m.Location,
-		Path:     path,
-		RawQuery: query,
-	}
-
-	return marathon.String()
-}
-
-func (m Marathon) getClient() *pester.Client {
-	client := pester.New()
-	client.Transport = &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: m.NoVerifySsl,
+		Location: config.Location,
+		Protocol: config.Protocol,
+		Auth:     auth,
+		transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: !config.VerifySsl,
+			},
 		},
-	}
-
-	return client
+	}, nil
 }
 
 func (m Marathon) App(appId string) (*apps.App, error) {
 	log.WithField("location", m.Location).Debug("asking Marathon for " + appId)
-	client := m.getClient()
 
-	request, err := http.NewRequest("GET", m.UrlWithQuery("/v2/apps/"+appId, "embed=apps.tasks"), nil)
+	body, err := m.get(m.urlWithQuery("/v2/apps/"+appId, "embed=apps.tasks"))
 	if err != nil {
-		log.Error(err.Error())
-		return nil, err
-	}
-	request.Header.Add("Accept", "application/json")
-
-	appsResponse, err := client.Do(request)
-	if err != nil || (appsResponse.StatusCode != 200) {
-		m.logHTTPError(appsResponse, err)
 		return nil, err
 	}
 
-	body, err := ioutil.ReadAll(appsResponse.Body)
-	if err != nil {
-		m.logHTTPError(appsResponse, err)
-		return nil, err
-	}
-
-	app, err := m.ParseApp(body)
-	if err != nil {
-		m.logHTTPError(appsResponse, err)
-		return nil, err
-	}
-
-	return app, err
+	return apps.ParseApp(body)
 }
 
 func (m Marathon) Apps() ([]*apps.App, error) {
 	log.WithField("location", m.Location).Debug("asking Marathon for apps")
-	client := m.getClient()
-
-	request, err := http.NewRequest("GET", m.UrlWithQuery("/v2/apps", "embed=apps.tasks"), nil)
+	body, err := m.get(m.urlWithQuery("/v2/apps", "embed=apps.tasks"))
 	if err != nil {
-		log.Error(err.Error())
-		return nil, err
-	}
-	request.Header.Add("Accept", "application/json")
-
-	appsResponse, err := client.Do(request)
-	if err != nil || (appsResponse.StatusCode != 200) {
-		m.logHTTPError(appsResponse, err)
 		return nil, err
 	}
 
-	body, err := ioutil.ReadAll(appsResponse.Body)
-	if err != nil {
-		m.logHTTPError(appsResponse, err)
-		return nil, err
-	}
-
-	appList, err := m.ParseApps(body)
-	if err != nil {
-		m.logHTTPError(appsResponse, err)
-	}
-
-	return appList, err
-}
-
-type AppsResponse struct {
-	Apps []*apps.App `json:"apps"`
-}
-
-func (m Marathon) ParseApps(jsonBlob []byte) ([]*apps.App, error) {
-	apps := &AppsResponse{}
-	err := json.Unmarshal(jsonBlob, apps)
-
-	return apps.Apps, err
-}
-
-func (m Marathon) ParseApp(jsonBlob []byte) (*apps.App, error) {
-	wrapper := &apps.AppWrapper{}
-	err := json.Unmarshal(jsonBlob, wrapper)
-
-	return &wrapper.App, err
+	return apps.ParseApps(body)
 }
 
 func (m Marathon) Tasks(app string) ([]*tasks.Task, error) {
@@ -153,48 +72,37 @@ func (m Marathon) Tasks(app string) ([]*tasks.Task, error) {
 		"location": m.Location,
 		"app":      app,
 	}).Debug("asking Marathon for tasks")
-	client := m.getClient()
 
-	if app[0] == '/' {
-		app = app[1:]
+	app = strings.Trim(app, "/")
+	body, err := m.get(m.url(fmt.Sprintf("/v2/apps/%s/tasks", app)))
+	if err != nil {
+		return nil, err
 	}
 
-	request, err := http.NewRequest("GET", m.Url(fmt.Sprintf("/v2/apps/%s/tasks", app)), nil)
+	return tasks.ParseTasks(body)
+}
+
+func (m Marathon) get(url string) ([]byte, error) {
+	client := m.getClient()
+	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Error(err.Error())
 		return nil, err
 	}
 	request.Header.Add("Accept", "application/json")
 
-	tasksResponse, err := client.Do(request)
-	if err != nil || (tasksResponse.StatusCode != 200) {
-		m.logHTTPError(tasksResponse, err)
+	response, err := client.Do(request)
+	if err != nil {
+		m.logHTTPError(response, err)
+		return nil, err
+	}
+	if response.StatusCode != 200 {
+		err = fmt.Errorf("Expected 200 but got %d for %s", response.StatusCode, response.Request.URL)
+		m.logHTTPError(response, err)
 		return nil, err
 	}
 
-	body, err := ioutil.ReadAll(tasksResponse.Body)
-	if err != nil {
-		m.logHTTPError(tasksResponse, err)
-		return nil, err
-	}
-
-	taskList, err := m.ParseTasks(body)
-	if err != nil {
-		m.logHTTPError(tasksResponse, err)
-	}
-
-	return taskList, err
-}
-
-type TasksResponse struct {
-	Tasks []*tasks.Task `json:"tasks"`
-}
-
-func (m Marathon) ParseTasks(jsonBlob []byte) ([]*tasks.Task, error) {
-	tasks := &TasksResponse{}
-	err := json.Unmarshal(jsonBlob, tasks)
-
-	return tasks.Tasks, err
+	return ioutil.ReadAll(response.Body)
 }
 
 func (m Marathon) logHTTPError(resp *http.Response, err error) {
@@ -208,4 +116,26 @@ func (m Marathon) logHTTPError(resp *http.Response, err error) {
 		"protocol":   m.Protocol,
 		"statusCode": statusCode,
 	}).Error(err)
+}
+
+func (m Marathon) url(path string) string {
+	return m.urlWithQuery(path, "")
+}
+
+func (m Marathon) urlWithQuery(path string, query string) string {
+	marathon := url.URL{
+		Scheme:   m.Protocol,
+		User:     m.Auth,
+		Host:     m.Location,
+		Path:     path,
+		RawQuery: query,
+	}
+
+	return marathon.String()
+}
+
+func (m Marathon) getClient() *pester.Client {
+	client := pester.New()
+	client.Transport = m.transport
+	return client
 }

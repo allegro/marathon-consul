@@ -3,23 +3,20 @@ package tasks
 import (
 	"encoding/json"
 	"github.com/stretchr/testify/assert"
+	"io/ioutil"
 	"testing"
 )
 
-var testTask = &Task{
-	Timestamp:          "2014-03-01T23:29:30.158Z",
-	SlaveID:            "20140909-054127-177048842-5050-1494-0",
-	ID:                 "my-app_0-1396592784349",
-	TaskStatus:         "TASK_RUNNING",
-	AppID:              "/my-app",
-	Host:               "slave-1234.acme.org",
-	Ports:              []int{31372},
-	Version:            "2014-04-04T06:26:23.051Z",
-	HealthCheckResults: []HealthCheckResult{HealthCheckResult{Alive: true}},
-}
-
 func TestParseTask(t *testing.T) {
 	t.Parallel()
+
+	testTask := &Task{
+		ID:                 "my-app_0-1396592784349",
+		AppID:              "/my-app",
+		Host:               "slave-1234.acme.org",
+		Ports:              []int{31372},
+		HealthCheckResults: []HealthCheckResult{HealthCheckResult{Alive: true}},
+	}
 
 	jsonified, err := json.Marshal(testTask)
 	assert.Nil(t, err)
@@ -27,13 +24,36 @@ func TestParseTask(t *testing.T) {
 	service, err := ParseTask(jsonified)
 	assert.Nil(t, err)
 
-	assert.Equal(t, testTask.Timestamp, service.Timestamp)
-	assert.Equal(t, testTask.SlaveID, service.SlaveID)
 	assert.Equal(t, testTask.ID, service.ID)
-	assert.Equal(t, testTask.TaskStatus, service.TaskStatus)
 	assert.Equal(t, testTask.AppID, service.AppID)
 	assert.Equal(t, testTask.Host, service.Host)
 	assert.Equal(t, testTask.Ports, service.Ports)
-	assert.Equal(t, testTask.Version, service.Version)
 	assert.Equal(t, testTask.HealthCheckResults[0].Alive, service.HealthCheckResults[0].Alive)
+}
+
+func TestParseTasks(t *testing.T) {
+	t.Parallel()
+
+	tasksBlob, _ := ioutil.ReadFile("tasks.json")
+
+	expectedTasks := []*Task{
+		&Task{
+			ID:                 "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8",
+			AppID:              "/test",
+			Host:               "192.168.2.114",
+			Ports:              []int{31315},
+			HealthCheckResults: []HealthCheckResult{HealthCheckResult{Alive: true}},
+		},
+		&Task{
+			ID:    "test.4453212c-1a81-11e5-bdb6-e6cb6734eaf8",
+			AppID: "/test",
+			Host:  "192.168.2.114",
+			Ports: []int{31797},
+		},
+	}
+
+	tasks, err := ParseTasks(tasksBlob)
+	assert.Nil(t, err)
+	assert.Len(t, tasks, 2)
+	assert.Equal(t, expectedTasks, tasks)
 }
