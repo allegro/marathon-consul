@@ -5,3 +5,9 @@ go:
   - tip
 
 script: make test
+
+after_success:
+  - go get github.com/mitchellh/gox
+  - go get github.com/tcnksm/ghr
+  - make xcompile
+  - ghr -t $GITHUB_TOKEN -u allegro --replace `shell awk -F\" '/^const Version/ { print $$2 }' main.go` dist/
