@@ -5,12 +5,14 @@ import (
 )
 
 type ConsulStub struct {
-	services map[string]*consulapi.AgentServiceRegistration
+	services      map[string]*consulapi.AgentServiceRegistration
+	ErrorServices map[string]error
 }
 
 func NewConsulStub() *ConsulStub {
 	return &ConsulStub{
-		services: make(map[string]*consulapi.AgentServiceRegistration),
+		services:      make(map[string]*consulapi.AgentServiceRegistration),
+		ErrorServices: make(map[string]error),
 	}
 }
 
@@ -30,11 +32,28 @@ func (c ConsulStub) GetAllServices() ([]*consulapi.CatalogService, error) {
 }
 
 func (c *ConsulStub) Register(service *consulapi.AgentServiceRegistration) error {
-	c.services[service.ID] = service
-	return nil
+	if err, ok := c.ErrorServices[service.ID]; ok {
+		return err
+	} else {
+		c.services[service.ID] = service
+		return nil
+	}
 }
 
 func (c *ConsulStub) Deregister(serviceId string, agent string) error {
-	delete(c.services, serviceId)
-	return nil
+	if err, ok := c.ErrorServices[serviceId]; ok {
+		return err
+	} else {
+		delete(c.services, serviceId)
+		return nil
+	}
+}
+
+func (c *ConsulStub) RegisteredServicesIds() []string {
+	services, _ := c.GetAllServices()
+	servicesIds := []string{}
+	for _, consulService := range services {
+		servicesIds = append(servicesIds, consulService.ServiceID)
+	}
+	return servicesIds
 }

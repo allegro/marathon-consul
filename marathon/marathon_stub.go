@@ -1,6 +1,7 @@
 package marathon
 
 import (
+	"fmt"
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/tasks"
 )
@@ -16,11 +17,19 @@ func (m MarathonerStub) Apps() ([]*apps.App, error) {
 }
 
 func (m MarathonerStub) App(id string) (*apps.App, error) {
-	return m.AppStub[id], nil
+	if app, ok := m.AppStub[id]; ok {
+		return app, nil
+	} else {
+		return nil, fmt.Errorf("app not found")
+	}
 }
 
 func (m MarathonerStub) Tasks(appId string) ([]*tasks.Task, error) {
-	return m.TasksStub[appId], nil
+	if app, ok := m.TasksStub[appId]; ok {
+		return app, nil
+	} else {
+		return nil, fmt.Errorf("app not found")
+	}
 }
 
 func MarathonerStubForApps(args ...*apps.App) *MarathonerStub {
