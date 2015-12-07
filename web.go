@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	service "github.com/allegro/marathon-consul/consul"
@@ -28,11 +27,12 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	fh.markRequest()
 
 	body, err := ioutil.ReadAll(r.Body)
-	if err != nil || len(body) == 0 {
+	if err != nil {
 		log.WithError(err).Debug("Malformed request")
 		fh.handleBadRequest(err, w)
 		return
 	}
+	log.Debug(string(body))
 
 	eventType, err := events.EventType(body)
 	if err != nil {
@@ -56,7 +56,8 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		log.WithField("eventType", eventType).Debug("not handling event")
 		fh.handleBadRequest(fmt.Errorf("cannot handle %s", eventType), w)
 	}
-	log.Debug(string(body))
+
+	fh.markResponse()
 }
 
 func (fh *ForwardHandler) handleTerminationEvent(w http.ResponseWriter, body []byte) {
@@ -73,16 +74,24 @@ func (fh *ForwardHandler) handleTerminationEvent(w http.ResponseWriter, body []b
 	tasks, err := fh.marathon.Tasks(app.ID)
 	if err != nil {
 		log.WithField("APP", app.ID).WithError(err).Error("There was a problem obtaining tasks for app")
+		fh.handleError(err, w)
+		return
 	}
 
+	errors := []error{}
 	for _, task := range tasks {
 		err = fh.service.Deregister(task.ID, task.Host)
 		if err != nil {
 			log.WithField("ID", task.ID).WithError(err).Error("There was a problem deregistering task")
+			errors = append(errors, err)
 		}
 	}
-
-	if err != nil {
+	if len(errors) != 0 {
+		errMessage := fmt.Sprintf("%d errors occured deregistering %d services:", len(errors), len(tasks))
+		for i, err := range errors {
+			errMessage = fmt.Sprintf("%s\n%d: %s", errMessage, i, err.Error())
+		}
+		err = fmt.Errorf(errMessage)
 		fh.handleError(err, w)
 		log.WithError(err).WithField("APP", app.ID).Error("There where problems processing request")
 	} else {
@@ -95,30 +104,33 @@ func (fh *ForwardHandler) handleHealthStatusEvent(w http.ResponseWriter, body []
 	body = replaceTaskIdWithId(body)
 	taskHealthChange, err := events.ParseTaskHealthChange(body)
 	if err != nil {
-		fh.handleError(err, w)
 		log.WithError(err).Error("Body generated error")
+		fh.handleBadRequest(err, w)
 		return
 	}
 
 	if !taskHealthChange.Alive {
-		log.WithField("ID", taskHealthChange.ID).Debug("Task is not alive. Not registering")
+		err := fmt.Errorf("Task %s is not healthy. Not registering", taskHealthChange.ID)
+		log.WithField("ID", taskHealthChange.ID).WithError(err).Debug("Task is not healthy. Not registering")
+		fh.handleBadRequest(err, w)
 		return
 	}
 
 	appId := taskHealthChange.AppID
 	app, err := fh.marathon.App(appId)
-	tasks := app.Tasks
-
 	if err != nil {
 		log.WithField("ID", taskHealthChange.ID).WithError(err).Error("There was a problem obtaining app info")
+		fh.handleError(err, w)
 		return
 	}
+	tasks := app.Tasks
 
 	if value, ok := app.Labels["consul"]; !ok || value != "true" {
 		log.WithFields(log.Fields{
 			"APP": appId,
 			"ID":  taskHealthChange.ID,
 		}).Debug("App should not be registered in Consul")
+		fh.handleBadRequest(fmt.Errorf("%s is not consul app. Missing consul:true label", app.ID), w)
 		return
 	}
 
@@ -128,6 +140,7 @@ func (fh *ForwardHandler) handleHealthStatusEvent(w http.ResponseWriter, body []
 	task, err := findTaskById(taskHealthChange.ID, tasks)
 	if err != nil {
 		log.WithField("ID", taskHealthChange.ID).WithError(err).Error("Task not found")
+		fh.handleError(err, w)
 		return
 	}
 
@@ -135,9 +148,15 @@ func (fh *ForwardHandler) handleHealthStatusEvent(w http.ResponseWriter, body []
 		err := fh.service.Register(service.MarathonTaskToConsulService(task, healthCheck, labels))
 		if err != nil {
 			log.WithField("ID", task.ID).WithError(err).Error("There was a problem registering task")
+			fh.handleError(err, w)
+		} else {
+			w.WriteHeader(200)
+			fmt.Fprintln(w, "OK")
 		}
 	} else {
-		log.WithField("ID", task.ID).Debug("Task is not healthy. Not registering")
+		err := fmt.Errorf("Task %s is not healthy. Not registering", task.ID)
+		log.WithField("ID", task.ID).WithError(err).Debug("Task is not healthy. Not registering")
+		fh.handleBadRequest(err, w)
 	}
 }
 
@@ -152,32 +171,23 @@ func findTaskById(id string, tasks_ []tasks.Task) (tasks.Task, error) {
 
 func (fh *ForwardHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
 	body = replaceTaskIdWithId(body)
-
 	task, err := tasks.ParseTask(body)
 	if err != nil {
-		fh.handleError(err, w)
 		log.WithError(err).WithField("Body", body).Error("[ERROR] body generated error")
-		return
-	}
-
-	switch task.TaskStatus {
-	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
-		fh.service.Deregister(task.ID, task.Host)
-	case "TASK_STAGING", "TASK_STARTING", "TASK_RUNNING":
-		log.WithFields(log.Fields{
-			"taskStatus": task.TaskStatus,
-			"ID":         task.ID,
-		}).Info("not handling event")
-	default:
-		err = errors.New("unknown task status")
-	}
-
-	if err != nil {
-		fh.handleError(err, w)
-		log.WithError(err).WithField("ID", task.ID).Error("There where problems processing request")
+		fh.handleBadRequest(err, w)
 	} else {
-		w.WriteHeader(200)
-		fmt.Fprintln(w, "OK")
+		switch task.TaskStatus {
+		case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
+			fh.service.Deregister(task.ID, task.Host)
+			w.WriteHeader(200)
+			fmt.Fprintln(w, "OK")
+		default:
+			log.WithFields(log.Fields{
+				"taskStatus": task.TaskStatus,
+				"ID":         task.ID,
+			}).Info("not handling event")
+			fh.handleBadRequest(fmt.Errorf("Not Handling task %s with status %s", task.ID, task.TaskStatus), w)
+		}
 	}
 }
 
