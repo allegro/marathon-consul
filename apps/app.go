@@ -1,6 +1,7 @@
 package apps
 
 import (
+	"encoding/json"
 	"github.com/allegro/marathon-consul/tasks"
 )
 
@@ -18,9 +19,27 @@ type AppWrapper struct {
 	App App `json:"app"`
 }
 
+type AppsResponse struct {
+	Apps []*App `json:"apps"`
+}
+
 type App struct {
 	Labels       map[string]string `json:"labels"`
 	HealthChecks []HealthCheck     `json:"healthChecks"`
 	ID           string            `json:"id"`
 	Tasks        []tasks.Task      `json:"tasks"`
+}
+
+func ParseApps(jsonBlob []byte) ([]*App, error) {
+	apps := &AppsResponse{}
+	err := json.Unmarshal(jsonBlob, apps)
+
+	return apps.Apps, err
+}
+
+func ParseApp(jsonBlob []byte) (*App, error) {
+	wrapper := &AppWrapper{}
+	err := json.Unmarshal(jsonBlob, wrapper)
+
+	return &wrapper.App, err
 }

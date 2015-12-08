@@ -55,6 +55,7 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Marathon.Protocol, "marathon-protocol", "http", "Marathon protocol (http or https)")
 	flag.StringVar(&config.Marathon.Username, "marathon-username", "", "Marathon username for basic auth")
 	flag.StringVar(&config.Marathon.Password, "marathon-password", "", "Marathon password for basic auth")
+	flag.BoolVar(&config.Marathon.VerifySsl, "marathon-ssl-verify", true, "Verify certificates when connecting via SSL")
 
 	// Metrics
 	flag.StringVar(&config.Metrics.Target, "metrics-target", "stdout", "Metrics destination stdout or graphite")

@@ -5,19 +5,27 @@ import (
 )
 
 type Task struct {
-	Timestamp          string              `json:"timestamp"`
-	SlaveID            string              `json:"slaveId"`
 	ID                 string              `json:"id"`
 	TaskStatus         string              `json:"taskStatus"`
 	AppID              string              `json:"appId"`
 	Host               string              `json:"host"`
 	Ports              []int               `json:"ports"`
-	Version            string              `json:"version"`
 	HealthCheckResults []HealthCheckResult `json:"healthCheckResults"`
 }
 
 type HealthCheckResult struct {
 	Alive bool `json:"alive"`
+}
+
+type TasksResponse struct {
+	Tasks []*Task `json:"tasks"`
+}
+
+func ParseTasks(jsonBlob []byte) ([]*Task, error) {
+	tasks := &TasksResponse{}
+	err := json.Unmarshal(jsonBlob, tasks)
+
+	return tasks.Tasks, err
 }
 
 func ParseTask(event []byte) (*Task, error) {

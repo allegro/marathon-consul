@@ -1,246 +1,303 @@
 package marathon
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
-func TestUrl(t *testing.T) {
+func TestMarathon_AppsWhenMarathonReturnEmptyList(t *testing.T) {
 	t.Parallel()
+	// given
+	server, transport := stubServer("/v2/apps?embed=apps.tasks", `{"apps": []}`)
+	defer server.Close()
 
-	m, _ := NewMarathon("localhost:8080", "http", nil)
-	url := m.Url("/v2/apps")
-
-	assert.Equal(t, url, "http://localhost:8080/v2/apps")
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+	// when
+	apps, err := m.Apps()
+	//then
+	assert.NoError(t, err)
+	assert.Empty(t, apps)
 }
 
-func TestParseApps(t *testing.T) {
+func TestMarathon_AppsWhenConfigIsWrong(t *testing.T) {
 	t.Parallel()
-
-	appBlob := []byte(`{
-    "apps": [{
-        "args": null,
-        "backoffFactor": 1.15,
-        "backoffSeconds": 1,
-        "maxLaunchDelaySeconds": 3600,
-        "cmd": "python3 -m http.server 8080",
-        "constraints": [],
-        "container": {
-            "docker": {
-                "image": "python:3",
-                "network": "BRIDGE",
-                "portMappings": [
-                    {"containerPort": 8080, "hostPort": 0, "servicePort": 9000, "protocol": "tcp"},
-                    {"containerPort": 161, "hostPort": 0, "protocol": "udp"}
-                ]
-            },
-            "type": "DOCKER",
-            "volumes": []
-        },
-        "cpus": 0.5,
-        "dependencies": [],
-        "deployments": [],
-        "disk": 0.0,
-        "env": {},
-        "executor": "",
-        "healthChecks": [{
-            "command": null,
-            "gracePeriodSeconds": 5,
-            "intervalSeconds": 20,
-            "maxConsecutiveFailures": 3,
-            "path": "/",
-            "portIndex": 0,
-            "protocol": "HTTP",
-            "timeoutSeconds": 20
-        }],
-        "id": "/bridged-webapp",
-        "instances": 2,
-        "mem": 64.0,
-        "ports": [10000, 10001],
-        "requirePorts": false,
-        "storeUrls": [],
-        "tasksRunning": 2,
-        "tasksHealthy": 2,
-        "tasksUnhealthy": 0,
-        "tasksStaged": 0,
-        "upgradeStrategy": {"minimumHealthCapacity": 1.0},
-        "uris": [],
-        "user": null,
-        "version": "2014-09-25T02:26:59.256Z",
-		"tasks": [
-			{
-				"appId": "/test",
-				"host": "192.168.2.114",
-				"id": "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8",
-				"ports": [31315],
-				"stagedAt": "2015-06-24T14:57:06.353Z",
-				"startedAt": "2015-06-24T14:57:06.466Z",
-				"version": "2015-06-24T14:56:57.466Z",
-				"healthCheckResults":[
-					{
-						"alive":true,
-						"consecutiveFailures":0,
-						"firstSuccess":"2015-11-28T18:21:11.957Z",
-						"lastFailure":null,
-						"lastSuccess":"2015-11-30T10:08:19.477Z",
-						"taskId":"bridged-webapp.a9b051fb-95fc-11e5-9571-02818b42970e"
-					}
-				]
-			},
-			{
-				"appId": "/test",
-				"host": "192.168.2.114",
-				"id": "test.4453212c-1a81-11e5-bdb6-e6cb6734eaf8",
-				"ports": [31797],
-				"stagedAt": "2015-06-24T14:57:00.474Z",
-				"startedAt": "2015-06-24T14:57:00.611Z",
-				"version": "2015-06-24T14:56:57.466Z"
-			}
-		]
-    }
-]}
-`)
-
-	m, _ := NewMarathon("localhost:8080", "http", nil)
-	apps, err := m.ParseApps(appBlob)
-	assert.Nil(t, err)
-	assert.Equal(t, len(apps), 1)
+	// given
+	m, _ := New(Config{Location: "not::valid/location", Protocol: "HTTP"})
+	// when
+	apps, err := m.Apps()
+	//then
+	assert.Error(t, err)
+	assert.Nil(t, apps)
 }
 
-func TestParseApp(t *testing.T) {
-	t.Parallel()
-
-	appBlob := []byte(`{
-	"app": {
-		"id": "/myapp",
-		"cmd": "env && python -m SimpleHTTPServer $PORT0",
-		"args": null,
-		"user": null,
-		"env": {},
-		"instances": 2,
-		"cpus": 0.1,
-		"mem": 32.0,
-		"disk": 0.0,
-		"executor": "",
-		"constraints": [],
-		"uris": [],
-		"storeUrls": [],
-		"ports": [10002, 1, 2, 3],
-		"requirePorts": false,
-		"backoffSeconds": 1,
-		"backoffFactor": 1.15,
-		"maxLaunchDelaySeconds": 3600,
-		"container": null,
-		"healthChecks": [{
-			"path": "/",
-			"protocol": "HTTP",
-			"portIndex": 0,
-			"gracePeriodSeconds": 10,
-			"intervalSeconds": 5,
-			"timeoutSeconds": 10,
-			"maxConsecutiveFailures": 3,
-			"ignoreHttp1xx": false
-		}],
-		"dependencies": [],
-		"upgradeStrategy": {
-			"minimumHealthCapacity": 1.0,
-			"maximumOverCapacity": 1.0
-		},
-		"labels": {
-			"consul": "true",
-			"public": "tag"
-		},
-		"version": "2015-12-01T10:03:32.003Z",
-		"tasksStaged": 0,
-		"tasksRunning": 2,
-		"tasksHealthy": 2,
-		"tasksUnhealthy": 0,
-		"deployments": [],
-		"tasks": [{
-			"id": "myapp.cc49ccc1-9812-11e5-a06e-56847afe9799",
-			"host": "10.141.141.10",
-			"ports": [31678, 31679, 31680, 31681],
-			"startedAt": "2015-12-01T10:03:40.966Z",
-			"stagedAt": "2015-12-01T10:03:40.890Z",
-			"version": "2015-12-01T10:03:32.003Z",
-			"appId": "/myapp",
-			"healthCheckResults": [{
-				"alive": true,
-				"consecutiveFailures": 0,
-				"firstSuccess": "2015-12-01T10:03:42.324Z",
-				"lastFailure": null,
-				"lastSuccess": "2015-12-01T10:03:42.324Z",
-				"taskId": "myapp.cc49ccc1-9812-11e5-a06e-56847afe9799"
-			}]
-		}, {
-			"id": "myapp.c8b449f0-9812-11e5-a06e-56847afe9799",
-			"host": "10.141.141.10",
-			"ports": [31307, 31308, 31309, 31310],
-			"startedAt": "2015-12-01T10:03:34.945Z",
-			"stagedAt": "2015-12-01T10:03:34.877Z",
-			"version": "2015-12-01T10:03:32.003Z",
-			"appId": "/myapp",
-			"healthCheckResults": [{
-				"alive": true,
-				"consecutiveFailures": 0,
-				"firstSuccess": "2015-12-01T10:03:37.313Z",
-				"lastFailure": null,
-				"lastSuccess": "2015-12-01T10:03:42.337Z",
-				"taskId": "myapp.c8b449f0-9812-11e5-a06e-56847afe9799"
-			}]
-		}],
-		"lastTaskFailure": null
+func TestMarathon_AppsWhenServerIsNotResponding(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
 	}
-}`)
-
-	m, _ := NewMarathon("localhost:8080", "http", nil)
-	app, err := m.ParseApp(appBlob)
-	assert.Nil(t, err)
-	assert.Equal(t, len(app.Tasks), 2)
-	assert.Equal(t, len(app.HealthChecks), 1)
-	assert.Equal(t, "true", app.Labels["consul"])
-	assert.Equal(t, "tag", app.Labels["public"])
-}
-
-func TestParseTasks(t *testing.T) {
 	t.Parallel()
-
-	tasksBlob := []byte(`{
-    "tasks": [
-        {
-            "appId": "/test",
-            "host": "192.168.2.114",
-            "id": "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8",
-            "ports": [31315],
-            "stagedAt": "2015-06-24T14:57:06.353Z",
-            "startedAt": "2015-06-24T14:57:06.466Z",
-            "version": "2015-06-24T14:56:57.466Z",
-            "healthCheckResults":[
-				{
-					"alive":true,
-					"consecutiveFailures":0,
-					"firstSuccess":"2015-11-28T18:21:11.957Z",
-					"lastFailure":null,
-					"lastSuccess":"2015-11-30T10:08:19.477Z",
-					"taskId":"bridged-webapp.a9b051fb-95fc-11e5-9571-02818b42970e"
-				}
-			]
-        },
-        {
-            "appId": "/test",
-            "host": "192.168.2.114",
-            "id": "test.4453212c-1a81-11e5-bdb6-e6cb6734eaf8",
-            "ports": [31797],
-            "stagedAt": "2015-06-24T14:57:00.474Z",
-            "startedAt": "2015-06-24T14:57:00.611Z",
-            "version": "2015-06-24T14:56:57.466Z"
-        }
-    ]
+	// given
+	m, _ := New(Config{Location: "unknown:22", Protocol: "HTTP"})
+	// when
+	apps, err := m.Apps()
+	//then
+	assert.Error(t, err)
+	assert.Nil(t, apps)
 }
-`)
 
-	m, _ := NewMarathon("localhost:8080", "http", nil)
-	tasks, err := m.ParseTasks(tasksBlob)
-	assert.Nil(t, err)
-	assert.Equal(t, len(tasks), 2)
+func TestMarathon_AppsWhenMarathonConnectionFailedShouldRetry(t *testing.T) {
+	t.Parallel()
+	// given
+	calls := 0
+	server, transport := mockServer(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(500)
+	})
+	defer server.Close()
+
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+	// when
+	apps, err := m.Apps()
+	//then
+	assert.Error(t, err)
+	assert.Empty(t, apps)
+	assert.Equal(t, 3, calls)
+}
+
+func TestMarathon_TasksWhenMarathonConnectionFailedShouldRetry(t *testing.T) {
+	t.Parallel()
+	// given
+	calls := 0
+	server, transport := mockServer(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(500)
+	})
+	defer server.Close()
+
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+	// when
+	tasks, err := m.Tasks("/app/id")
+	//then
+	assert.Error(t, err)
+	assert.Empty(t, tasks)
+	assert.Equal(t, 3, calls)
+}
+
+func TestMarathon_AppWhenMarathonConnectionFailedShouldRetry(t *testing.T) {
+	t.Parallel()
+	// given
+	calls := 0
+	server, transport := mockServer(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(500)
+	})
+	defer server.Close()
+
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+	// when
+	app, err := m.App("/app/id")
+	//then
+	assert.Error(t, err)
+	assert.Nil(t, app)
+	assert.Equal(t, 3, calls)
+}
+
+func TestMarathon_AppsWhenMarathonReturnEmptyResponse(t *testing.T) {
+	t.Parallel()
+	// given
+	server, transport := stubServer("/v2/apps?embed=apps.tasks", ``)
+	defer server.Close()
+
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+	// when
+	apps, err := m.Apps()
+	//then
+	assert.Nil(t, apps)
+	assert.Error(t, err)
+}
+
+func TestMarathon_AppsWhenMarathonReturnMalformedJsonResponse(t *testing.T) {
+	t.Parallel()
+	// given
+	server, transport := stubServer("/v2/apps?embed=apps.tasks", `{"apps":}`)
+	defer server.Close()
+
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+	// when
+	app, err := m.App("/test/app")
+	//then
+	assert.Nil(t, app)
+	assert.Error(t, err)
+}
+
+func TestMarathon_AppWhenMarathonReturnEmptyApp(t *testing.T) {
+	t.Parallel()
+	// given
+	server, transport := stubServer("/v2/apps//test/app?embed=apps.tasks", `{"app": {}}`)
+	defer server.Close()
+
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+	// when
+	app, err := m.App("/test/app")
+	//then
+	assert.NoError(t, err)
+	assert.NotNil(t, app)
+}
+
+func TestMarathon_AppWhenMarathonReturnEmptyResponse(t *testing.T) {
+	t.Parallel()
+	// given
+	server, transport := stubServer("/v2/apps//test/app?embed=apps.tasks", ``)
+	defer server.Close()
+
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+	// when
+	app, err := m.App("/test/app")
+	//then
+	assert.NotNil(t, app)
+	assert.Error(t, err)
+}
+
+func TestMarathon_AppWhenMarathonReturnMalformedJsonResponse(t *testing.T) {
+	t.Parallel()
+	// given
+	server, transport := stubServer("/v2/apps//test/app?embed=apps.tasks", `{apps:}`)
+	defer server.Close()
+
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+	// when
+	apps, err := m.Apps()
+	//then
+	assert.Nil(t, apps)
+	assert.Error(t, err)
+}
+
+func TestMarathon_TasksWhenMarathonReturnEmptyList(t *testing.T) {
+	t.Parallel()
+	// given
+	server, transport := stubServer("/v2/apps/test/app/tasks", `
+	{"tasks": [{
+		"appId": "/test",
+		"host": "192.168.2.114",
+		"id": "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8",
+		"ports": [31315],
+		"healthCheckResults":[{ "alive":true }]
+	}]}`)
+	defer server.Close()
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+	// when
+	tasks, err := m.Tasks("//test/app")
+	//then
+	assert.NoError(t, err)
+	assert.NotNil(t, tasks)
+}
+
+func TestMarathon_TasksWhenMarathonReturnEmptyResponse(t *testing.T) {
+	t.Parallel()
+	// given
+	server, transport := stubServer("/v2/apps/test/app/tasks", ``)
+	defer server.Close()
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+	// when
+	tasks, err := m.Tasks("/test/app")
+	//then
+	assert.Nil(t, tasks)
+	assert.Error(t, err)
+}
+
+func TestMarathon_TasksWhenMarathonReturnMalformedJsonResponse(t *testing.T) {
+	t.Parallel()
+	// given
+	server, transport := stubServer("/v2/apps/test/app/tasks", ``)
+	defer server.Close()
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+	// when
+	tasks, err := m.Tasks("/test/app")
+	//then
+	assert.Nil(t, tasks)
+	assert.Error(t, err)
+}
+
+func TestConfig_transport(t *testing.T) {
+	t.Parallel()
+	// given
+	config := Config{VerifySsl: false}
+	// when
+	marathon, _ := New(config)
+	// then
+	transport, ok := marathon.transport.(*http.Transport)
+	assert.True(t, ok)
+	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
+}
+
+func TestUrl_WithoutAuth(t *testing.T) {
+	t.Parallel()
+	// given
+	config := Config{Location: "localhost:8080", Protocol: "http"}
+	// when
+	m, _ := New(config)
+	// then
+	assert.Equal(t, "http://localhost:8080/v2/apps", m.url("/v2/apps"))
+}
+
+func TestUrl_WithAuth(t *testing.T) {
+	t.Parallel()
+	// given
+	config := Config{Location: "localhost:8080", Protocol: "http", Username: "peter", Password: "parker"}
+	// when
+	m, _ := New(config)
+	// then
+	assert.Equal(t, "http://peter:parker@localhost:8080/v2/apps", m.url("/v2/apps"))
+}
+
+// http://keighl.com/post/mocking-http-responses-in-golang/
+func stubServer(uri string, body string) (*httptest.Server, *http.Transport) {
+	return mockServer(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RequestURI() == uri {
+			w.WriteHeader(200)
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintln(w, body)
+		} else {
+			w.WriteHeader(404)
+		}
+	})
+}
+
+func mockServer(handle func(w http.ResponseWriter, r *http.Request)) (*httptest.Server, *http.Transport) {
+	server := httptest.NewServer(http.HandlerFunc(handle))
+
+	transport := &http.Transport{
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return url.Parse(server.URL)
+		},
+	}
+
+	return server, transport
 }
