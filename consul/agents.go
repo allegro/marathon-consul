@@ -5,6 +5,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	consulapi "github.com/hashicorp/consul/api"
+	"math/rand"
 	"net/http"
 	"sync"
 )
@@ -31,38 +32,47 @@ func (a *ConcurrentAgents) GetAnyAgent() (*consulapi.Client, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
-	for _, agent := range a.agents {
-		return agent, nil
+	if len(a.agents) > 0 {
+		return a.agents[a.getRandomAgentHost()], nil
 	}
 	return nil, fmt.Errorf("No agent available")
 }
 
-func (a *ConcurrentAgents) GetAgent(agentAddress string) (*consulapi.Client, error) {
+func (a *ConcurrentAgents) getRandomAgentHost() string {
+	hosts := []string{}
+	for host, _ := range a.agents {
+		hosts = append(hosts, host)
+	}
+	idx := rand.Intn(len(a.agents))
+	return hosts[idx]
+}
+
+func (a *ConcurrentAgents) GetAgent(agentHost string) (*consulapi.Client, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	if agent, ok := a.agents[agentAddress]; ok {
+	if agent, ok := a.agents[agentHost]; ok {
 		return agent, nil
 	}
 
-	newAgent, err := a.createAgent(agentAddress)
+	newAgent, err := a.createAgent(agentHost)
 	if err != nil {
 		return nil, err
 	}
-	a.addAgent(agentAddress, newAgent)
+	a.addAgent(agentHost, newAgent)
 	return newAgent, nil
 }
 
-func (a *ConcurrentAgents) addAgent(agentAddress string, agent *consulapi.Client) {
-	a.agents[agentAddress] = agent
+func (a *ConcurrentAgents) addAgent(agentHost string, agent *consulapi.Client) {
+	a.agents[agentHost] = agent
 }
 
-func (a *ConcurrentAgents) createAgent(address string) (*consulapi.Client, error) {
-	if address == "" {
+func (a *ConcurrentAgents) createAgent(host string) (*consulapi.Client, error) {
+	if host == "" {
 		return nil, fmt.Errorf("Invalid addres for Agent")
 	}
 	config := consulapi.DefaultConfig()
 
-	config.Address = fmt.Sprintf("%s:%s", address, a.config.Port)
+	config.Address = fmt.Sprintf("%s:%s", host, a.config.Port)
 	log.Debugf("consul address: %s", config.Address)
 
 	if a.config.Token != "" {

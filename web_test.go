@@ -366,7 +366,7 @@ func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNotAllHeathChecksPa
 	t.Parallel()
 	// given
 	app := ConsulApp("/test/app", 3)
-	app.Tasks[1].HealthCheckResults = []tasks.HealthCheckResult{tasks.HealthCheckResult{true}, tasks.HealthCheckResult{false}}
+	app.Tasks[1].HealthCheckResults = []tasks.HealthCheckResult{tasks.HealthCheckResult{Alive: true}, tasks.HealthCheckResult{Alive: false}}
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	handler := ForwardHandler{service, marathon}

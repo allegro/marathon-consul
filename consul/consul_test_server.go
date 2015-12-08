@@ -9,6 +9,7 @@ import (
 func CreateConsulTestServer(dc string, t *testing.T) *testutil.TestServer {
 	return testutil.NewTestServerConfig(t, func(c *testutil.TestServerConfig) {
 		c.Datacenter = dc
+		c.NodeName = "localhost"
 	})
 }
 
