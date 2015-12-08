@@ -55,16 +55,7 @@ func TestRegisterServices(t *testing.T) {
 	consul := ConsulClientAtServer(server)
 
 	// given
-	service := &consulapi.AgentServiceRegistration{
-		Name:    "serviceA",
-		Address: "127.0.0.1",
-		Port:    8080,
-		Tags:    []string{"test", "marathon"},
-		Check: &consulapi.AgentServiceCheck{
-			HTTP:     "http://127.0.0.1:8080/status/ping",
-			Interval: "60s",
-		},
-	}
+	service := serviceRegistration("serviceA", []string{"test", "marathon"})
 
 	// when
 	consul.Register(service)
@@ -74,6 +65,20 @@ func TestRegisterServices(t *testing.T) {
 	assert.Len(t, services, 1)
 	assert.Equal(t, "serviceA", services[0].ServiceName)
 	assert.Equal(t, []string{"test", "marathon"}, services[0].ServiceTags)
+}
+
+func TestRegisterServices_shouldReturnErrorOnFailure(t *testing.T) {
+	t.Parallel()
+
+	// given
+	consul := New(ConsulConfig{Port: "1234"})
+	service := serviceRegistration("serviceA", []string{"test", "marathon"})
+
+	// when
+	err := consul.Register(service)
+
+	// then
+	assert.NotNil(t, err)
 }
 
 func TestDeregisterServices(t *testing.T) {
@@ -96,4 +101,35 @@ func TestDeregisterServices(t *testing.T) {
 	services, _ = consul.GetAllServices()
 	assert.Len(t, services, 1)
 	assert.Equal(t, "serviceB", services[0].ServiceName)
+}
+
+func TestDeregisterServices_shouldReturnErrorOnFailure(t *testing.T) {
+	t.Parallel()
+	server := CreateConsulTestServer("dc1", t)
+	defer server.Stop()
+
+	consul := ConsulClientAtServer(server)
+
+	// given
+	server.AddService("serviceA", "passing", []string{"marathon"})
+
+	// when
+	server.Stop()
+	err := consul.Deregister("serviceA", server.Config.NodeName)
+
+	// then
+	assert.NotNil(t, err)
+}
+
+func serviceRegistration(name string, tags []string) *consulapi.AgentServiceRegistration {
+	return &consulapi.AgentServiceRegistration{
+		Name:    name,
+		Address: "127.0.0.1",
+		Port:    8080,
+		Tags:    tags,
+		Check: &consulapi.AgentServiceCheck{
+			HTTP:     "http://127.0.0.1:8080/status/ping",
+			Interval: "60s",
+		},
+	}
 }
