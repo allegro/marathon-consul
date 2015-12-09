@@ -6,6 +6,54 @@ import (
 	"testing"
 )
 
+func TestGetAgent_WithEmptyHost(t *testing.T) {
+	t.Parallel()
+	// given
+	agents := NewAgents(&ConsulConfig{})
+	// when
+	agent, err := agents.GetAgent("")
+	// then
+	assert.Error(t, err)
+	assert.Nil(t, agent)
+}
+
+func TestGetAgent_FullConfig(t *testing.T) {
+	t.Parallel()
+	// given
+	agents := NewAgents(&ConsulConfig{Token: "token", SslEnabled: true,
+		Auth: Auth{Enabled: true, Username: "", Password: ""}})
+	// when
+	agent, err := agents.GetAgent("host")
+	// then
+	assert.NoError(t, err)
+	assert.NotNil(t, agent)
+}
+
+func TestGetAllServices_ForEmptyAgents(t *testing.T) {
+	t.Parallel()
+	// given
+	consul := New(ConsulConfig{})
+	// when
+	services, err := consul.GetAllServices()
+	// then
+	assert.Error(t, err)
+	assert.Nil(t, services)
+}
+
+func TestRegister_ForInvalidHost(t *testing.T) {
+	t.Parallel()
+	// given
+	consul := New(ConsulConfig{})
+	// when
+	err := consul.Register(&consulapi.AgentServiceRegistration{})
+	// then
+	assert.Error(t, err)
+	// when
+	err = consul.Deregister("service", "")
+	// then
+	assert.Error(t, err)
+}
+
 func TestGetAllServices(t *testing.T) {
 	t.Parallel()
 	// create cluster of 2 consul servers

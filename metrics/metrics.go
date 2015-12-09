@@ -18,13 +18,6 @@ import (
 
 var pfx string
 
-func Init(cfg Config) error {
-	if err := initMetrics(cfg); err != nil {
-		return err
-	}
-	return nil
-}
-
 func Mark(name string) {
 	meter := metrics.GetOrRegisterMeter(name, metrics.DefaultRegistry)
 	meter.Mark(1)
@@ -35,10 +28,14 @@ func Time(name string, function func()) {
 	timer.Time(function)
 }
 
-func initMetrics(cfg Config) error {
+func Init(cfg Config) error {
 	pfx = cfg.Prefix
 	if pfx == "default" {
-		pfx = defaultPrefix()
+		prefix, err := defaultPrefix()
+		if err != nil {
+			return err
+		}
+		pfx = prefix
 	}
 
 	switch cfg.Target {
@@ -55,7 +52,7 @@ func initMetrics(cfg Config) error {
 	case "":
 		log.Printf("[INFO] Metrics disabled")
 	default:
-		log.Fatal("[FATAL] Invalid metrics target ", cfg.Target)
+		return fmt.Errorf("Invalid metrics target %s", cfg.Target)
 	}
 	return nil
 }
@@ -81,13 +78,14 @@ func clean(s string) string {
 // stubbed out for testing
 var hostname = os.Hostname
 
-func defaultPrefix() string {
+func defaultPrefix() (string, error) {
 	host, err := hostname()
 	if err != nil {
-		log.Fatal("[FATAL] ", err)
+		log.Printf("[FATAL] %s", err.Error())
+		return "", err
 	}
 	exe := filepath.Base(os.Args[0])
-	return clean(host) + "." + clean(exe)
+	return clean(host) + "." + clean(exe), nil
 }
 
 func initStdout(interval time.Duration) error {

@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"testing"
 
+	"fmt"
+	"github.com/allegro/marathon-consul/apps"
+	"github.com/allegro/marathon-consul/tasks"
 	"time"
 )
 
@@ -121,4 +124,86 @@ func TestSyncOnlyHealthyServices(t *testing.T) {
 	for _, s := range services {
 		assert.NotEqual(t, "app3-all-unhealthy", s.ServiceName)
 	}
+}
+
+func TestSync_WithRegisteringProblems(t *testing.T) {
+	// given
+	marathon := marathon.MarathonerStubForApps(ConsulApp("/test/app", 3))
+	consul := consul.NewConsulStub()
+	consul.ErrorServices["/test/app.1"] = fmt.Errorf("Problem on registration")
+	sync := New(marathon, consul)
+	// when
+	err := sync.SyncServices()
+	services, _ := consul.GetAllServices()
+	// then
+	assert.NoError(t, err)
+	assert.Len(t, services, 2)
+}
+
+func TestSync_WithDeregisteringProblems(t *testing.T) {
+	// given
+	marathon := marathon.MarathonerStubForApps()
+	consulStub := consul.NewConsulStub()
+	notMarathonApp := ConsulApp("/not/marathon", 1)
+	for _, task := range notMarathonApp.Tasks {
+		consulStub.Register(consul.MarathonTaskToConsulService(task, notMarathonApp.HealthChecks, notMarathonApp.Labels))
+		consulStub.ErrorServices[task.ID] = fmt.Errorf("Problem on deregistration")
+	}
+	sync := New(marathon, consulStub)
+	// when
+	err := sync.SyncServices()
+	services, _ := consulStub.GetAllServices()
+	// then
+	assert.NoError(t, err)
+	assert.Len(t, services, 1)
+}
+
+func TestSync_WithMarathonProblems(t *testing.T) {
+	// given
+	marathon := errorMarathon{}
+	sync := New(marathon, nil)
+	// when
+	err := sync.SyncServices()
+	// then
+	assert.Error(t, err)
+}
+
+func TestSync_WithConsulProblems(t *testing.T) {
+	// given
+	marathon := marathon.MarathonerStubForApps()
+	consul := errorConsul{}
+	sync := New(marathon, consul)
+	// when
+	err := sync.SyncServices()
+	// then
+	assert.Error(t, err)
+}
+
+type errorMarathon struct {
+}
+
+func (m errorMarathon) Apps() ([]*apps.App, error) {
+	return nil, fmt.Errorf("Error")
+}
+
+func (m errorMarathon) App(id string) (*apps.App, error) {
+	return nil, fmt.Errorf("Error")
+}
+
+func (m errorMarathon) Tasks(appId string) ([]*tasks.Task, error) {
+	return nil, fmt.Errorf("Error")
+}
+
+type errorConsul struct {
+}
+
+func (c errorConsul) GetAllServices() ([]*consulapi.CatalogService, error) {
+	return nil, fmt.Errorf("Error occured")
+}
+func (c errorConsul) Register(service *consulapi.AgentServiceRegistration) error {
+	return fmt.Errorf("Error occured")
+
+}
+func (c errorConsul) Deregister(serviceId string, agent string) error {
+	return fmt.Errorf("Error occured")
 }

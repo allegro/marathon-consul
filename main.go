@@ -17,7 +17,7 @@ func main() {
 
 	config := config.New()
 
-	metrics.Init(config.Metrics)
+	err := metrics.Init(config.Metrics)
 
 	service := service.New(config.Consul)
 	remote, err := marathon.New(config.Marathon)
