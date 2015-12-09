@@ -11,20 +11,26 @@ import (
 )
 
 const Name = "marathon-consul"
-const Version = "0.2.0"
+const Version = "0.2.1"
 
 func main() {
 
-	config := config.New()
-
-	err := metrics.Init(config.Metrics)
-
-	service := service.New(config.Consul)
-	remote, err := marathon.New(config.Marathon)
-
+	config, err := config.New()
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+
+	err = metrics.Init(config.Metrics)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	service := service.New(config.Consul)
+	remote, err := marathon.New(config.Marathon)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
 	sync := sync.New(remote, service)
 	go sync.StartSyncServicesJob(config.Sync.Interval)
 

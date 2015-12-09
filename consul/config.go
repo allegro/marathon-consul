@@ -1,7 +1,6 @@
 package consul
 
 type ConsulConfig struct {
-	Enabled    bool
 	Auth       Auth
 	Port       string
 	SslEnabled bool

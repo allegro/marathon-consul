@@ -1,12 +1,14 @@
 package config
 
 import (
+	"encoding/json"
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/sync"
 	flag "github.com/ogier/pflag"
+	"io/ioutil"
 	"time"
 )
 
@@ -15,25 +17,28 @@ type Config struct {
 	Web    struct {
 		Listen string
 	}
-	Sync     sync.Config
-	Marathon marathon.Config
-	Metrics  metrics.Config
-	LogLevel string
+	Sync       sync.Config
+	Marathon   marathon.Config
+	Metrics    metrics.Config
+	LogLevel   string
+	configFile string
 }
 
-func New() (config *Config) {
-	config = &Config{
-		Marathon: marathon.Config{},
+var config = &Config{Marathon: marathon.Config{}}
+
+func New() (*Config, error) {
+	if !flag.Parsed() {
+		config.parseFlags()
 	}
-	config.parseFlags()
+	flag.Parse()
+	err := config.loadConfigFromFile()
 	config.setLogLevel()
 
-	return config
+	return config, err
 }
 
 func (config *Config) parseFlags() {
 	// Consul
-	flag.BoolVar(&config.Consul.Enabled, "consul", true, "Use Consul backend")
 	flag.StringVar(&config.Consul.Port, "consul-port", "8500", "Consul port")
 	flag.BoolVar(&config.Consul.Auth.Enabled, "consul-auth", false, "Use Consul with authentication")
 	flag.StringVar(&config.Consul.Auth.Username, "consul-auth-username", "", "The basic authentication username")
@@ -65,8 +70,18 @@ func (config *Config) parseFlags() {
 
 	// General
 	flag.StringVar(&config.LogLevel, "log-level", "info", "Log level: panic, fatal, error, warn, info, or debug")
+	flag.StringVar(&config.configFile, "config-file", "", "Path to a JSON file to read configuration from. Note: Will override options set earlier on the command line")
+}
 
-	flag.Parse()
+func (config *Config) loadConfigFromFile() error {
+	if config.configFile == "" {
+		return nil
+	}
+	jsonBlob, err := ioutil.ReadFile(config.configFile)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(jsonBlob, config)
 }
 
 func (config *Config) setLogLevel() {
