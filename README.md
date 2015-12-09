@@ -3,7 +3,7 @@
 
 Register Marathon Tasks as Consul Services for service discovery.
 
-`Marathon-consul` takes information provided by the Marathon event bus and
+`marathon-consul` takes information provided by the Marathon event bus and
 forwards it to Consul agents. It also re-syncs all the information from Marathon 
 to Consul on startup and repeats it with given interval.
 
@@ -53,7 +53,7 @@ make test
 
 Argument               | Default               | Description
 -----------------------|-----------------------|------------------------------------------------------
-consul                 | `true`                | Use Consul backend
+config-file            |                       | Path to a JSON file to read configuration from. **Note:** Will override options set earlier on the command line
 consul-auth            | `false`               | Use Consul with authentication
 consul-auth-password   |                       | The basic authentication password
 consul-auth-username   |                       | The basic authentication username

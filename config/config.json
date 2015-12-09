@@ -1,0 +1,15 @@
+{
+  "Sync":{
+    "Interval":91
+  },
+  "Marathon":{
+    "Location":"marathon.host:8080",
+    "Protocol":"https",
+    "Username":"user",
+    "Password":"pass",
+    "VerifySsl":false
+  },
+  "Metrics":{
+    "Interval":31
+  }
+}
