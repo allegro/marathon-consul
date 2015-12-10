@@ -9,8 +9,8 @@
 		"bintray": {
 			"downloadspage": "bintray.md",
 			"include:": "*.deb,",
-			"package": "deb",
-			"repository": "marathon-consul",
+			"package": "marathon-consul",
+			"repository": "deb",
 			"subject": "allegro"
 		},
 		"deb": {
