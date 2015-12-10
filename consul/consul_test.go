@@ -126,12 +126,12 @@ func TestRegisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 	err := consul.Register(service)
 
 	// then
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestDeregisterServices(t *testing.T) {
 	t.Parallel()
-	server := CreateConsulTestServer("dc1", t)
+	server := CreateNamedConsulTestServer("localhost", "dc1", t)
 	defer server.Stop()
 
 	consul := ConsulClientAtServer(server)
@@ -153,7 +153,7 @@ func TestDeregisterServices(t *testing.T) {
 
 func TestDeregisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 	t.Parallel()
-	server := CreateConsulTestServer("dc1", t)
+	server := CreateNamedConsulTestServer("localhost", "dc1", t)
 	defer server.Stop()
 
 	consul := ConsulClientAtServer(server)
@@ -166,7 +166,7 @@ func TestDeregisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 	err := consul.Deregister("serviceA", server.Config.NodeName)
 
 	// then
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func serviceRegistration(name string, tags []string) *consulapi.AgentServiceRegistration {

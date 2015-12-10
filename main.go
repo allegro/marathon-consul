@@ -10,10 +10,11 @@ import (
 	"net/http"
 )
 
-const Name = "marathon-consul"
-const Version = "0.2.1"
+var VERSION string
 
 func main() {
+
+	log.WithField("Version", VERSION).Info("Starting marathon-consul")
 
 	config, err := config.New()
 	if err != nil {
