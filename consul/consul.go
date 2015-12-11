@@ -75,24 +75,18 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 	if err != nil {
 		return err
 	}
-
-	log.WithFields(log.Fields{
+	fields := log.Fields{
 		"Name": service.Name,
 		"Id":   service.ID,
 		"Tags": service.Tags,
 		"Host": service.Address,
 		"Port": service.Port,
-	}).Info("Registering")
+	}
+	log.WithFields(fields).Info("Registering")
 
 	err = agent.Agent().ServiceRegister(service)
 	if err != nil {
-		log.WithError(err).WithFields(log.Fields{
-			"Name": service.Name,
-			"Id":   service.ID,
-			"Tags": service.Tags,
-			"Host": service.Address,
-			"Port": service.Port,
-		}).Error("Unable to register")
+		log.WithError(err).WithFields(fields).Error("Unable to register")
 	}
 	return err
 }
@@ -109,7 +103,7 @@ func (c *Consul) deregister(serviceId string, agentHost string) error {
 		return err
 	}
 
-	log.WithField("ServiceId", serviceId).WithField("Host", agentHost).Info("Deregistering")
+	log.WithField("Id", serviceId).WithField("Host", agentHost).Info("Deregistering")
 
 	err = agent.Agent().ServiceDeregister(serviceId)
 	if err != nil {

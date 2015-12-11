@@ -42,10 +42,12 @@ func TestConsulStub(t *testing.T) {
 	// when
 	err = consul.Deregister(app.Tasks[1].ID, "")
 	services, _ = consul.GetAllServices()
+	servicesIds := consul.RegisteredServicesIds()
 	// then
 	assert.NoError(t, err)
 	assert.Len(t, services, 2)
-	assert.Equal(t, []string{"test.0", "test.2"}, consul.RegisteredServicesIds())
+	assert.Contains(t, servicesIds, "test.0")
+	assert.Contains(t, servicesIds, "test.2")
 	// given
 	consul.ErrorServices[app.Tasks[0].ID] = stubError
 	// when
