@@ -1,4 +1,4 @@
-package main
+package web
 
 import (
 	"bytes"
@@ -13,16 +13,19 @@ import (
 	"net/http"
 )
 
-func HealthHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "OK")
-}
-
-type ForwardHandler struct {
+type EventHandler struct {
 	service  service.ConsulServices
 	marathon marathon.Marathoner
 }
 
-func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
+func NewEventHandler(service service.ConsulServices, marathon marathon.Marathoner) *EventHandler {
+	return &EventHandler{
+		service:  service,
+		marathon: marathon,
+	}
+}
+
+func (fh *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	fh.markRequest()
 
@@ -60,7 +63,7 @@ func (fh *ForwardHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	fh.markResponse()
 }
 
-func (fh *ForwardHandler) handleTerminationEvent(w http.ResponseWriter, body []byte) {
+func (fh *EventHandler) handleTerminationEvent(w http.ResponseWriter, body []byte) {
 	event, err := events.ParseEvent(body)
 	if err != nil {
 		fh.handleBadRequest(err, w)
@@ -100,7 +103,7 @@ func (fh *ForwardHandler) handleTerminationEvent(w http.ResponseWriter, body []b
 	}
 }
 
-func (fh *ForwardHandler) handleHealthStatusEvent(w http.ResponseWriter, body []byte) {
+func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []byte) {
 	body = replaceTaskIdWithId(body)
 	taskHealthChange, err := events.ParseTaskHealthChange(body)
 	if err != nil {
@@ -169,7 +172,7 @@ func findTaskById(id string, tasks_ []tasks.Task) (tasks.Task, error) {
 	return tasks.Task{}, fmt.Errorf("Task %s not found", id)
 }
 
-func (fh *ForwardHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
+func (fh *EventHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
 	body = replaceTaskIdWithId(body)
 	task, err := tasks.ParseTask(body)
 	if err != nil {
@@ -199,25 +202,25 @@ func replaceTaskIdWithId(body []byte) []byte {
 	return bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
 }
 
-func (fh *ForwardHandler) markRequest() {
+func (fh *EventHandler) markRequest() {
 	metrics.Mark("events.requests")
 }
 
-func (fh *ForwardHandler) markEventRequest(event string) {
+func (fh *EventHandler) markEventRequest(event string) {
 	metrics.Mark("events.requests." + event)
 }
 
-func (fh *ForwardHandler) markResponse() {
+func (fh *EventHandler) markResponse() {
 	metrics.Mark("events.response")
 }
 
-func (fh *ForwardHandler) handleError(err error, w http.ResponseWriter) {
+func (fh *EventHandler) handleError(err error, w http.ResponseWriter) {
 	metrics.Mark("events.error")
 	w.WriteHeader(500)
 	fmt.Fprintln(w, err.Error())
 }
 
-func (fh *ForwardHandler) handleBadRequest(err error, w http.ResponseWriter) {
+func (fh *EventHandler) handleBadRequest(err error, w http.ResponseWriter) {
 	metrics.Mark("events.bad_request")
 	w.WriteHeader(400)
 	fmt.Fprintln(w, err.Error())

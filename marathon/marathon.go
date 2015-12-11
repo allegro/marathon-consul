@@ -26,14 +26,14 @@ type Marathon struct {
 	transport http.RoundTripper
 }
 
-func New(config Config) (Marathon, error) {
+func New(config Config) (*Marathon, error) {
 	var auth *url.Userinfo
 	if len(config.Username) == 0 && len(config.Password) == 0 {
 		auth = nil
 	} else {
 		auth = url.UserPassword(config.Username, config.Password)
 	}
-	return Marathon{
+	return &Marathon{
 		Location: config.Location,
 		Protocol: config.Protocol,
 		Auth:     auth,
