@@ -24,7 +24,7 @@ curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callback
 To simply compile and run the source code:
 
 ```
-go run main.go web.go [options]
+go run main.go [options]
 ```
 
 To build the binary:

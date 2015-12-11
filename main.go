@@ -7,6 +7,7 @@ import (
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/sync"
+	"github.com/allegro/marathon-consul/web"
 	"net/http"
 )
 
@@ -36,9 +37,8 @@ func main() {
 	go sync.StartSyncServicesJob(config.Sync.Interval)
 
 	// set up routes
-	http.HandleFunc("/health", HealthHandler)
-	forwarderHandler := &ForwardHandler{service, remote}
-	http.HandleFunc("/events", forwarderHandler.Handle)
+	http.HandleFunc("/health", web.HealthHandler)
+	http.HandleFunc("/events", web.NewEventHandler(service, remote).Handle)
 
 	log.WithField("port", config.Web.Listen).Info("Listening")
 	log.Fatal(http.ListenAndServe(config.Web.Listen, nil))
