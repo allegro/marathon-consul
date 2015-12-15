@@ -67,6 +67,11 @@ func contains(slice []string, search string) bool {
 func (c *Consul) Register(service *consulapi.AgentServiceRegistration) error {
 	var err error
 	metrics.Time("consul.register", func() { err = c.register(service) })
+	if err != nil {
+		metrics.Mark("consul.register.error")
+	} else {
+		metrics.Mark("consul.register.success")
+	}
 	return err
 }
 
@@ -94,6 +99,11 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 func (c *Consul) Deregister(serviceId string, agentHost string) error {
 	var err error
 	metrics.Time("consul.deregister", func() { err = c.deregister(serviceId, agentHost) })
+	if err != nil {
+		metrics.Mark("consul.deregister.error")
+	} else {
+		metrics.Mark("consul.deregister.success")
+	}
 	return err
 }
 

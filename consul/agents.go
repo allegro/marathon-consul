@@ -73,20 +73,20 @@ func (a *ConcurrentAgents) createAgent(host string) (*consulapi.Client, error) {
 	config := consulapi.DefaultConfig()
 
 	config.Address = fmt.Sprintf("%s:%s", host, a.config.Port)
-	log.Debugf("consul address: %s", config.Address)
+	log.Debugf("Consul address: %s", config.Address)
 
 	if a.config.Token != "" {
-		log.Debugf("setting token to %s", a.config.Token)
+		log.Debugf("Setting token to %s", a.config.Token)
 		config.Token = a.config.Token
 	}
 
 	if a.config.SslEnabled {
-		log.Debugf("enabling SSL")
+		log.Debugf("Enabling SSL")
 		config.Scheme = "https"
 	}
 
 	if !a.config.SslVerify {
-		log.Debugf("disabled SSL verification")
+		log.Debugf("Disabled SSL verification")
 		config.HttpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
@@ -95,7 +95,7 @@ func (a *ConcurrentAgents) createAgent(host string) (*consulapi.Client, error) {
 	}
 
 	if a.config.Auth.Enabled {
-		log.Debugf("setting basic auth")
+		log.Debugf("Setting basic auth")
 		config.HttpAuth = &consulapi.HttpBasicAuth{
 			Username: a.config.Auth.Username,
 			Password: a.config.Auth.Password,
