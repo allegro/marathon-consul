@@ -9,7 +9,7 @@ import (
 type ConsulServices interface {
 	GetAllServices() ([]*consulapi.CatalogService, error)
 	Register(service *consulapi.AgentServiceRegistration) error
-	Deregister(serviceId string, agent string) error
+	Deregister(serviceId string, agentAddress string) error
 }
 
 type Consul struct {
@@ -81,11 +81,11 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 		return err
 	}
 	fields := log.Fields{
-		"Name": service.Name,
-		"Id":   service.ID,
-		"Tags": service.Tags,
-		"Host": service.Address,
-		"Port": service.Port,
+		"Name":    service.Name,
+		"Id":      service.ID,
+		"Tags":    service.Tags,
+		"Address": service.Address,
+		"Port":    service.Port,
 	}
 	log.WithFields(fields).Info("Registering")
 
@@ -96,9 +96,9 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 	return err
 }
 
-func (c *Consul) Deregister(serviceId string, agentHost string) error {
+func (c *Consul) Deregister(serviceId string, agentAddress string) error {
 	var err error
-	metrics.Time("consul.deregister", func() { err = c.deregister(serviceId, agentHost) })
+	metrics.Time("consul.deregister", func() { err = c.deregister(serviceId, agentAddress) })
 	if err != nil {
 		metrics.Mark("consul.deregister.error")
 	} else {
@@ -107,17 +107,17 @@ func (c *Consul) Deregister(serviceId string, agentHost string) error {
 	return err
 }
 
-func (c *Consul) deregister(serviceId string, agentHost string) error {
-	agent, err := c.agents.GetAgent(agentHost)
+func (c *Consul) deregister(serviceId string, agentAddress string) error {
+	agent, err := c.agents.GetAgent(agentAddress)
 	if err != nil {
 		return err
 	}
 
-	log.WithField("Id", serviceId).WithField("Host", agentHost).Info("Deregistering")
+	log.WithField("Id", serviceId).WithField("Address", agentAddress).Info("Deregistering")
 
 	err = agent.Agent().ServiceDeregister(serviceId)
 	if err != nil {
-		log.WithError(err).WithField("Id", serviceId).WithField("Host", agentHost).Error("Unable to deregister")
+		log.WithError(err).WithField("Id", serviceId).WithField("Address", agentAddress).Error("Unable to deregister")
 	}
 	return err
 }

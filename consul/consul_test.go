@@ -131,7 +131,7 @@ func TestRegisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 
 func TestDeregisterServices(t *testing.T) {
 	t.Parallel()
-	server := CreateNamedConsulTestServer("localhost", "dc1", t)
+	server := CreateConsulTestServer("dc1", t)
 	defer server.Stop()
 
 	consul := ConsulClientAtServer(server)
@@ -143,7 +143,7 @@ func TestDeregisterServices(t *testing.T) {
 	assert.Len(t, services, 2)
 
 	// when
-	consul.Deregister("serviceA", server.Config.NodeName)
+	consul.Deregister("serviceA", server.Config.Bind)
 
 	// then
 	services, _ = consul.GetAllServices()
@@ -153,7 +153,7 @@ func TestDeregisterServices(t *testing.T) {
 
 func TestDeregisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 	t.Parallel()
-	server := CreateNamedConsulTestServer("localhost", "dc1", t)
+	server := CreateConsulTestServer("dc1", t)
 	defer server.Stop()
 
 	consul := ConsulClientAtServer(server)
@@ -163,7 +163,7 @@ func TestDeregisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 
 	// when
 	server.Stop()
-	err := consul.Deregister("serviceA", server.Config.NodeName)
+	err := consul.Deregister("serviceA", server.Config.Bind)
 
 	// then
 	assert.Error(t, err)

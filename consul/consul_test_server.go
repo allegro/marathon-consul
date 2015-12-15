@@ -12,13 +12,6 @@ func CreateConsulTestServer(dc string, t *testing.T) *testutil.TestServer {
 	})
 }
 
-func CreateNamedConsulTestServer(hostname string, dc string, t *testing.T) *testutil.TestServer {
-	return testutil.NewTestServerConfig(t, func(c *testutil.TestServerConfig) {
-		c.Datacenter = dc
-		c.NodeName = hostname
-	})
-}
-
 func ConsulClientAtServer(server *testutil.TestServer) *Consul {
 	return consulClientAtAddress(server.Config.Bind, server.Config.Ports.HTTP)
 }
