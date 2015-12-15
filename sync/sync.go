@@ -98,9 +98,12 @@ func (s Sync) deregisterConsulServicesThatAreNotInMarathonApps(apps []*apps.App,
 			}
 		}
 		if !found {
-			err := s.service.Deregister(instance.ServiceID, instance.Node)
+			err := s.service.Deregister(instance.ServiceID, instance.Address)
 			if err != nil {
-				log.WithError(err).WithField("Id", instance.ServiceID).Error("Can't deregister service")
+				log.WithError(err).WithFields(log.Fields{
+					"Id":      instance.ServiceID,
+					"Address": instance.Address,
+				}).Error("Can't deregister service")
 			}
 		}
 	}
