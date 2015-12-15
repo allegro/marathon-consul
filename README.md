@@ -42,10 +42,11 @@ make test
 
 ## Usage
 
+- Consul Agents should be available at every Mesos Slave, tasks will be registered at host their run on.
 - Only tasks which are labeled as `consul:true` will be registered in Consul.
 - Only services with tag `marathon` will be maintained. This tag is automatically added during registration.
 - At least one HTTP healthcheck should be defined for a task. The task is registered when Marathon marks it's as alive.
-- Provided HTTP healtcheck will be transfered to Consul.
+- Provided HTTP healtcheck will be transferred to Consul.
 - Labels with `tag` value will be converted to Consul tags, `marathon` tag is added by default
  (e.g, `labels: ["public":"tag", "varnish":"tag", "env": "test"]` → `tags: ["public", "varnish", "marathon"]`).
 
@@ -65,15 +66,16 @@ consul-ssl-verify      | `true`                | Verify certificates when connec
 consul-token           |                       | The Consul ACL token
 listen                 | :4000                 | Accept connections at this address
 log-level              | info                  | Log level: panic, fatal, error, warn, info, or debug
+log-format             | text                  | Log format: JSON, text
 marathon-location      | localhost:8080        | Marathon URL
 marathon-password      |                       | Marathon password for basic auth
 marathon-protocol      | http                  | Marathon protocol (http or https)
 marathon-username      |                       | Marathon username for basic auth
-metrics-interval       | 30s                   | Metrics reporting [interval](https://golang.org/pkg/time/#Duration)
+metrics-interval       | 30s                   | Metrics reporting [interval](https://golang.org/pkg/time/#Duration) **Note:** While using file configuration intervals should be provided in *nanoseconds*
 metrics-location       |                       | Graphite URL (used when metrics-target is set to graphite)
 metrics-prefix         | default               | Metrics prefix (default is resolved to <hostname>.<app_name>
 metrics-target         | stdout                | Metrics destination stdout or graphite
-sync-interval          | 15m0s                 | Marathon-consul sync interval
+sync-interval          | 15m0s                 | Marathon-consul sync [interval](https://golang.org/pkg/time/#Duration) **Note:** While using file configuration intervals should be provided in *nanoseconds*
 
 
 ### Adding New Root Certificate Authorities

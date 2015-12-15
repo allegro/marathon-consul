@@ -41,7 +41,7 @@ func (s *Sync) SyncServices() error {
 }
 
 func (s *Sync) syncServices() error {
-	log.Info("Syncing services")
+	log.Info("Syncing services started")
 
 	apps, err := s.marathon.Apps()
 	if err != nil {
@@ -70,7 +70,7 @@ func (s *Sync) registerMarathonApps(apps []*apps.App) {
 		labels := app.Labels
 
 		if value, ok := app.Labels["consul"]; !ok || value != "true" {
-			log.WithField("APP", app.ID).Debug("App should not be registered in Consul")
+			log.WithField("Id", app.ID).Debug("App should not be registered in Consul")
 			continue
 		}
 
@@ -79,12 +79,10 @@ func (s *Sync) registerMarathonApps(apps []*apps.App) {
 				service := service.MarathonTaskToConsulService(task, healthCheck, labels)
 				err := s.service.Register(service)
 				if err != nil {
-					log.WithError(err).WithField("ID", task.ID).Error("Can't register task")
+					log.WithError(err).WithField("Id", task.ID).Error("Can't register task")
 				}
 			} else {
-				log.WithFields(log.Fields{
-					"APP": app.ID, "ID": task.ID,
-				}).Debug("Task is not healthy. Not Registering")
+				log.WithField("Id", task.ID).Debug("Task is not healthy. Not Registering")
 			}
 		}
 	}
@@ -102,7 +100,7 @@ func (s Sync) deregisterConsulServicesThatAreNotInMarathonApps(apps []*apps.App,
 		if !found {
 			err := s.service.Deregister(instance.ServiceID, instance.Node)
 			if err != nil {
-				log.WithError(err).WithField("ID", instance.ServiceID).Error("Can't deregister service")
+				log.WithError(err).WithField("Id", instance.ServiceID).Error("Can't deregister service")
 			}
 		}
 	}

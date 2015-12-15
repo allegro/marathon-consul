@@ -45,18 +45,16 @@ func (fh *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	fh.markEventRequest(eventType)
 
+	log.WithField("eventType", eventType).Debug("Recieved event")
+
 	switch eventType {
 	case "app_terminated_event":
-		log.WithField("eventType", "app_terminated_event").Info("handling event")
 		fh.handleTerminationEvent(w, body)
 	case "status_update_event":
-		log.WithField("eventType", "status_update_event").Info("handling event")
 		fh.handleStatusEvent(w, body)
 	case "health_status_changed_event":
-		log.WithField("eventType", "health_status_changed_event").Info("handling event")
 		fh.handleHealthStatusEvent(w, body)
 	default:
-		log.WithField("eventType", eventType).Debug("not handling event")
 		fh.handleBadRequest(fmt.Errorf("cannot handle %s", eventType), w)
 	}
 
@@ -73,10 +71,11 @@ func (fh *EventHandler) handleTerminationEvent(w http.ResponseWriter, body []byt
 	// app_terminated_event only has one app in it, so we will just take care of
 	// it instead of looping
 	app := event.Apps()[0]
+	log.WithField("Id", app.ID).Info("Got TerminationEvent")
 
 	tasks, err := fh.marathon.Tasks(app.ID)
 	if err != nil {
-		log.WithField("APP", app.ID).WithError(err).Error("There was a problem obtaining tasks for app")
+		log.WithField("Id", app.ID).WithError(err).Error("There was a problem obtaining tasks for app")
 		fh.handleError(err, w)
 		return
 	}
@@ -85,7 +84,7 @@ func (fh *EventHandler) handleTerminationEvent(w http.ResponseWriter, body []byt
 	for _, task := range tasks {
 		err = fh.service.Deregister(task.ID, task.Host)
 		if err != nil {
-			log.WithField("ID", task.ID).WithError(err).Error("There was a problem deregistering task")
+			log.WithField("Id", task.ID).WithError(err).Error("There was a problem deregistering task")
 			errors = append(errors, err)
 		}
 	}
@@ -96,7 +95,7 @@ func (fh *EventHandler) handleTerminationEvent(w http.ResponseWriter, body []byt
 		}
 		err = fmt.Errorf(errMessage)
 		fh.handleError(err, w)
-		log.WithError(err).WithField("APP", app.ID).Error("There where problems processing request")
+		log.WithError(err).WithField("Id", app.ID).Error("There where problems processing request")
 	} else {
 		w.WriteHeader(200)
 		fmt.Fprintln(w, "OK")
@@ -112,9 +111,15 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 		return
 	}
 
+	log.WithFields(
+		log.Fields{
+			"Id":         taskHealthChange.ID,
+			"TaskStatus": taskHealthChange.TaskStatus,
+		}).Info("Got HealthStatusEvent")
+
 	if !taskHealthChange.Alive {
 		err := fmt.Errorf("Task %s is not healthy. Not registering", taskHealthChange.ID)
-		log.WithField("ID", taskHealthChange.ID).WithError(err).Debug("Task is not healthy. Not registering")
+		log.WithField("Id", taskHealthChange.ID).WithError(err).Debug("Task is not healthy. Not registering")
 		fh.handleBadRequest(err, w)
 		return
 	}
@@ -122,18 +127,16 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 	appId := taskHealthChange.AppID
 	app, err := fh.marathon.App(appId)
 	if err != nil {
-		log.WithField("ID", taskHealthChange.ID).WithError(err).Error("There was a problem obtaining app info")
+		log.WithField("Id", taskHealthChange.ID).WithError(err).Error("There was a problem obtaining app info")
 		fh.handleError(err, w)
 		return
 	}
 	tasks := app.Tasks
 
 	if value, ok := app.Labels["consul"]; !ok || value != "true" {
-		log.WithFields(log.Fields{
-			"APP": appId,
-			"ID":  taskHealthChange.ID,
-		}).Debug("App should not be registered in Consul")
-		fh.handleBadRequest(fmt.Errorf("%s is not consul app. Missing consul:true label", app.ID), w)
+		err = fmt.Errorf("%s is not consul app. Missing consul:true label", app.ID)
+		log.WithField("Id", taskHealthChange.ID).WithError(err).Debug("App should not be registered in Consul")
+		fh.handleBadRequest(err, w)
 		return
 	}
 
@@ -142,7 +145,7 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 
 	task, err := findTaskById(taskHealthChange.ID, tasks)
 	if err != nil {
-		log.WithField("ID", taskHealthChange.ID).WithError(err).Error("Task not found")
+		log.WithField("Id", taskHealthChange.ID).WithError(err).Error("Task not found")
 		fh.handleError(err, w)
 		return
 	}
@@ -150,7 +153,7 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 	if service.IsTaskHealthy(task.HealthCheckResults) {
 		err := fh.service.Register(service.MarathonTaskToConsulService(task, healthCheck, labels))
 		if err != nil {
-			log.WithField("ID", task.ID).WithError(err).Error("There was a problem registering task")
+			log.WithField("Id", task.ID).WithError(err).Error("There was a problem registering task")
 			fh.handleError(err, w)
 		} else {
 			w.WriteHeader(200)
@@ -158,7 +161,7 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 		}
 	} else {
 		err := fmt.Errorf("Task %s is not healthy. Not registering", task.ID)
-		log.WithField("ID", task.ID).WithError(err).Debug("Task is not healthy. Not registering")
+		log.WithField("Id", task.ID).WithError(err).Debug("Task is not healthy. Not registering")
 		fh.handleBadRequest(err, w)
 	}
 }
@@ -179,6 +182,10 @@ func (fh *EventHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
 		log.WithError(err).WithField("Body", body).Error("[ERROR] body generated error")
 		fh.handleBadRequest(err, w)
 	} else {
+		log.WithFields(log.Fields{
+			"Id":         task.ID,
+			"TaskStatus": task.TaskStatus,
+		}).Info("Got StatusEvent")
 		switch task.TaskStatus {
 		case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
 			fh.service.Deregister(task.ID, task.Host)
@@ -187,7 +194,7 @@ func (fh *EventHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
 		default:
 			log.WithFields(log.Fields{
 				"taskStatus": task.TaskStatus,
-				"ID":         task.ID,
+				"Id":         task.ID,
 			}).Info("not handling event")
 			fh.handleBadRequest(fmt.Errorf("Not Handling task %s with status %s", task.ID, task.TaskStatus), w)
 		}
@@ -217,11 +224,13 @@ func (fh *EventHandler) markResponse() {
 func (fh *EventHandler) handleError(err error, w http.ResponseWriter) {
 	metrics.Mark("events.error")
 	w.WriteHeader(500)
+	log.WithError(err).Debug("Returning 500 due to error")
 	fmt.Fprintln(w, err.Error())
 }
 
 func (fh *EventHandler) handleBadRequest(err error, w http.ResponseWriter) {
 	metrics.Mark("events.bad_request")
 	w.WriteHeader(400)
+	log.WithError(err).Debug("Returning 400 due to malformed request")
 	fmt.Fprintln(w, err.Error())
 }

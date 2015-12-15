@@ -31,5 +31,8 @@
     "Interval": 30000000000,
     "Addr": ""
   },
-  "LogLevel": "info"
+  "Log": {
+    "Level": "info",
+    "Format": "text"
+  }
 }

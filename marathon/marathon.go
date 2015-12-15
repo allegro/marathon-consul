@@ -70,7 +70,7 @@ func (m Marathon) Apps() ([]*apps.App, error) {
 func (m Marathon) Tasks(app string) ([]*tasks.Task, error) {
 	log.WithFields(log.Fields{
 		"location": m.Location,
-		"app":      app,
+		"Id":       app,
 	}).Debug("asking Marathon for tasks")
 
 	app = strings.Trim(app, "/")
@@ -91,13 +91,19 @@ func (m Marathon) get(url string) ([]byte, error) {
 	}
 	request.Header.Add("Accept", "application/json")
 
+	log.WithFields(log.Fields{
+		"uri":      request.URL.RequestURI(),
+		"location": m.Location,
+		"protocol": m.Protocol,
+	}).Debug("Sending GET request to marathon")
+
 	response, err := client.Do(request)
 	if err != nil {
 		m.logHTTPError(response, err)
 		return nil, err
 	}
 	if response.StatusCode != 200 {
-		err = fmt.Errorf("Expected 200 but got %d for %s", response.StatusCode, response.Request.URL)
+		err = fmt.Errorf("Expected 200 but got %d for %s", response.StatusCode, response.Request.URL.Path)
 		m.logHTTPError(response, err)
 		return nil, err
 	}
@@ -108,7 +114,7 @@ func (m Marathon) get(url string) ([]byte, error) {
 func (m Marathon) logHTTPError(resp *http.Response, err error) {
 	var statusCode string = "???"
 	if resp != nil {
-		statusCode = string(resp.StatusCode)
+		statusCode = fmt.Sprintf("%d", resp.StatusCode)
 	}
 
 	log.WithFields(log.Fields{
