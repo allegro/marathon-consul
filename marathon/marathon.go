@@ -5,6 +5,7 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
+	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/tasks"
 	"github.com/sethgrid/pester"
 	"io/ioutil"
@@ -47,7 +48,7 @@ func New(config Config) (*Marathon, error) {
 }
 
 func (m Marathon) App(appId string) (*apps.App, error) {
-	log.WithField("location", m.Location).Debug("asking Marathon for " + appId)
+	log.WithField("Location", m.Location).Debug("Asking Marathon for " + appId)
 
 	body, err := m.get(m.urlWithQuery("/v2/apps/"+appId, "embed=apps.tasks"))
 	if err != nil {
@@ -58,7 +59,7 @@ func (m Marathon) App(appId string) (*apps.App, error) {
 }
 
 func (m Marathon) Apps() ([]*apps.App, error) {
-	log.WithField("location", m.Location).Debug("asking Marathon for apps")
+	log.WithField("Location", m.Location).Debug("Asking Marathon for apps")
 	body, err := m.get(m.urlWithQuery("/v2/apps", "embed=apps.tasks"))
 	if err != nil {
 		return nil, err
@@ -69,7 +70,7 @@ func (m Marathon) Apps() ([]*apps.App, error) {
 
 func (m Marathon) Tasks(app string) ([]*tasks.Task, error) {
 	log.WithFields(log.Fields{
-		"location": m.Location,
+		"Location": m.Location,
 		"Id":       app,
 	}).Debug("asking Marathon for tasks")
 
@@ -92,17 +93,21 @@ func (m Marathon) get(url string) ([]byte, error) {
 	request.Header.Add("Accept", "application/json")
 
 	log.WithFields(log.Fields{
-		"uri":      request.URL.RequestURI(),
-		"location": m.Location,
-		"protocol": m.Protocol,
+		"Uri":      request.URL.RequestURI(),
+		"Location": m.Location,
+		"Protocol": m.Protocol,
 	}).Debug("Sending GET request to marathon")
 
-	response, err := client.Do(request)
+	var response *http.Response
+	metrics.Time("marathon.get", func() { response, err = client.Do(request) })
 	if err != nil {
+		metrics.Mark("marathon.get.error")
 		m.logHTTPError(response, err)
 		return nil, err
 	}
 	if response.StatusCode != 200 {
+		metrics.Mark("marathon.get.error")
+		metrics.Mark(fmt.Sprintf("marathon.get.error.%d", response.StatusCode))
 		err = fmt.Errorf("Expected 200 but got %d for %s", response.StatusCode, response.Request.URL.Path)
 		m.logHTTPError(response, err)
 		return nil, err
@@ -118,8 +123,8 @@ func (m Marathon) logHTTPError(resp *http.Response, err error) {
 	}
 
 	log.WithFields(log.Fields{
-		"location":   m.Location,
-		"protocol":   m.Protocol,
+		"Location":   m.Location,
+		"Protocol":   m.Protocol,
 		"statusCode": statusCode,
 	}).Error(err)
 }
@@ -136,7 +141,6 @@ func (m Marathon) urlWithQuery(path string, query string) string {
 		Path:     path,
 		RawQuery: query,
 	}
-
 	return marathon.String()
 }
 

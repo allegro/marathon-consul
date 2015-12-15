@@ -26,8 +26,10 @@ func NewEventHandler(service service.ConsulServices, marathon marathon.Marathone
 }
 
 func (fh *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
+	metrics.Time("events.response", func() { fh.handle(w, r) })
+}
 
-	fh.markRequest()
+func (fh *EventHandler) handle(w http.ResponseWriter, r *http.Request) {
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -35,7 +37,7 @@ func (fh *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		fh.handleBadRequest(err, w)
 		return
 	}
-	log.Debug(string(body))
+	log.WithField("Body", string(body)).Debug("Received")
 
 	eventType, err := events.EventType(body)
 	if err != nil {
@@ -45,7 +47,7 @@ func (fh *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	fh.markEventRequest(eventType)
 
-	log.WithField("eventType", eventType).Debug("Recieved event")
+	log.WithField("EventType", eventType).Debug("Received event")
 
 	switch eventType {
 	case "app_terminated_event":
@@ -55,10 +57,10 @@ func (fh *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	case "health_status_changed_event":
 		fh.handleHealthStatusEvent(w, body)
 	default:
-		fh.handleBadRequest(fmt.Errorf("cannot handle %s", eventType), w)
+		fh.handleBadRequest(fmt.Errorf("Cannot handle %s", eventType), w)
 	}
 
-	fh.markResponse()
+	fh.markSuccess()
 }
 
 func (fh *EventHandler) handleTerminationEvent(w http.ResponseWriter, body []byte) {
@@ -209,27 +211,23 @@ func replaceTaskIdWithId(body []byte) []byte {
 	return bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
 }
 
-func (fh *EventHandler) markRequest() {
-	metrics.Mark("events.requests")
-}
-
 func (fh *EventHandler) markEventRequest(event string) {
 	metrics.Mark("events.requests." + event)
 }
 
-func (fh *EventHandler) markResponse() {
-	metrics.Mark("events.response")
+func (fh *EventHandler) markSuccess() {
+	metrics.Mark("events.response.success")
 }
 
 func (fh *EventHandler) handleError(err error, w http.ResponseWriter) {
-	metrics.Mark("events.error")
+	metrics.Mark("events.response.error.500")
 	w.WriteHeader(500)
 	log.WithError(err).Debug("Returning 500 due to error")
 	fmt.Fprintln(w, err.Error())
 }
 
 func (fh *EventHandler) handleBadRequest(err error, w http.ResponseWriter) {
-	metrics.Mark("events.bad_request")
+	metrics.Mark("events.response.error.400")
 	w.WriteHeader(400)
 	log.WithError(err).Debug("Returning 400 due to malformed request")
 	fmt.Fprintln(w, err.Error())

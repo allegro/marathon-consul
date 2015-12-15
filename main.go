@@ -40,6 +40,6 @@ func main() {
 	http.HandleFunc("/health", web.HealthHandler)
 	http.HandleFunc("/events", web.NewEventHandler(service, remote).Handle)
 
-	log.WithField("port", config.Web.Listen).Info("Listening")
+	log.WithField("Port", config.Web.Listen).Info("Listening")
 	log.Fatal(http.ListenAndServe(config.Web.Listen, nil))
 }

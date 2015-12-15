@@ -4,7 +4,7 @@ package metrics
 import (
 	"errors"
 	"fmt"
-	"log"
+	logger "log"
 	"net"
 	"net/url"
 	"os"
@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/cyberdelia/go-metrics-graphite"
 	"github.com/rcrowley/go-metrics"
 )
@@ -40,17 +41,17 @@ func Init(cfg Config) error {
 
 	switch cfg.Target {
 	case "stdout":
-		log.Printf("[INFO] Sending metrics to stdout")
+		log.Info("Sending metrics to stdout")
 		return initStdout(cfg.Interval)
 	case "graphite":
 		if cfg.Addr == "" {
 			return errors.New("metrics: graphite addr missing")
 		}
 
-		log.Printf("[INFO] Sending metrics to Graphite on %s as %q", cfg.Addr, pfx)
+		log.Infof("Sending metrics to Graphite on %s as %q", cfg.Addr, pfx)
 		return initGraphite(cfg.Addr, cfg.Interval)
 	case "":
-		log.Printf("[INFO] Metrics disabled")
+		log.Infof("Metrics disabled")
 	default:
 		return fmt.Errorf("Invalid metrics target %s", cfg.Target)
 	}
@@ -81,7 +82,7 @@ var hostname = os.Hostname
 func defaultPrefix() (string, error) {
 	host, err := hostname()
 	if err != nil {
-		log.Printf("[FATAL] %s", err.Error())
+		log.WithError(err).Error("Problem with detecting prefix")
 		return "", err
 	}
 	exe := filepath.Base(os.Args[0])
@@ -89,7 +90,7 @@ func defaultPrefix() (string, error) {
 }
 
 func initStdout(interval time.Duration) error {
-	logger := log.New(os.Stderr, "localhost: ", log.Lmicroseconds)
+	logger := logger.New(os.Stderr, "localhost: ", logger.Lmicroseconds)
 	go metrics.Log(metrics.DefaultRegistry, interval, logger)
 	return nil
 }

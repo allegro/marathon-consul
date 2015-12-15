@@ -104,7 +104,7 @@ func (config *Config) loadConfigFromFile() error {
 func (config *Config) setLogLevel() error {
 	level, err := log.ParseLevel(config.Log.Level)
 	if err != nil {
-		log.WithError(err).WithField("level", config.Log.Level).Error("bad level")
+		log.WithError(err).WithField("Level", config.Log.Level).Error("Bad level")
 		return err
 	}
 	log.SetLevel(level)
