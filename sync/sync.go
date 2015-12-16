@@ -89,15 +89,15 @@ func (s *Sync) registerMarathonApps(apps []*apps.App) {
 }
 
 func (s Sync) deregisterConsulServicesThatAreNotInMarathonApps(apps []*apps.App, services []*consul.CatalogService) {
-	//	TODO: Change it to map implementation
-	for _, instance := range services {
-		found := false
-		for _, app := range apps {
-			for _, task := range app.Tasks {
-				found = found || instance.ServiceID == task.ID
-			}
+	marathonTasksIdSet := make(map[string]struct{})
+	var exist struct{}
+	for _, app := range apps {
+		for _, task := range app.Tasks {
+			marathonTasksIdSet[task.ID] = exist
 		}
-		if !found {
+	}
+	for _, instance := range services {
+		if _, ok := marathonTasksIdSet[instance.ServiceID]; !ok {
 			err := s.service.Deregister(instance.ServiceID, instance.Address)
 			if err != nil {
 				log.WithError(err).WithFields(log.Fields{
