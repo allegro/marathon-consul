@@ -4,7 +4,7 @@
 		"default"
 	],
 	"BuildConstraints": "linux,!arm darwin",
-	"PackageVersion": "0.2.1",
+	"PackageVersion": "0.3.1",
 	"TaskSettings": {
 		"bintray": {
 			"downloadspage": "bintray.md",
