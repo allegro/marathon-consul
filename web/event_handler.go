@@ -168,7 +168,7 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 	}
 }
 
-func findTaskById(id string, tasks_ []tasks.Task) (tasks.Task, error) {
+func findTaskById(id tasks.Id, tasks_ []tasks.Task) (tasks.Task, error) {
 	for _, task := range tasks_ {
 		if task.ID == id {
 			return task, nil

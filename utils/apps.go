@@ -22,8 +22,8 @@ func app(name string, instances int, consul bool, unhealthyInstances int) *apps.
 	var appTasks []tasks.Task
 	for i := 0; i < instances; i++ {
 		task := tasks.Task{
-			AppID: name,
-			ID:    fmt.Sprintf("%s.%d", name, i),
+			AppID: tasks.AppId(name),
+			ID:    tasks.Id(fmt.Sprintf("%s.%d", name, i)),
 			Ports: []int{8080 + i},
 			Host:  "",
 		}
@@ -45,7 +45,7 @@ func app(name string, instances int, consul bool, unhealthyInstances int) *apps.
 	}
 
 	return &apps.App{
-		ID:     name,
+		ID:     tasks.AppId(name),
 		Tasks:  appTasks,
 		Labels: labels,
 	}

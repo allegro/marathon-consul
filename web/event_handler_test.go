@@ -262,7 +262,7 @@ func TestForwardHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 	for _, taskStatus := range taskStatuses {
 		body := `{
 		  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
-		  "taskId":"` + app.Tasks[1].ID + `",
+		  "taskId":"` + app.Tasks[1].ID.String() + `",
 		  "taskStatus":"` + taskStatus + `",
 		  "message":"Command terminated with signal Terminated",
 		  "appId":"/test/app",
@@ -284,8 +284,8 @@ func TestForwardHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 		assert.Equal(t, "OK\n", recorder.Body.String())
 		assert.Len(t, servicesIds, 2)
 		assert.NotContains(t, servicesIds, app.Tasks[1].ID)
-		assert.Contains(t, servicesIds, app.Tasks[0].ID)
-		assert.Contains(t, servicesIds, app.Tasks[2].ID)
+		assert.Contains(t, servicesIds, app.Tasks[0].ID.String())
+		assert.Contains(t, servicesIds, app.Tasks[2].ID.String())
 	}
 }
 
@@ -326,7 +326,7 @@ func TestForwardHandler_HandleHealthStatusEvent(t *testing.T) {
 	assert.Equal(t, 200, recorder.Code)
 	assert.Equal(t, "OK\n", recorder.Body.String())
 	assert.Len(t, servicesIds, 1)
-	assert.Contains(t, servicesIds, app.Tasks[1].ID)
+	assert.Contains(t, servicesIds, app.Tasks[1].ID.String())
 }
 
 func TestForwardHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing.T) {

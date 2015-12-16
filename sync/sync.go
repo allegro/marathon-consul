@@ -6,6 +6,7 @@ import (
 	service "github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/tasks"
 	consul "github.com/hashicorp/consul/api"
 	"time"
 )
@@ -89,7 +90,7 @@ func (s *Sync) registerMarathonApps(apps []*apps.App) {
 }
 
 func (s Sync) deregisterConsulServicesThatAreNotInMarathonApps(apps []*apps.App, services []*consul.CatalogService) {
-	marathonTasksIdSet := make(map[string]struct{})
+	marathonTasksIdSet := make(map[tasks.Id]struct{})
 	var exist struct{}
 	for _, app := range apps {
 		for _, task := range app.Tasks {
@@ -97,11 +98,12 @@ func (s Sync) deregisterConsulServicesThatAreNotInMarathonApps(apps []*apps.App,
 		}
 	}
 	for _, instance := range services {
-		if _, ok := marathonTasksIdSet[instance.ServiceID]; !ok {
-			err := s.service.Deregister(instance.ServiceID, instance.Address)
+		instanceId := tasks.Id(instance.ServiceID)
+		if _, ok := marathonTasksIdSet[instanceId]; !ok {
+			err := s.service.Deregister(instanceId, instance.Address)
 			if err != nil {
 				log.WithError(err).WithFields(log.Fields{
-					"Id":      instance.ServiceID,
+					"Id":      instanceId,
 					"Address": instance.Address,
 				}).Error("Can't deregister service")
 			}

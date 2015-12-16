@@ -16,8 +16,8 @@ import (
 
 type Marathoner interface {
 	Apps() ([]*apps.App, error)
-	App(string) (*apps.App, error)
-	Tasks(string) ([]*tasks.Task, error)
+	App(tasks.AppId) (*apps.App, error)
+	Tasks(tasks.AppId) ([]*tasks.Task, error)
 }
 
 type Marathon struct {
@@ -47,10 +47,10 @@ func New(config Config) (*Marathon, error) {
 	}, nil
 }
 
-func (m Marathon) App(appId string) (*apps.App, error) {
+func (m Marathon) App(appId tasks.AppId) (*apps.App, error) {
 	log.WithField("Location", m.Location).Debug("Asking Marathon for " + appId)
 
-	body, err := m.get(m.urlWithQuery("/v2/apps/"+appId, "embed=apps.tasks"))
+	body, err := m.get(m.urlWithQuery(fmt.Sprintf("/v2/apps/%s", appId), "embed=apps.tasks"))
 	if err != nil {
 		return nil, err
 	}
@@ -68,14 +68,14 @@ func (m Marathon) Apps() ([]*apps.App, error) {
 	return apps.ParseApps(body)
 }
 
-func (m Marathon) Tasks(app string) ([]*tasks.Task, error) {
+func (m Marathon) Tasks(app tasks.AppId) ([]*tasks.Task, error) {
 	log.WithFields(log.Fields{
 		"Location": m.Location,
 		"Id":       app,
 	}).Debug("asking Marathon for tasks")
 
-	app = strings.Trim(app, "/")
-	body, err := m.get(m.url(fmt.Sprintf("/v2/apps/%s/tasks", app)))
+	trimmedAppId := strings.Trim(app.String(), "/")
+	body, err := m.get(m.url(fmt.Sprintf("/v2/apps/%s/tasks", trimmedAppId)))
 	if err != nil {
 		return nil, err
 	}

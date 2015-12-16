@@ -8,15 +8,15 @@ import (
 
 type MarathonerStub struct {
 	AppsStub  []*apps.App
-	AppStub   map[string]*apps.App
-	TasksStub map[string][]*tasks.Task
+	AppStub   map[tasks.AppId]*apps.App
+	TasksStub map[tasks.AppId][]*tasks.Task
 }
 
 func (m MarathonerStub) Apps() ([]*apps.App, error) {
 	return m.AppsStub, nil
 }
 
-func (m MarathonerStub) App(id string) (*apps.App, error) {
+func (m MarathonerStub) App(id tasks.AppId) (*apps.App, error) {
 	if app, ok := m.AppStub[id]; ok {
 		return app, nil
 	} else {
@@ -24,7 +24,7 @@ func (m MarathonerStub) App(id string) (*apps.App, error) {
 	}
 }
 
-func (m MarathonerStub) Tasks(appId string) ([]*tasks.Task, error) {
+func (m MarathonerStub) Tasks(appId tasks.AppId) ([]*tasks.Task, error) {
 	if app, ok := m.TasksStub[appId]; ok {
 		return app, nil
 	} else {
@@ -33,8 +33,8 @@ func (m MarathonerStub) Tasks(appId string) ([]*tasks.Task, error) {
 }
 
 func MarathonerStubForApps(args ...*apps.App) *MarathonerStub {
-	appsMap := make(map[string]*apps.App)
-	tasksMap := make(map[string][]*tasks.Task)
+	appsMap := make(map[tasks.AppId]*apps.App)
+	tasksMap := make(map[tasks.AppId][]*tasks.Task)
 
 	for _, app := range args {
 		appsMap[app.ID] = app
