@@ -9,6 +9,7 @@
 		"bintray": {
 			"downloadspage": "bintray.md",
 			"include:": "*.deb",
+			"exclude": "*.tar.gz,*.zip,bintray.md,.goxc-temp",
 			"package": "marathon-consul",
 			"repository": "deb",
 			"subject": "allegro"
