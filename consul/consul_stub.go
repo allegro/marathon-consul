@@ -1,18 +1,19 @@
 package consul
 
 import (
+	"github.com/allegro/marathon-consul/tasks"
 	consulapi "github.com/hashicorp/consul/api"
 )
 
 type ConsulStub struct {
-	services      map[string]*consulapi.AgentServiceRegistration
-	ErrorServices map[string]error
+	services      map[tasks.Id]*consulapi.AgentServiceRegistration
+	ErrorServices map[tasks.Id]error
 }
 
 func NewConsulStub() *ConsulStub {
 	return &ConsulStub{
-		services:      make(map[string]*consulapi.AgentServiceRegistration),
-		ErrorServices: make(map[string]error),
+		services:      make(map[tasks.Id]*consulapi.AgentServiceRegistration),
+		ErrorServices: make(map[tasks.Id]error),
 	}
 }
 
@@ -32,15 +33,16 @@ func (c ConsulStub) GetAllServices() ([]*consulapi.CatalogService, error) {
 }
 
 func (c *ConsulStub) Register(service *consulapi.AgentServiceRegistration) error {
-	if err, ok := c.ErrorServices[service.ID]; ok {
+	taskId := tasks.Id(service.ID)
+	if err, ok := c.ErrorServices[taskId]; ok {
 		return err
 	} else {
-		c.services[service.ID] = service
+		c.services[taskId] = service
 		return nil
 	}
 }
 
-func (c *ConsulStub) Deregister(serviceId string, agent string) error {
+func (c *ConsulStub) Deregister(serviceId tasks.Id, agent string) error {
 	if err, ok := c.ErrorServices[serviceId]; ok {
 		return err
 	} else {

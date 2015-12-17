@@ -65,8 +65,8 @@ func consulInstances(appsCount, instancesCount int) []*consulapi.CatalogService 
 				ServiceAddress: task.Host,
 				ServicePort:    task.Ports[0],
 				ServiceTags:    []string{"marathon"},
-				ServiceID:      task.ID,
-				ServiceName:    app.ID,
+				ServiceID:      task.ID.String(),
+				ServiceName:    app.ID.String(),
 			}
 		}
 	}

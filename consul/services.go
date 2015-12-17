@@ -8,13 +8,12 @@ import (
 	"github.com/allegro/marathon-consul/tasks"
 	"net/url"
 	"strconv"
-	"strings"
 )
 
 func MarathonTaskToConsulService(task tasks.Task, healthChecks []apps.HealthCheck, labels map[string]string) *consulapi.AgentServiceRegistration {
 	return &consulapi.AgentServiceRegistration{
-		ID:      task.ID,
-		Name:    appIdToServiceName(task.AppID),
+		ID:      task.ID.String(),
+		Name:    task.AppID.ConsulServiceName(),
 		Port:    task.Ports[0],
 		Address: task.Host,
 		Tags:    marathonLabelsToConsulTags(labels),
@@ -62,9 +61,4 @@ func marathonLabelsToConsulTags(labels map[string]string) []string {
 		}
 	}
 	return tags
-}
-
-func appIdToServiceName(appId string) (serviceId string) {
-	serviceId = strings.Replace(strings.Trim(appId, "/"), "/", ".", -1)
-	return serviceId
 }

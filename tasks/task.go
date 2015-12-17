@@ -5,9 +5,9 @@ import (
 )
 
 type Task struct {
-	ID                 string              `json:"id"`
+	ID                 Id                  `json:"id"`
 	TaskStatus         string              `json:"taskStatus"`
-	AppID              string              `json:"appId"`
+	AppID              AppId               `json:"appId"`
 	Host               string              `json:"host"`
 	Ports              []int               `json:"ports"`
 	HealthCheckResults []HealthCheckResult `json:"healthCheckResults"`

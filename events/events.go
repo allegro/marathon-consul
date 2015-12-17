@@ -2,6 +2,7 @@ package events
 
 import (
 	"github.com/allegro/marathon-consul/apps"
+	"github.com/allegro/marathon-consul/tasks"
 )
 
 type Event interface {
@@ -48,9 +49,9 @@ func (event DeploymentInfoEvent) GetType() string {
 }
 
 type AppTerminatedEvent struct {
-	Type      string `json:"eventType"`
-	AppID     string `json:"appId"`
-	Timestamp string `json:"timestamp"`
+	Type      string      `json:"eventType"`
+	AppID     tasks.AppId `json:"appId"`
+	Timestamp string      `json:"timestamp"`
 }
 
 func (event AppTerminatedEvent) Apps() []*apps.App {

@@ -26,7 +26,7 @@ type AppsResponse struct {
 type App struct {
 	Labels       map[string]string `json:"labels"`
 	HealthChecks []HealthCheck     `json:"healthChecks"`
-	ID           string            `json:"id"`
+	ID           tasks.AppId       `json:"id"`
 	Tasks        []tasks.Task      `json:"tasks"`
 }
 

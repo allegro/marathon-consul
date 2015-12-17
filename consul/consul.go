@@ -3,13 +3,14 @@ package consul
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/tasks"
 	consulapi "github.com/hashicorp/consul/api"
 )
 
 type ConsulServices interface {
 	GetAllServices() ([]*consulapi.CatalogService, error)
 	Register(service *consulapi.AgentServiceRegistration) error
-	Deregister(serviceId string, agentAddress string) error
+	Deregister(serviceId tasks.Id, agentAddress string) error
 }
 
 type Consul struct {
@@ -96,7 +97,7 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 	return err
 }
 
-func (c *Consul) Deregister(serviceId string, agentAddress string) error {
+func (c *Consul) Deregister(serviceId tasks.Id, agentAddress string) error {
 	var err error
 	metrics.Time("consul.deregister", func() { err = c.deregister(serviceId, agentAddress) })
 	if err != nil {
@@ -107,7 +108,7 @@ func (c *Consul) Deregister(serviceId string, agentAddress string) error {
 	return err
 }
 
-func (c *Consul) deregister(serviceId string, agentAddress string) error {
+func (c *Consul) deregister(serviceId tasks.Id, agentAddress string) error {
 	agent, err := c.agents.GetAgent(agentAddress)
 	if err != nil {
 		return err
@@ -115,7 +116,7 @@ func (c *Consul) deregister(serviceId string, agentAddress string) error {
 
 	log.WithField("Id", serviceId).WithField("Address", agentAddress).Info("Deregistering")
 
-	err = agent.Agent().ServiceDeregister(serviceId)
+	err = agent.Agent().ServiceDeregister(serviceId.String())
 	if err != nil {
 		log.WithError(err).WithField("Id", serviceId).WithField("Address", agentAddress).Error("Unable to deregister")
 	}

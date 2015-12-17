@@ -29,7 +29,7 @@ func TestSyncJob(t *testing.T) {
 	select {
 	case <-time.After(15 * time.Millisecond):
 		ticker.Stop()
-		assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID))
+		assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID.String()))
 	}
 }
 
@@ -56,7 +56,7 @@ func (c *ConsulServicesMock) RegistrationsCount(instanceId string) int {
 	return c.registrations[instanceId]
 }
 
-func (c *ConsulServicesMock) Deregister(serviceId string, agent string) error {
+func (c *ConsulServicesMock) Deregister(serviceId tasks.Id, agent string) error {
 	return nil
 }
 
@@ -186,11 +186,11 @@ func (m errorMarathon) Apps() ([]*apps.App, error) {
 	return nil, fmt.Errorf("Error")
 }
 
-func (m errorMarathon) App(id string) (*apps.App, error) {
+func (m errorMarathon) App(id tasks.AppId) (*apps.App, error) {
 	return nil, fmt.Errorf("Error")
 }
 
-func (m errorMarathon) Tasks(appId string) ([]*tasks.Task, error) {
+func (m errorMarathon) Tasks(appId tasks.AppId) ([]*tasks.Task, error) {
 	return nil, fmt.Errorf("Error")
 }
 
@@ -204,6 +204,6 @@ func (c errorConsul) Register(service *consulapi.AgentServiceRegistration) error
 	return fmt.Errorf("Error occured")
 
 }
-func (c errorConsul) Deregister(serviceId string, agent string) error {
+func (c errorConsul) Deregister(serviceId tasks.Id, agent string) error {
 	return fmt.Errorf("Error occured")
 }
