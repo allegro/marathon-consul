@@ -20,12 +20,12 @@ hash consul 2>/dev/null || {
         os="windows"
         arch="386"
     fi
-    archive="0.5.2_${os}_${arch}.zip"
+    version="0.6.0"
+    archive="consul_${version}_${os}_${arch}.zip"
 
     mkdir -p bin
-    curl -OLs https://dl.bintray.com/mitchellh/consul/$archive
+    curl -OLs https://releases.hashicorp.com/consul/$version/$archive
     unzip -q "$archive" -d bin
     rm "$archive"
     consul --version
 }
-
