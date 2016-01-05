@@ -118,6 +118,30 @@ func TestForwardHandler_HandleAppTerminatedEvent(t *testing.T) {
 	assert.Empty(t, services)
 }
 
+func TestForwardHandler_NotHandleNonConsulAppTerminatedEvent(t *testing.T) {
+	t.Parallel()
+	// given
+	app := NonConsulApp("/test/app", 3)
+	marathon := marathon.MarathonerStubForApps(app)
+	service := consul.NewConsulStub()
+	for _, task := range app.Tasks {
+		service.Register(consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
+	}
+	handler := NewEventHandler(service, marathon)
+	body, _ := json.Marshal(events.AppTerminatedEvent{
+		Type:  "app_terminated_event",
+		AppID: app.ID,
+	})
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+	// then
+	assert.Equal(t, 400, recorder.Code)
+	assert.Equal(t, "/test/app is not consul app. Missing consul:true label\n", recorder.Body.String())
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+}
+
 func TestForwardHandler_HandleAppInvalidBody(t *testing.T) {
 	t.Parallel()
 	// given
@@ -289,11 +313,48 @@ func TestForwardHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 	}
 }
 
+func TestForwardHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.T) {
+	t.Parallel()
+	// given
+	app := NonConsulApp("/test/app", 3)
+	marathon := marathon.MarathonerStubForApps(app)
+	service := consul.NewConsulStub()
+	for _, task := range app.Tasks {
+		service.Register(consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
+	}
+	handler := NewEventHandler(service, marathon)
+	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
+	for _, taskStatus := range taskStatuses {
+		body := `{
+		  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
+		  "taskId":"` + app.Tasks[1].ID.String() + `",
+		  "taskStatus":"` + taskStatus + `",
+		  "message":"Command terminated with signal Terminated",
+		  "appId":"/test/app",
+		  "host":"localhost",
+		  "ports":[
+			31372
+		  ],
+		  "version":"2015-12-07T09:02:48.981Z",
+		  "eventType":"status_update_event",
+		  "timestamp":"2015-12-07T09:33:40.898Z"
+		}`
+		req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+		// when
+		recorder := httptest.NewRecorder()
+		handler.Handle(recorder, req)
+		servicesIds := service.RegisteredServicesIds()
+		// then
+		assert.Equal(t, 400, recorder.Code)
+		assert.Equal(t, "/test/app is not consul app. Missing consul:true label\n", recorder.Body.String())
+		assert.Len(t, servicesIds, 3)
+	}
+}
+
 func TestForwardHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *testing.T) {
 	t.Parallel()
 	// given
-	app := ConsulApp("/test/app", 3)
-	app.Labels["consul"] = "false"
+	app := NonConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	handler := NewEventHandler(service, marathon)

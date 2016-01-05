@@ -30,6 +30,11 @@ type App struct {
 	Tasks        []tasks.Task      `json:"tasks"`
 }
 
+func (app *App) IsConsulApp() bool {
+	value, ok := app.Labels["consul"]
+	return ok && value == "true"
+}
+
 func ParseApps(jsonBlob []byte) ([]*App, error) {
 	apps := &AppsResponse{}
 	err := json.Unmarshal(jsonBlob, apps)

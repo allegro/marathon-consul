@@ -72,8 +72,22 @@ func (fh *EventHandler) handleTerminationEvent(w http.ResponseWriter, body []byt
 
 	// app_terminated_event only has one app in it, so we will just take care of
 	// it instead of looping
-	app := event.Apps()[0]
-	log.WithField("Id", app.ID).Info("Got TerminationEvent")
+	appId := event.Apps()[0].ID
+	log.WithField("Id", appId).Info("Got TerminationEvent")
+
+	app, err := fh.marathon.App(appId)
+	if err != nil {
+		log.WithField("Id", appId).WithError(err).Error("There was a problem obtaining app info")
+		fh.handleError(err, w)
+		return
+	}
+
+	if !app.IsConsulApp() {
+		err = fmt.Errorf("%s is not consul app. Missing consul:true label", app.ID)
+		log.WithField("Id", app.ID).WithError(err).Debug("Skipping app deregistration from Consul")
+		fh.handleBadRequest(err, w)
+		return
+	}
 
 	tasks, err := fh.marathon.Tasks(app.ID)
 	if err != nil {
@@ -97,7 +111,7 @@ func (fh *EventHandler) handleTerminationEvent(w http.ResponseWriter, body []byt
 		}
 		err = fmt.Errorf(errMessage)
 		fh.handleError(err, w)
-		log.WithError(err).WithField("Id", app.ID).Error("There where problems processing request")
+		log.WithError(err).WithField("Id", app.ID).Error("There were problems processing request")
 	} else {
 		w.WriteHeader(200)
 		fmt.Fprintln(w, "OK")
@@ -133,17 +147,15 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 		fh.handleError(err, w)
 		return
 	}
-	tasks := app.Tasks
 
-	if value, ok := app.Labels["consul"]; !ok || value != "true" {
+	if !app.IsConsulApp() {
 		err = fmt.Errorf("%s is not consul app. Missing consul:true label", app.ID)
-		log.WithField("Id", taskHealthChange.ID).WithError(err).Debug("App should not be registered in Consul")
+		log.WithField("Id", taskHealthChange.ID).WithError(err).Debug("Skipping app registration in Consul")
 		fh.handleBadRequest(err, w)
 		return
 	}
 
-	healthCheck := app.HealthChecks
-	labels := app.Labels
+	tasks := app.Tasks
 
 	task, err := findTaskById(taskHealthChange.ID, tasks)
 	if err != nil {
@@ -151,6 +163,9 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 		fh.handleError(err, w)
 		return
 	}
+
+	healthCheck := app.HealthChecks
+	labels := app.Labels
 
 	if service.IsTaskHealthy(task.HealthCheckResults) {
 		err := fh.service.Register(service.MarathonTaskToConsulService(task, healthCheck, labels))
@@ -180,26 +195,43 @@ func findTaskById(id tasks.Id, tasks_ []tasks.Task) (tasks.Task, error) {
 func (fh *EventHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
 	body = replaceTaskIdWithId(body)
 	task, err := tasks.ParseTask(body)
+
 	if err != nil {
-		log.WithError(err).WithField("Body", body).Error("[ERROR] body generated error")
+		log.WithError(err).WithField("Body", body).Error("Could not parse event body")
 		fh.handleBadRequest(err, w)
-	} else {
+		return
+	}
+
+	log.WithFields(log.Fields{
+		"Id":         task.ID,
+		"TaskStatus": task.TaskStatus,
+	}).Info("Got StatusEvent")
+
+	switch task.TaskStatus {
+	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
+		app, err := fh.marathon.App(task.AppID)
+		if err != nil {
+			log.WithField("Id", task.AppID).WithError(err).Error("There was a problem obtaining app info")
+			fh.handleError(err, w)
+			return
+		}
+
+		if !app.IsConsulApp() {
+			err = fmt.Errorf("%s is not consul app. Missing consul:true label", app.ID)
+			log.WithField("Id", task.ID).WithError(err).Debug("Not handling task event")
+			fh.handleBadRequest(err, w)
+			return
+		}
+
+		fh.service.Deregister(task.ID, task.Host)
+		w.WriteHeader(200)
+		fmt.Fprintln(w, "OK")
+	default:
 		log.WithFields(log.Fields{
 			"Id":         task.ID,
-			"TaskStatus": task.TaskStatus,
-		}).Info("Got StatusEvent")
-		switch task.TaskStatus {
-		case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
-			fh.service.Deregister(task.ID, task.Host)
-			w.WriteHeader(200)
-			fmt.Fprintln(w, "OK")
-		default:
-			log.WithFields(log.Fields{
-				"taskStatus": task.TaskStatus,
-				"Id":         task.ID,
-			}).Info("not handling event")
-			fh.handleBadRequest(fmt.Errorf("Not Handling task %s with status %s", task.ID, task.TaskStatus), w)
-		}
+			"taskStatus": task.TaskStatus,
+		}).Info("Not handling event")
+		fh.handleBadRequest(fmt.Errorf("Not Handling task %s with status %s", task.ID, task.TaskStatus), w)
 	}
 }
 
