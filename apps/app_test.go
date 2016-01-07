@@ -86,3 +86,31 @@ func TestParseApp(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, app)
 }
+
+func TestConsulApp(t *testing.T) {
+	t.Parallel()
+
+	// when
+	app := &App{
+		Labels: map[string]string{"consul": "true"},
+	}
+
+	// then
+	assert.True(t, app.IsConsulApp())
+
+	// when
+	app = &App{
+		Labels: map[string]string{"consul": "false", "marathon": "true"},
+	}
+
+	// then
+	assert.False(t, app.IsConsulApp())
+
+	// when
+	app = &App{
+		Labels: map[string]string{},
+	}
+
+	// then
+	assert.False(t, app.IsConsulApp())
+}

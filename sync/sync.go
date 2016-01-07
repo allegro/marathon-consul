@@ -70,7 +70,7 @@ func (s *Sync) registerMarathonApps(apps []*apps.App) {
 		healthCheck := app.HealthChecks
 		labels := app.Labels
 
-		if value, ok := app.Labels["consul"]; !ok || value != "true" {
+		if !app.IsConsulApp() {
 			log.WithField("Id", app.ID).Debug("App should not be registered in Consul")
 			continue
 		}
