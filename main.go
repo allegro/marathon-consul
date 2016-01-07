@@ -33,8 +33,8 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	sync := sync.New(remote, service)
-	go sync.StartSyncServicesJob(config.Sync.Interval)
+	sync := sync.New(config.Sync, remote, service)
+	go sync.StartSyncServicesJob()
 
 	// set up routes
 	http.HandleFunc("/health", web.HealthHandler)

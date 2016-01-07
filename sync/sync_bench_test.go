@@ -39,7 +39,7 @@ func BenchmarkDeregisterConsulServicesThatAreNotInMarathonApps100x100(b *testing
 func bench(b *testing.B, appsCount, instancesCount int) {
 	apps := marathonApps(appsCount, instancesCount)
 	instances := consulInstances(appsCount, instancesCount)
-	sync := New(nil, consul.NewConsulStub())
+	sync := New(Config{}, nil, consul.NewConsulStub())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

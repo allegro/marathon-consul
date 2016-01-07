@@ -2,6 +2,7 @@ package marathon
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
@@ -18,6 +19,7 @@ type Marathoner interface {
 	Apps() ([]*apps.App, error)
 	App(tasks.AppId) (*apps.App, error)
 	Tasks(tasks.AppId) ([]*tasks.Task, error)
+	Leader() (string, error)
 }
 
 type Marathon struct {
@@ -25,6 +27,10 @@ type Marathon struct {
 	Protocol  string
 	Auth      *url.Userinfo
 	transport http.RoundTripper
+}
+
+type LeaderResponse struct {
+	Leader string `json:"leader"`
 }
 
 func New(config Config) (*Marathon, error) {
@@ -81,6 +87,20 @@ func (m Marathon) Tasks(app tasks.AppId) ([]*tasks.Task, error) {
 	}
 
 	return tasks.ParseTasks(body)
+}
+
+func (m Marathon) Leader() (string, error) {
+	log.WithField("Location", m.Location).Debug("Asking Marathon for leader")
+
+	body, err := m.get(m.url("/v2/leader"))
+	if err != nil {
+		return "", err
+	}
+
+	leaderResponse := &LeaderResponse{}
+	err = json.Unmarshal(body, leaderResponse)
+
+	return leaderResponse.Leader, err
 }
 
 func (m Marathon) get(url string) ([]byte, error) {
