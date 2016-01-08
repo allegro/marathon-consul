@@ -277,6 +277,65 @@ func TestUrl_WithAuth(t *testing.T) {
 	assert.Equal(t, "http://peter:parker@localhost:8080/v2/apps", m.url("/v2/apps"))
 }
 
+func TestLeader_SuccessfulResponse(t *testing.T) {
+	t.Parallel()
+
+	// given
+	server, transport := stubServer("/v2/leader", `{"leader": "some.leader.host:8081"}`)
+	defer server.Close()
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+
+	// when
+	leader, err := m.Leader()
+
+	//then
+	assert.NoError(t, err)
+	assert.Equal(t, "some.leader.host:8081", leader)
+}
+
+func TestLeader_ErrorOnMalformedJsonResponse(t *testing.T) {
+	t.Parallel()
+
+	// given
+	server, transport := stubServer("/v2/leader", "{")
+	defer server.Close()
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+
+	// when
+	leader, err := m.Leader()
+
+	//then
+	assert.Error(t, err)
+	assert.Empty(t, leader)
+}
+
+func TestLeader_RetryOnFailingResponse(t *testing.T) {
+	t.Parallel()
+
+	// given
+	calls := 0
+	server, transport := mockServer(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(500)
+	})
+	defer server.Close()
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
+	m.transport = transport
+
+	// when
+	leader, err := m.Leader()
+
+	//then
+	assert.Error(t, err)
+	assert.Equal(t, 3, calls)
+	assert.Empty(t, leader)
+}
+
 // http://keighl.com/post/mocking-http-responses-in-golang/
 func stubServer(uri string, body string) (*httptest.Server, *http.Transport) {
 	return mockServer(func(w http.ResponseWriter, r *http.Request) {

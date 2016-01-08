@@ -67,7 +67,10 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "accept connections at this address")
 
 	// Sync
+	flag.BoolVar(&config.Sync.Enabled, "sync-enabled", true, "Enable Marathon-consul scheduled sync")
 	flag.DurationVar(&config.Sync.Interval, "sync-interval", 15*time.Minute, "Marathon-consul sync interval")
+	flag.StringVar(&config.Sync.Leader, "sync-leader", "", "Marathon cluster-wide node name (defaults to <hostname>:8080), the sync will run only if the specified node is the current Marathon-leader")
+	flag.BoolVar(&config.Sync.Force, "sync-force", false, "Force leadership-independent Marathon-consul sync (run always)")
 
 	// Marathon
 	flag.StringVar(&config.Marathon.Location, "marathon-location", "localhost:8080", "Marathon URL")

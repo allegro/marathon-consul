@@ -10,6 +10,7 @@ type MarathonerStub struct {
 	AppsStub  []*apps.App
 	AppStub   map[tasks.AppId]*apps.App
 	TasksStub map[tasks.AppId][]*tasks.Task
+	leader    string
 }
 
 func (m MarathonerStub) Apps() ([]*apps.App, error) {
@@ -32,6 +33,16 @@ func (m MarathonerStub) Tasks(appId tasks.AppId) ([]*tasks.Task, error) {
 	}
 }
 
+func (m MarathonerStub) Leader() (string, error) {
+	return m.leader, nil
+}
+
+func MarathonerStubWithLeaderForApps(leader string, args ...*apps.App) *MarathonerStub {
+	stub := MarathonerStubForApps(args...)
+	stub.leader = leader
+	return stub
+}
+
 func MarathonerStubForApps(args ...*apps.App) *MarathonerStub {
 	appsMap := make(map[tasks.AppId]*apps.App)
 	tasksMap := make(map[tasks.AppId][]*tasks.Task)
@@ -50,5 +61,6 @@ func MarathonerStubForApps(args ...*apps.App) *MarathonerStub {
 		AppsStub:  args,
 		AppStub:   appsMap,
 		TasksStub: tasksMap,
+		leader:    "localhost:8080",
 	}
 }

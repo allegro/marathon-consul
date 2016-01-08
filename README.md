@@ -49,6 +49,11 @@ make test
 - Provided HTTP healtcheck will be transferred to Consul.
 - Labels with `tag` value will be converted to Consul tags, `marathon` tag is added by default
  (e.g, `labels: ["public":"tag", "varnish":"tag", "env": "test"]` → `tags: ["public", "varnish", "marathon"]`).
+- The scheduled Marathon-consul sync may run in two modes:
+    - Only on node that is the current [Marathon-leader](https://mesosphere.github.io/marathon/docs/rest-api.html#get-v2-leader), `sync-leader` parameter should be set to `hostname:port` the current node appears in the Marathon cluster. 
+      This mode is **enabled by default** and the `sync-leader` property is set to the hostname resolved by OS.
+      Note that there is a difference between `sync-leader` and `marathon-location`: `sync-leader` is used for node leadership detection (should be set to cluster-wide node name), while `marathon-location` is used for connection purpose (may be set to `localhost`)
+    - On every node, `sync-force` parameter should be set to `true`
 
 ### Options
 
@@ -64,18 +69,21 @@ consul-ssl-ca-cert     |                       | Path to a CA certificate file, 
 consul-ssl-cert        |                       | Path to an SSL client certificate to use to authenticate to the Consul server
 consul-ssl-verify      | `true`                | Verify certificates when connecting via SSL
 consul-token           |                       | The Consul ACL token
-listen                 | :4000                 | Accept connections at this address
-log-level              | info                  | Log level: panic, fatal, error, warn, info, or debug
-log-format             | text                  | Log format: JSON, text
-marathon-location      | localhost:8080        | Marathon URL
+listen                 | `:4000`               | Accept connections at this address
+log-level              | `info`                | Log level: panic, fatal, error, warn, info, or debug
+log-format             | `text`                | Log format: JSON, text
+marathon-location      | `localhost:8080`      | Marathon URL
 marathon-password      |                       | Marathon password for basic auth
-marathon-protocol      | http                  | Marathon protocol (http or https)
+marathon-protocol      | `http`                | Marathon protocol (http or https)
 marathon-username      |                       | Marathon username for basic auth
-metrics-interval       | 30s                   | Metrics reporting [interval](https://golang.org/pkg/time/#Duration) **Note:** While using file configuration intervals should be provided in *nanoseconds*
+metrics-interval       | `30s`                 | Metrics reporting [interval](https://golang.org/pkg/time/#Duration) **Note:** While using file configuration intervals should be provided in *nanoseconds*
 metrics-location       |                       | Graphite URL (used when metrics-target is set to graphite)
-metrics-prefix         | default               | Metrics prefix (default is resolved to <hostname>.<app_name>
-metrics-target         | stdout                | Metrics destination stdout or graphite
-sync-interval          | 15m0s                 | Marathon-consul sync [interval](https://golang.org/pkg/time/#Duration) **Note:** While using file configuration intervals should be provided in *nanoseconds*
+metrics-prefix         | `default`             | Metrics prefix (resolved to `<hostname>.<app_name>` by default)
+metrics-target         | `stdout`              | Metrics destination stdout or graphite
+sync-enabled           | `true`                | Enable Marathon-consul scheduled sync
+sync-interval          | `15m0s`               | Marathon-consul sync [interval](https://golang.org/pkg/time/#Duration) **Note:** While using file configuration intervals should be provided in *nanoseconds*
+sync-leader            | `<hostname>:8080`     | Marathon cluster-wide node name (defaults to `<hostname>:8080`), the sync will run only if the node is the current [Marathon-leader](https://mesosphere.github.io/marathon/docs/rest-api.html#get-v2-leader)
+sync-force             | `false`               | Force leadership-independent Marathon-consul sync (run always)
 
 
 ### Adding New Root Certificate Authorities

@@ -11,19 +11,24 @@ import (
 	"fmt"
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/tasks"
+	"os"
 	"time"
 )
 
-func TestSyncJob(t *testing.T) {
+func TestSyncJob_ShouldSyncOnLeadership(t *testing.T) {
 	t.Parallel()
 	// given
 	app := ConsulApp("app1", 1)
-	marathon := marathon.MarathonerStubForApps(app)
+	marathon := marathon.MarathonerStubWithLeaderForApps("current.leader:8080", app)
 	services := newConsulServicesMock()
-	sync := New(marathon, services)
+	sync := New(Config{
+		Enabled:  true,
+		Interval: 10 * time.Millisecond,
+		Leader:   "current.leader:8080",
+	}, marathon, services)
 
 	// when
-	ticker := sync.StartSyncServicesJob(10 * time.Millisecond)
+	ticker := sync.StartSyncServicesJob()
 
 	// then
 	select {
@@ -31,6 +36,100 @@ func TestSyncJob(t *testing.T) {
 		ticker.Stop()
 		assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID.String()))
 	}
+}
+
+func TestSyncJob_ShouldNotSyncWhenDisabled(t *testing.T) {
+	t.Parallel()
+	// given
+	app := ConsulApp("app1", 1)
+	marathon := marathon.MarathonerStubWithLeaderForApps("current.leader:8080", app)
+	services := newConsulServicesMock()
+	sync := New(Config{
+		Enabled:  false,
+		Interval: 10 * time.Millisecond,
+		Leader:   "current.leader:8080",
+	}, marathon, services)
+
+	// when
+	ticker := sync.StartSyncServicesJob()
+
+	// then
+	assert.Nil(t, ticker)
+	select {
+	case <-time.After(15 * time.Millisecond):
+		assert.Equal(t, 0, services.RegistrationsCount(app.Tasks[0].ID.String()))
+	}
+}
+
+func TestSyncJob_ShouldDefaultLeaderConfigurationToResolvedHostname(t *testing.T) {
+	t.Parallel()
+	// given
+	hostname, _ := os.Hostname()
+	app := ConsulApp("app1", 1)
+	marathon := marathon.MarathonerStubWithLeaderForApps(fmt.Sprintf("%s:8080", hostname), app)
+	services := newConsulServicesMock()
+	sync := New(Config{
+		Enabled:  true,
+		Interval: 10 * time.Millisecond,
+	}, marathon, services)
+
+	// when
+	ticker := sync.StartSyncServicesJob()
+
+	// then
+	select {
+	case <-time.After(15 * time.Millisecond):
+		ticker.Stop()
+		assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID.String()))
+	}
+}
+
+func TestSyncServices_ShouldNotSyncOnNoForceNorLeaderSpecified(t *testing.T) {
+	t.Parallel()
+	// given
+	app := ConsulApp("app1", 1)
+	marathon := marathon.MarathonerStubWithLeaderForApps("localhost:8080", app)
+	services := newConsulServicesMock()
+	sync := New(Config{}, marathon, services)
+
+	// when
+	ticker := sync.StartSyncServicesJob()
+
+	// then
+	assert.Nil(t, ticker)
+	assert.Zero(t, services.RegistrationsCount(app.Tasks[0].ID.String()))
+}
+
+func TestSyncServices_ShouldNotSyncOnNoLeadership(t *testing.T) {
+	t.Parallel()
+	// given
+	app := ConsulApp("app1", 1)
+	marathon := marathon.MarathonerStubWithLeaderForApps("leader:8080", app)
+	services := newConsulServicesMock()
+	sync := New(Config{Leader: "different.node:8090"}, marathon, services)
+
+	// when
+	err := sync.SyncServices()
+
+	// then
+	assert.NoError(t, err)
+	assert.Zero(t, services.RegistrationsCount(app.Tasks[0].ID.String()))
+}
+
+func TestSyncServices_ShouldSyncOnForceWithoutLeadership(t *testing.T) {
+	t.Parallel()
+	// given
+	app := ConsulApp("app1", 1)
+	marathon := marathon.MarathonerStubWithLeaderForApps("leader:8080", app)
+	services := newConsulServicesMock()
+	sync := New(Config{Leader: "different.node:8090", Force: true}, marathon, services)
+
+	// when
+	err := sync.SyncServices()
+
+	// then
+	assert.NoError(t, err)
+	assert.Equal(t, 1, services.RegistrationsCount(app.Tasks[0].ID.String()))
 }
 
 type ConsulServicesMock struct {
@@ -61,6 +160,7 @@ func (c *ConsulServicesMock) Deregister(serviceId tasks.Id, agent string) error 
 }
 
 func TestSyncAppsFromMarathonToConsul(t *testing.T) {
+	t.Parallel()
 	// given
 	marathoner := marathon.MarathonerStubForApps(
 		ConsulApp("app1", 2),
@@ -69,7 +169,7 @@ func TestSyncAppsFromMarathonToConsul(t *testing.T) {
 	)
 
 	consul := consul.NewConsulStub()
-	marathonSync := New(marathoner, consul)
+	marathonSync := newSyncWithDefaultConfig(marathoner, consul)
 
 	// when
 	marathonSync.SyncServices()
@@ -83,20 +183,21 @@ func TestSyncAppsFromMarathonToConsul(t *testing.T) {
 }
 
 func TestRemoveInvalidServicesFromConsul(t *testing.T) {
+	t.Parallel()
 	// given
 	marathoner := marathon.MarathonerStubForApps(
 		ConsulApp("app1-invalid", 1),
 		ConsulApp("app2", 1),
 	)
 	consul := consul.NewConsulStub()
-	marathonSync := New(marathoner, consul)
+	marathonSync := New(Config{}, marathoner, consul)
 	marathonSync.SyncServices()
 
 	// when
 	marathoner = marathon.MarathonerStubForApps(
 		ConsulApp("app2", 1),
 	)
-	marathonSync = New(marathoner, consul)
+	marathonSync = newSyncWithDefaultConfig(marathoner, consul)
 	marathonSync.SyncServices()
 
 	// then
@@ -106,6 +207,7 @@ func TestRemoveInvalidServicesFromConsul(t *testing.T) {
 }
 
 func TestSyncOnlyHealthyServices(t *testing.T) {
+	t.Parallel()
 	// given
 	marathoner := marathon.MarathonerStubForApps(
 		ConsulApp("app1", 1),
@@ -113,7 +215,7 @@ func TestSyncOnlyHealthyServices(t *testing.T) {
 		ConsulAppWithUnhealthyInstances("app3-all-unhealthy", 2, 2),
 	)
 	consul := consul.NewConsulStub()
-	marathonSync := New(marathoner, consul)
+	marathonSync := newSyncWithDefaultConfig(marathoner, consul)
 
 	// when
 	marathonSync.SyncServices()
@@ -127,11 +229,12 @@ func TestSyncOnlyHealthyServices(t *testing.T) {
 }
 
 func TestSync_WithRegisteringProblems(t *testing.T) {
+	t.Parallel()
 	// given
 	marathon := marathon.MarathonerStubForApps(ConsulApp("/test/app", 3))
 	consul := consul.NewConsulStub()
 	consul.ErrorServices["/test/app.1"] = fmt.Errorf("Problem on registration")
-	sync := New(marathon, consul)
+	sync := newSyncWithDefaultConfig(marathon, consul)
 	// when
 	err := sync.SyncServices()
 	services, _ := consul.GetAllServices()
@@ -141,6 +244,7 @@ func TestSync_WithRegisteringProblems(t *testing.T) {
 }
 
 func TestSync_WithDeregisteringProblems(t *testing.T) {
+	t.Parallel()
 	// given
 	marathon := marathon.MarathonerStubForApps()
 	consulStub := consul.NewConsulStub()
@@ -149,7 +253,7 @@ func TestSync_WithDeregisteringProblems(t *testing.T) {
 		consulStub.Register(consul.MarathonTaskToConsulService(task, notMarathonApp.HealthChecks, notMarathonApp.Labels))
 		consulStub.ErrorServices[task.ID] = fmt.Errorf("Problem on deregistration")
 	}
-	sync := New(marathon, consulStub)
+	sync := newSyncWithDefaultConfig(marathon, consulStub)
 	// when
 	err := sync.SyncServices()
 	services, _ := consulStub.GetAllServices()
@@ -159,9 +263,10 @@ func TestSync_WithDeregisteringProblems(t *testing.T) {
 }
 
 func TestSync_WithMarathonProblems(t *testing.T) {
+	t.Parallel()
 	// given
 	marathon := errorMarathon{}
-	sync := New(marathon, nil)
+	sync := newSyncWithDefaultConfig(marathon, nil)
 	// when
 	err := sync.SyncServices()
 	// then
@@ -169,14 +274,19 @@ func TestSync_WithMarathonProblems(t *testing.T) {
 }
 
 func TestSync_WithConsulProblems(t *testing.T) {
+	t.Parallel()
 	// given
 	marathon := marathon.MarathonerStubForApps()
 	consul := errorConsul{}
-	sync := New(marathon, consul)
+	sync := newSyncWithDefaultConfig(marathon, consul)
 	// when
 	err := sync.SyncServices()
 	// then
 	assert.Error(t, err)
+}
+
+func newSyncWithDefaultConfig(marathon marathon.Marathoner, service consul.ConsulServices) *Sync {
+	return New(Config{Enabled: true, Leader: "localhost:8080"}, marathon, service)
 }
 
 type errorMarathon struct {
@@ -192,6 +302,10 @@ func (m errorMarathon) App(id tasks.AppId) (*apps.App, error) {
 
 func (m errorMarathon) Tasks(appId tasks.AppId) ([]*tasks.Task, error) {
 	return nil, fmt.Errorf("Error")
+}
+
+func (m errorMarathon) Leader() (string, error) {
+	return "", fmt.Errorf("Error")
 }
 
 type errorConsul struct {
