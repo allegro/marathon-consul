@@ -54,6 +54,44 @@ func TestRegister_ForInvalidHost(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestGetServices(t *testing.T) {
+	t.Parallel()
+	// create cluster of 2 consul servers
+	server1 := CreateConsulTestServer("dc1", t)
+	defer server1.Stop()
+
+	server2 := CreateConsulTestServer("dc2", t)
+	defer server2.Stop()
+
+	server1.JoinWAN(server2.LANAddr)
+
+	// create client
+	consul := ConsulClientAtServer(server1)
+
+	// given
+	// register services in both servers
+	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
+	server1.AddService("serviceB", "passing", []string{"marathon"})
+	server1.AddService("serviceC", "passing", []string{"marathon"})
+
+	server2.AddService("serviceA", "passing", []string{"private", "marathon"})
+	server2.AddService("serviceB", "passing", []string{"zookeeper"})
+
+	// when
+	services, err := consul.GetServices("serviceA")
+
+	// then
+	assert.NoError(t, err)
+	assert.Len(t, services, 2)
+
+	serviceNames := make(map[string]struct{})
+	for _, s := range services {
+		serviceNames[s.ServiceName] = struct{}{}
+	}
+	assert.Len(t, serviceNames, 1)
+	assert.Contains(t, serviceNames, "serviceA")
+}
+
 func TestGetAllServices(t *testing.T) {
 	t.Parallel()
 	// create cluster of 2 consul servers
@@ -79,11 +117,9 @@ func TestGetAllServices(t *testing.T) {
 
 	// when
 	services, err := consul.GetAllServices()
-	if err != nil {
-		t.Fatal("Could not get services from consul")
-	}
 
 	// then
+	assert.NoError(t, err)
 	assert.Len(t, services, 3)
 
 	serviceNames := make(map[string]struct{})
