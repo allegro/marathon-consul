@@ -32,6 +32,23 @@ func (c ConsulStub) GetAllServices() ([]*consulapi.CatalogService, error) {
 	return catalog, nil
 }
 
+func (c ConsulStub) GetServices(name tasks.AppId) ([]*consulapi.CatalogService, error) {
+	var catalog []*consulapi.CatalogService
+	for _, s := range c.services {
+		if s.Name == name.ConsulServiceName() && contains(s.Tags, "marathon") {
+			catalog = append(catalog, &consulapi.CatalogService{
+				Address:        s.Address,
+				ServiceAddress: s.Address,
+				ServicePort:    s.Port,
+				ServiceTags:    s.Tags,
+				ServiceID:      s.ID,
+				ServiceName:    s.Name,
+			})
+		}
+	}
+	return catalog, nil
+}
+
 func (c *ConsulStub) Register(service *consulapi.AgentServiceRegistration) error {
 	taskId := tasks.Id(service.ID)
 	if err, ok := c.ErrorServices[taskId]; ok {

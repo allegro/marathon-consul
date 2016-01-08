@@ -17,12 +17,15 @@ import (
 
 func TestForwardHandler_NotHandleUnknownEventType(t *testing.T) {
 	t.Parallel()
+
 	// given
 	handler := NewEventHandler(nil, nil)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":"test_event"}`)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "Cannot handle test_event\n", recorder.Body.String())
@@ -30,12 +33,15 @@ func TestForwardHandler_NotHandleUnknownEventType(t *testing.T) {
 
 func TestForwardHandler_HandleRadderError(t *testing.T) {
 	t.Parallel()
+
 	// given
 	handler := NewEventHandler(nil, nil)
 	req, _ := http.NewRequest("POST", "/events", BadReader{})
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "Some error\n", recorder.Body.String())
@@ -43,12 +49,15 @@ func TestForwardHandler_HandleRadderError(t *testing.T) {
 
 func TestForwardHandler_HandleEmptyBody(t *testing.T) {
 	t.Parallel()
+
 	// given
 	handler := NewEventHandler(nil, nil)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte{}))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "unexpected end of JSON input\n", recorder.Body.String())
@@ -56,12 +65,15 @@ func TestForwardHandler_HandleEmptyBody(t *testing.T) {
 
 func TestForwardHandler_NotHandleMalformedEventType(t *testing.T) {
 	t.Parallel()
+
 	// given
 	handler := NewEventHandler(nil, nil)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{eventType:"test_event"}`)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "invalid character 'e' looking for beginning of object key string\n", recorder.Body.String())
@@ -69,12 +81,15 @@ func TestForwardHandler_NotHandleMalformedEventType(t *testing.T) {
 
 func TestForwardHandler_HandleMalformedEventType(t *testing.T) {
 	t.Parallel()
+
 	// given
 	handler := NewEventHandler(nil, nil)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{eventType:"test_event"}`)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "invalid character 'e' looking for beginning of object key string\n", recorder.Body.String())
@@ -82,12 +97,15 @@ func TestForwardHandler_HandleMalformedEventType(t *testing.T) {
 
 func TestForwardHandler_NotHandleInvalidEventType(t *testing.T) {
 	t.Parallel()
+
 	// given
 	handler := NewEventHandler(nil, nil)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":[1,2]}`)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "json: cannot unmarshal array into Go value of type string\n", recorder.Body.String())
@@ -95,9 +113,10 @@ func TestForwardHandler_NotHandleInvalidEventType(t *testing.T) {
 
 func TestForwardHandler_HandleAppTerminatedEvent(t *testing.T) {
 	t.Parallel()
+
 	// given
 	app := ConsulApp("/test/app", 3)
-	marathon := marathon.MarathonerStubForApps(app)
+	marathon := marathon.MarathonerStubForApps() // imagine the app was already destroyed
 	service := consul.NewConsulStub()
 	for _, task := range app.Tasks {
 		service.Register(consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
@@ -108,10 +127,12 @@ func TestForwardHandler_HandleAppTerminatedEvent(t *testing.T) {
 		AppID: app.ID,
 	})
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
 	services, _ := service.GetAllServices()
+
 	// then
 	assert.Equal(t, 200, recorder.Code)
 	assert.Equal(t, "OK\n", recorder.Body.String())
@@ -120,12 +141,15 @@ func TestForwardHandler_HandleAppTerminatedEvent(t *testing.T) {
 
 func TestForwardHandler_NotHandleNonConsulAppTerminatedEvent(t *testing.T) {
 	t.Parallel()
+
 	// given
 	app := NonConsulApp("/test/app", 3)
-	marathon := marathon.MarathonerStubForApps(app)
+	marathon := marathon.MarathonerStubForApps()
 	service := consul.NewConsulStub()
 	for _, task := range app.Tasks {
-		service.Register(consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
+		instance := consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels)
+		instance.Tags = []string{"non-marathon"}
+		service.Register(instance)
 	}
 	handler := NewEventHandler(service, marathon)
 	body, _ := json.Marshal(events.AppTerminatedEvent{
@@ -133,24 +157,29 @@ func TestForwardHandler_NotHandleNonConsulAppTerminatedEvent(t *testing.T) {
 		AppID: app.ID,
 	})
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "/test/app is not consul app. Missing consul:true label\n", recorder.Body.String())
+	assert.Equal(t, "No matching Consul services found\n", recorder.Body.String())
 	assert.Len(t, service.RegisteredServicesIds(), 3)
 }
 
 func TestForwardHandler_HandleAppInvalidBody(t *testing.T) {
 	t.Parallel()
+
 	// given
 	handler := NewEventHandler(nil, nil)
 	body := `{"type":  "app_terminated_event", "appID": 123}`
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "no event\n", recorder.Body.String())
@@ -158,13 +187,16 @@ func TestForwardHandler_HandleAppInvalidBody(t *testing.T) {
 
 func TestForwardHandler_HandleAppTerminatedEventInvalidBody(t *testing.T) {
 	t.Parallel()
+
 	// given
 	handler := NewEventHandler(nil, nil)
 	body := `{"appId":"/python/simple","eventType":"app_terminated_event","timestamp":2015}`
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "json: cannot unmarshal number into Go value of type string\n", recorder.Body.String())
@@ -172,28 +204,32 @@ func TestForwardHandler_HandleAppTerminatedEventInvalidBody(t *testing.T) {
 
 func TestForwardHandler_HandleAppTerminatedEventForUnknownApp(t *testing.T) {
 	t.Parallel()
+
 	// given
-	app := ConsulApp("/test/app", 3)
-	marathon := marathon.MarathonerStubForApps(app)
-	handler := NewEventHandler(nil, marathon)
+	service := consul.NewConsulStub()
+	handler := NewEventHandler(service, nil)
 	body := `{"appId":"/unknown/app","eventType":"app_terminated_event","timestamp":"2015-12-07T09:02:49.934Z"}`
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
-	assert.Equal(t, 500, recorder.Code)
-	assert.Equal(t, "app not found\n", recorder.Body.String())
+	assert.Equal(t, 400, recorder.Code)
+	assert.Equal(t, "No matching Consul services found\n", recorder.Body.String())
 }
 
 func TestForwardHandler_HandleAppTerminatedEventWithProblemsOnDeregistering(t *testing.T) {
 	t.Parallel()
+
 	// given
 	app := ConsulApp("/test/app", 3)
-	marathon := marathon.MarathonerStubForApps(app)
+	marathon := marathon.MarathonerStubForApps()
 	service := consul.NewConsulStub()
 	for _, task := range app.Tasks {
-		service.Register(consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
+		err := service.Register(consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
+		assert.NoError(t, err)
 	}
 	service.ErrorServices["/test/app.1"] = fmt.Errorf("Cannot deregister service")
 	service.ErrorServices["/test/app.2"] = fmt.Errorf("Cannot deregister service")
@@ -203,9 +239,11 @@ func TestForwardHandler_HandleAppTerminatedEventWithProblemsOnDeregistering(t *t
 		AppID: app.ID,
 	})
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 500, recorder.Code)
 	assert.Equal(t, "2 errors occured deregistering 3 services:\n0: Cannot deregister service\n1: Cannot deregister service\n", recorder.Body.String())
@@ -217,6 +255,7 @@ func TestForwardHandler_HandleAppTerminatedEventWithProblemsOnDeregistering(t *t
 
 func TestForwardHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
 	t.Parallel()
+
 	// given
 	handler := NewEventHandler(nil, nil)
 	body := `{
@@ -232,9 +271,11 @@ func TestForwardHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
 	  "timestamp":"2015-12-07T09:02:49.934Z"
 	}`
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "json: cannot unmarshal number into Go value of type []int\n",
@@ -243,6 +284,7 @@ func TestForwardHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
 
 func TestForwardHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 	t.Parallel()
+
 	// given
 	handler := NewEventHandler(nil, nil)
 	ignoringTaskStatuses := []string{"TASK_STAGING", "TASK_STARTING", "TASK_RUNNING", "unknown"}
@@ -262,9 +304,11 @@ func TestForwardHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 		  "timestamp":"2015-12-07T09:02:49.934Z"
 		}`
 		req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 		// when
 		recorder := httptest.NewRecorder()
 		handler.Handle(recorder, req)
+
 		// then
 		assert.Equal(t, 400, recorder.Code)
 		assert.Equal(t, "Not Handling task python_simple.4a7e99d0-9cc1-11e5-b4d8-0a0027000004 with status "+taskStatus+"\n",
@@ -274,6 +318,7 @@ func TestForwardHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 
 func TestForwardHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 	t.Parallel()
+
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
@@ -299,10 +344,12 @@ func TestForwardHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 		  "timestamp":"2015-12-07T09:33:40.898Z"
 		}`
 		req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 		// when
 		recorder := httptest.NewRecorder()
 		handler.Handle(recorder, req)
 		servicesIds := service.RegisteredServicesIds()
+
 		// then
 		assert.Equal(t, 200, recorder.Code)
 		assert.Equal(t, "OK\n", recorder.Body.String())
@@ -315,12 +362,15 @@ func TestForwardHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 
 func TestForwardHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.T) {
 	t.Parallel()
+
 	// given
 	app := NonConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	for _, task := range app.Tasks {
-		service.Register(consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
+		s := consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels)
+		s.Tags = []string{"non-marathon"}
+		service.Register(s)
 	}
 	handler := NewEventHandler(service, marathon)
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
@@ -340,19 +390,22 @@ func TestForwardHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testin
 		  "timestamp":"2015-12-07T09:33:40.898Z"
 		}`
 		req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 		// when
 		recorder := httptest.NewRecorder()
 		handler.Handle(recorder, req)
 		servicesIds := service.RegisteredServicesIds()
+
 		// then
 		assert.Equal(t, 400, recorder.Code)
-		assert.Equal(t, "/test/app is not consul app. Missing consul:true label\n", recorder.Body.String())
+		assert.Equal(t, "No matching Consul services found\n", recorder.Body.String())
 		assert.Len(t, servicesIds, 3)
 	}
 }
 
 func TestForwardHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *testing.T) {
 	t.Parallel()
+
 	// given
 	app := NonConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
@@ -360,10 +413,12 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *te
 	handler := NewEventHandler(service, marathon)
 	body := healthStatusChangeEventForTask("/test/app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
 	servicesIds := service.RegisteredServicesIds()
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "/test/app is not consul app. Missing consul:true label\n", recorder.Body.String())
@@ -372,6 +427,7 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *te
 
 func TestForwardHandler_HandleHealthStatusEvent(t *testing.T) {
 	t.Parallel()
+
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
@@ -379,10 +435,12 @@ func TestForwardHandler_HandleHealthStatusEvent(t *testing.T) {
 	handler := NewEventHandler(service, marathon)
 	body := healthStatusChangeEventForTask("/test/app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
 	servicesIds := service.RegisteredServicesIds()
+
 	// then
 	assert.Equal(t, 200, recorder.Code)
 	assert.Equal(t, "OK\n", recorder.Body.String())
@@ -392,6 +450,7 @@ func TestForwardHandler_HandleHealthStatusEvent(t *testing.T) {
 
 func TestForwardHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing.T) {
 	t.Parallel()
+
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
@@ -400,10 +459,12 @@ func TestForwardHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testi
 	handler := NewEventHandler(service, marathon)
 	body := healthStatusChangeEventForTask("/test/app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
 	servicesIds := service.RegisteredServicesIds()
+
 	// then
 	assert.Equal(t, 500, recorder.Code)
 	assert.Equal(t, "Cannot register task\n", recorder.Body.String())
@@ -412,6 +473,7 @@ func TestForwardHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testi
 
 func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNotAllHeathChecksPassed(t *testing.T) {
 	t.Parallel()
+
 	// given
 	app := ConsulApp("/test/app", 3)
 	app.Tasks[1].HealthCheckResults = []tasks.HealthCheckResult{tasks.HealthCheckResult{Alive: true}, tasks.HealthCheckResult{Alive: false}}
@@ -420,10 +482,12 @@ func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNotAllHeathChecksPa
 	handler := NewEventHandler(service, marathon)
 	body := healthStatusChangeEventForTask("/test/app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
 	servicesIds := service.RegisteredServicesIds()
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "Task /test/app.1 is not healthy. Not registering\n", recorder.Body.String())
@@ -432,6 +496,7 @@ func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNotAllHeathChecksPa
 
 func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *testing.T) {
 	t.Parallel()
+
 	// given
 	app := ConsulApp("/test/app", 1)
 	app.Tasks[0].HealthCheckResults = []tasks.HealthCheckResult{}
@@ -440,10 +505,12 @@ func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *te
 	handler := NewEventHandler(service, marathon)
 	body := healthStatusChangeEventForTask("/test/app.0")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
 	servicesIds := service.RegisteredServicesIds()
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "Task /test/app.0 is not healthy. Not registering\n", recorder.Body.String())
@@ -452,6 +519,7 @@ func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *te
 
 func TestForwardHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.T) {
 	t.Parallel()
+
 	// given
 	handler := NewEventHandler(nil, nil)
 	body := `{
@@ -463,9 +531,11 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.
 	  "timestamp":"2015-12-07T09:33:50.069Z"
 	}`
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "Task /test/app.1 is not healthy. Not registering\n", recorder.Body.String())
@@ -473,6 +543,7 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.
 
 func TestForwardHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T) {
 	t.Parallel()
+
 	// given
 	handler := NewEventHandler(nil, nil)
 	body := `{
@@ -484,9 +555,11 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T
 	  "timestamp":"2015-12-07T09:33:50.069Z"
 	}`
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "json: cannot unmarshal number into Go value of type string\n", recorder.Body.String())
@@ -494,6 +567,7 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T
 
 func TestForwardHandler_HandleHealthStatusEventReturn500WhenMarathonReturnedError(t *testing.T) {
 	t.Parallel()
+
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
@@ -507,9 +581,11 @@ func TestForwardHandler_HandleHealthStatusEventReturn500WhenMarathonReturnedErro
 	  "timestamp":"2015-12-07T09:33:50.069Z"
 	}`
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 500, recorder.Code)
 	assert.Equal(t, "app not found\n", recorder.Body.String())
@@ -517,15 +593,18 @@ func TestForwardHandler_HandleHealthStatusEventReturn500WhenMarathonReturnedErro
 
 func TestForwardHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.T) {
 	t.Parallel()
+
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
 	handler := NewEventHandler(nil, marathon)
 	body := healthStatusChangeEventForTask("unknown.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+
 	// then
 	assert.Equal(t, 500, recorder.Code)
 	assert.Equal(t, "Task unknown.1 not found\n", recorder.Body.String())

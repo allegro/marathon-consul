@@ -142,6 +142,10 @@ func newConsulServicesMock() *ConsulServicesMock {
 	}
 }
 
+func (c *ConsulServicesMock) GetServices(name tasks.AppId) ([]*consulapi.CatalogService, error) {
+	return nil, nil
+}
+
 func (c *ConsulServicesMock) GetAllServices() ([]*consulapi.CatalogService, error) {
 	return nil, nil
 }
@@ -311,13 +315,18 @@ func (m errorMarathon) Leader() (string, error) {
 type errorConsul struct {
 }
 
+func (c errorConsul) GetServices(name tasks.AppId) ([]*consulapi.CatalogService, error) {
+	return nil, fmt.Errorf("Error occured")
+}
+
 func (c errorConsul) GetAllServices() ([]*consulapi.CatalogService, error) {
 	return nil, fmt.Errorf("Error occured")
 }
+
 func (c errorConsul) Register(service *consulapi.AgentServiceRegistration) error {
 	return fmt.Errorf("Error occured")
-
 }
+
 func (c errorConsul) Deregister(serviceId tasks.Id, agent string) error {
 	return fmt.Errorf("Error occured")
 }

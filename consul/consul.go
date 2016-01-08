@@ -9,6 +9,7 @@ import (
 
 type ConsulServices interface {
 	GetAllServices() ([]*consulapi.CatalogService, error)
+	GetServices(name tasks.AppId) ([]*consulapi.CatalogService, error)
 	Register(service *consulapi.AgentServiceRegistration) error
 	Deregister(serviceId tasks.Id, agentAddress string) error
 }
@@ -21,6 +22,30 @@ func New(config ConsulConfig) *Consul {
 	return &Consul{
 		agents: NewAgents(&config),
 	}
+}
+
+func (c *Consul) GetServices(name tasks.AppId) ([]*consulapi.CatalogService, error) {
+	agent, err := c.agents.GetAnyAgent()
+	if err != nil {
+		return nil, err
+	}
+	datacenters, err := agent.Catalog().Datacenters()
+	if err != nil {
+		return nil, err
+	}
+	var allServices []*consulapi.CatalogService
+
+	for _, dc := range datacenters {
+		dcAwareQuery := &consulapi.QueryOptions{
+			Datacenter: dc,
+		}
+		services, _, err := agent.Catalog().Service(name.ConsulServiceName(), "marathon", dcAwareQuery)
+		if err != nil {
+			return nil, err
+		}
+		allServices = append(allServices, services...)
+	}
+	return allServices, nil
 }
 
 func (c *Consul) GetAllServices() ([]*consulapi.CatalogService, error) {

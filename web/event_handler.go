@@ -75,43 +75,38 @@ func (fh *EventHandler) handleTerminationEvent(w http.ResponseWriter, body []byt
 	appId := event.Apps()[0].ID
 	log.WithField("Id", appId).Info("Got TerminationEvent")
 
-	app, err := fh.marathon.App(appId)
+	services, err := fh.service.GetServices(appId)
 	if err != nil {
-		log.WithField("Id", appId).WithError(err).Error("There was a problem obtaining app info")
+		log.WithField("Id", appId).WithError(err).Error("There was a problem getting Consul services")
 		fh.handleError(err, w)
 		return
 	}
 
-	if !app.IsConsulApp() {
-		err = fmt.Errorf("%s is not consul app. Missing consul:true label", app.ID)
-		log.WithField("Id", app.ID).WithError(err).Debug("Skipping app deregistration from Consul")
-		fh.handleBadRequest(err, w)
-		return
-	}
-
-	tasks, err := fh.marathon.Tasks(app.ID)
-	if err != nil {
-		log.WithField("Id", app.ID).WithError(err).Error("There was a problem obtaining tasks for app")
-		fh.handleError(err, w)
+	if len(services) == 0 {
+		log.WithField("Id", appId).Info("No matching Consul services found")
+		w.WriteHeader(400)
+		fmt.Fprintln(w, "No matching Consul services found")
 		return
 	}
 
 	errors := []error{}
-	for _, task := range tasks {
-		err = fh.service.Deregister(task.ID, task.Host)
+
+	for _, service := range services {
+		err = fh.service.Deregister(tasks.Id(service.ServiceID), service.Address)
 		if err != nil {
-			log.WithField("Id", task.ID).WithError(err).Error("There was a problem deregistering task")
+			log.WithField("Id", service.ServiceID).WithError(err).Error("There was a problem deregistering task")
 			errors = append(errors, err)
 		}
 	}
+
 	if len(errors) != 0 {
-		errMessage := fmt.Sprintf("%d errors occured deregistering %d services:", len(errors), len(tasks))
+		errMessage := fmt.Sprintf("%d errors occured deregistering %d services:", len(errors), len(services))
 		for i, err := range errors {
 			errMessage = fmt.Sprintf("%s\n%d: %s", errMessage, i, err.Error())
 		}
 		err = fmt.Errorf(errMessage)
 		fh.handleError(err, w)
-		log.WithError(err).WithField("Id", app.ID).Error("There were problems processing request")
+		log.WithError(err).WithField("Id", appId).Error("There were problems processing request")
 	} else {
 		w.WriteHeader(200)
 		fmt.Fprintln(w, "OK")
@@ -209,21 +204,28 @@ func (fh *EventHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
 
 	switch task.TaskStatus {
 	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
-		app, err := fh.marathon.App(task.AppID)
+		services, err := fh.service.GetServices(task.AppID)
 		if err != nil {
-			log.WithField("Id", task.AppID).WithError(err).Error("There was a problem obtaining app info")
+			log.WithField("Id", task.AppID).WithError(err).Error("There was a problem getting Consul services")
 			fh.handleError(err, w)
 			return
 		}
 
-		if !app.IsConsulApp() {
-			err = fmt.Errorf("%s is not consul app. Missing consul:true label", app.ID)
-			log.WithField("Id", task.ID).WithError(err).Debug("Not handling task event")
-			fh.handleBadRequest(err, w)
+		if len(services) == 0 {
+			log.WithField("Id", task.AppID).Info("No matching Consul services found")
+			w.WriteHeader(400)
+			fmt.Fprintln(w, "No matching Consul services found")
 			return
 		}
 
-		fh.service.Deregister(task.ID, task.Host)
+		for _, service := range services {
+			if service.ServiceID == task.ID.String() {
+				err = fh.service.Deregister(tasks.Id(service.ServiceID), service.Address)
+				if err != nil {
+					log.WithField("Id", service.ServiceID).WithError(err).Error("There was a problem deregistering task")
+				}
+			}
+		}
 		w.WriteHeader(200)
 		fmt.Fprintln(w, "OK")
 	default:
