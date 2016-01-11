@@ -80,7 +80,7 @@ func (config *Config) parseFlags() {
 	flag.BoolVar(&config.Marathon.VerifySsl, "marathon-ssl-verify", true, "Verify certificates when connecting via SSL")
 
 	// Metrics
-	flag.StringVar(&config.Metrics.Target, "metrics-target", "stdout", "Metrics destination stdout or graphite")
+	flag.StringVar(&config.Metrics.Target, "metrics-target", "stdout", "Metrics destination stdout or graphite (empty string disables metrics)")
 	flag.StringVar(&config.Metrics.Prefix, "metrics-prefix", "default", "Metrics prefix (default is resolved to <hostname>.<app_name>")
 	flag.DurationVar(&config.Metrics.Interval, "metrics-interval", 30*time.Second, "Metrics reporting interval")
 	flag.StringVar(&config.Metrics.Addr, "metrics-location", "", "Graphite URL (used when metrics-target is set to graphite)")
