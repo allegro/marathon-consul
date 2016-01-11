@@ -16,7 +16,10 @@
     "Listen": ":4000"
   },
   "Sync": {
-    "Interval": 900000000000
+    "Enabled": true,
+    "Interval": 900000000000,
+    "Leader": "",
+    "Force": false
   },
   "Marathon": {
     "Location": "localhost:8080",
@@ -26,7 +29,7 @@
     "VerifySsl": true
   },
   "Metrics": {
-    "Target": "",
+    "Target": "stdout",
     "Prefix": "default",
     "Interval": 30000000000,
     "Addr": ""

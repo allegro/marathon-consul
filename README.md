@@ -79,7 +79,7 @@ marathon-username      |                       | Marathon username for basic aut
 metrics-interval       | `30s`                 | Metrics reporting [interval](https://golang.org/pkg/time/#Duration) **Note:** While using file configuration intervals should be provided in *nanoseconds*
 metrics-location       |                       | Graphite URL (used when metrics-target is set to graphite)
 metrics-prefix         | `default`             | Metrics prefix (resolved to `<hostname>.<app_name>` by default)
-metrics-target         | `stdout`              | Metrics destination stdout or graphite
+metrics-target         | `stdout`              | Metrics destination `stdout` or `graphite` (empty string disables metrics)
 sync-enabled           | `true`                | Enable Marathon-consul scheduled sync
 sync-interval          | `15m0s`               | Marathon-consul sync [interval](https://golang.org/pkg/time/#Duration) **Note:** While using file configuration intervals should be provided in *nanoseconds*
 sync-leader            | `<hostname>:8080`     | Marathon cluster-wide node name (defaults to `<hostname>:8080`), the sync will run only if the node is the current [Marathon-leader](https://mesosphere.github.io/marathon/docs/rest-api.html#get-v2-leader)
