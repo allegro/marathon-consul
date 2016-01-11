@@ -68,7 +68,7 @@ func (a *ConcurrentAgents) addAgent(agentHost string, agent *consulapi.Client) {
 
 func (a *ConcurrentAgents) createAgent(host string) (*consulapi.Client, error) {
 	if host == "" {
-		return nil, fmt.Errorf("Invalid addres for Agent")
+		return nil, fmt.Errorf("Invalid address for Agent")
 	}
 	config := consulapi.DefaultConfig()
 

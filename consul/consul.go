@@ -12,6 +12,7 @@ type ConsulServices interface {
 	GetServices(name tasks.AppId) ([]*consulapi.CatalogService, error)
 	Register(service *consulapi.AgentServiceRegistration) error
 	Deregister(serviceId tasks.Id, agentAddress string) error
+	GetAgent(agentAddress string) (*consulapi.Client, error)
 }
 
 type Consul struct {
@@ -49,7 +50,6 @@ func (c *Consul) GetServices(name tasks.AppId) ([]*consulapi.CatalogService, err
 }
 
 func (c *Consul) GetAllServices() ([]*consulapi.CatalogService, error) {
-	// TODO: first returned agent might already be unavailable (slave failure etc.), should retry with another
 	agent, err := c.agents.GetAnyAgent()
 	if err != nil {
 		return nil, err
@@ -146,4 +146,8 @@ func (c *Consul) deregister(serviceId tasks.Id, agentAddress string) error {
 		log.WithError(err).WithField("Id", serviceId).WithField("Address", agentAddress).Error("Unable to deregister")
 	}
 	return err
+}
+
+func (c *Consul) GetAgent(agentAddress string) (*consulapi.Client, error) {
+	return c.agents.GetAgent(agentAddress)
 }

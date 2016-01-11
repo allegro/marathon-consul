@@ -163,6 +163,10 @@ func (c *ConsulServicesMock) Deregister(serviceId tasks.Id, agent string) error 
 	return nil
 }
 
+func (c *ConsulServicesMock) GetAgent(agentAddress string) (*consulapi.Client, error) {
+	return nil, nil
+}
+
 func TestSyncAppsFromMarathonToConsul(t *testing.T) {
 	t.Parallel()
 	// given
@@ -280,7 +284,7 @@ func TestSync_WithMarathonProblems(t *testing.T) {
 func TestSync_WithConsulProblems(t *testing.T) {
 	t.Parallel()
 	// given
-	marathon := marathon.MarathonerStubForApps()
+	marathon := marathon.MarathonerStubForApps(ConsulApp("/test/app", 3))
 	consul := errorConsul{}
 	sync := newSyncWithDefaultConfig(marathon, consul)
 	// when
@@ -329,4 +333,42 @@ func (c errorConsul) Register(service *consulapi.AgentServiceRegistration) error
 
 func (c errorConsul) Deregister(serviceId tasks.Id, agent string) error {
 	return fmt.Errorf("Error occured")
+}
+
+func (c errorConsul) GetAgent(agent string) (*consulapi.Client, error) {
+	return nil, fmt.Errorf("Error occured")
+}
+
+func TestSync_AddingAgentsFromMarathonTasks(t *testing.T) {
+	t.Parallel()
+
+	consulServer := consul.CreateConsulTestServer("dc1", t)
+	defer consulServer.Stop()
+
+	consulServices := consul.New(consul.ConsulConfig{Port: fmt.Sprintf("%d", consulServer.Config.Ports.HTTP)})
+	app := ConsulApp("serviceA", 2)
+	app.Tasks[0].Host = consulServer.Config.Bind
+	app.Tasks[1].Host = consulServer.Config.Bind
+	marathon := marathon.MarathonerStubWithLeaderForApps("leader:8080", app)
+	sync := New(Config{Leader: "leader:8080"}, marathon, consulServices)
+
+	// when
+	err := sync.SyncServices()
+
+	// then
+	assert.NoError(t, err)
+
+	// when
+	services, err := consulServices.GetAllServices()
+
+	// then
+	assert.NoError(t, err)
+	assert.Len(t, services, 2)
+
+	serviceNames := make(map[string]struct{})
+	for _, s := range services {
+		serviceNames[s.ServiceName] = struct{}{}
+	}
+	assert.Len(t, serviceNames, 1)
+	assert.Contains(t, serviceNames, "serviceA")
 }
