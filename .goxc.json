@@ -4,12 +4,12 @@
 		"default"
 	],
 	"BuildConstraints": "linux,!arm darwin",
-	"PackageVersion": "0.3.1",
+	"PackageVersion": "0.3.2",
 	"TaskSettings": {
 		"bintray": {
 			"downloadspage": "bintray.md",
-			"include:": "*.deb",
 			"exclude": "*.tar.gz,*.zip,bintray.md,.goxc-temp",
+			"include:": "*.deb",
 			"package": "marathon-consul",
 			"repository": "deb",
 			"subject": "allegro"
