@@ -86,14 +86,6 @@ sync-leader            | `<hostname>:8080`     | Marathon cluster-wide node name
 sync-force             | `false`               | Force leadership-independent Marathon-consul sync (run always)
 
 
-### Adding New Root Certificate Authorities
-
-If you're running Consul behind an SSL proxy like Nginx, you're probably going
-to want to add the CA for your certificate to the trusted store in the container
-so you can avoid using `--consul-ssl-verify`. For that purpose, any certificates
-added in a volume at `/usr/local/share/ca-certificates/` will be added to the
-root certificates in the container on boot.
-
 ### Endpoints
 
 Endpoint  | Description
