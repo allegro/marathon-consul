@@ -43,7 +43,7 @@ func bench(b *testing.B, appsCount, instancesCount int) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sync.deregisterConsulServicesThatAreNotInMarathonApps(apps, instances)
+		sync.deregisterConsulServicesNotFoundInMarathon(apps, instances)
 	}
 }
 

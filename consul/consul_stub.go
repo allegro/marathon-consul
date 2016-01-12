@@ -76,3 +76,7 @@ func (c *ConsulStub) RegisteredServicesIds() []string {
 	}
 	return servicesIds
 }
+
+func (c *ConsulStub) GetAgent(agentAddress string) (*consulapi.Client, error) {
+	return nil, nil
+}
