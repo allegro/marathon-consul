@@ -8,6 +8,7 @@ type ConsulConfig struct {
 	SslCert    string
 	SslCaCert  string
 	Token      string
+	Tag        string
 }
 
 type Auth struct {

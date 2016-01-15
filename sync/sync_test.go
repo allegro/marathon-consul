@@ -150,8 +150,8 @@ func (c *ConsulServicesMock) GetAllServices() ([]*consulapi.CatalogService, erro
 	return nil, nil
 }
 
-func (c *ConsulServicesMock) Register(service *consulapi.AgentServiceRegistration) error {
-	c.registrations[service.ID]++
+func (c *ConsulServicesMock) Register(task *tasks.Task, app *apps.App) error {
+	c.registrations[task.ID.String()]++
 	return nil
 }
 
@@ -258,7 +258,7 @@ func TestSync_WithDeregisteringProblems(t *testing.T) {
 	consulStub := consul.NewConsulStub()
 	notMarathonApp := ConsulApp("/not/marathon", 1)
 	for _, task := range notMarathonApp.Tasks {
-		consulStub.Register(consul.MarathonTaskToConsulService(task, notMarathonApp.HealthChecks, notMarathonApp.Labels))
+		consulStub.Register(&task, notMarathonApp)
 		consulStub.ErrorServices[task.ID] = fmt.Errorf("Problem on deregistration")
 	}
 	sync := newSyncWithDefaultConfig(marathon, consulStub)
@@ -327,7 +327,7 @@ func (c errorConsul) GetAllServices() ([]*consulapi.CatalogService, error) {
 	return nil, fmt.Errorf("Error occured")
 }
 
-func (c errorConsul) Register(service *consulapi.AgentServiceRegistration) error {
+func (c errorConsul) Register(task *tasks.Task, app *apps.App) error {
 	return fmt.Errorf("Error occured")
 }
 
@@ -345,7 +345,10 @@ func TestSync_AddingAgentsFromMarathonTasks(t *testing.T) {
 	consulServer := consul.CreateConsulTestServer("dc1", t)
 	defer consulServer.Stop()
 
-	consulServices := consul.New(consul.ConsulConfig{Port: fmt.Sprintf("%d", consulServer.Config.Ports.HTTP)})
+	consulServices := consul.New(consul.ConsulConfig{
+		Port: fmt.Sprintf("%d", consulServer.Config.Ports.HTTP),
+		Tag:  "marathon",
+	})
 	app := ConsulApp("serviceA", 2)
 	app.Tasks[0].Host = consulServer.Config.Bind
 	app.Tasks[1].Host = consulServer.Config.Bind

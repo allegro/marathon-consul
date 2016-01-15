@@ -160,9 +160,8 @@ func (s *Sync) registerAppTasksNotFoundInConsul(apps []*apps.App, services []*co
 		}
 		for _, task := range app.Tasks {
 			if _, ok := consulServicesIdsSet[task.ID]; !ok {
-				if service.IsTaskHealthy(task.HealthCheckResults) {
-					service := service.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels)
-					err := s.service.Register(service)
+				if task.IsHealthy() {
+					err := s.service.Register(&task, app)
 					if err != nil {
 						log.WithError(err).WithField("Id", task.ID).Error("Can't register task")
 					}

@@ -119,7 +119,7 @@ func TestForwardHandler_HandleAppTerminatedEvent(t *testing.T) {
 	marathon := marathon.MarathonerStubForApps() // imagine the app was already destroyed
 	service := consul.NewConsulStub()
 	for _, task := range app.Tasks {
-		service.Register(consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
+		service.Register(&task, app)
 	}
 	handler := NewEventHandler(service, marathon)
 	body, _ := json.Marshal(events.AppTerminatedEvent{
@@ -143,18 +143,12 @@ func TestForwardHandler_NotHandleNonConsulAppTerminatedEvent(t *testing.T) {
 	t.Parallel()
 
 	// given
-	app := NonConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps()
 	service := consul.NewConsulStub()
-	for _, task := range app.Tasks {
-		instance := consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels)
-		instance.Tags = []string{"non-marathon"}
-		service.Register(instance)
-	}
 	handler := NewEventHandler(service, marathon)
 	body, _ := json.Marshal(events.AppTerminatedEvent{
 		Type:  "app_terminated_event",
-		AppID: app.ID,
+		AppID: "/myApp",
 	})
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
@@ -165,7 +159,6 @@ func TestForwardHandler_NotHandleNonConsulAppTerminatedEvent(t *testing.T) {
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "No matching Consul services found\n", recorder.Body.String())
-	assert.Len(t, service.RegisteredServicesIds(), 3)
 }
 
 func TestForwardHandler_HandleAppInvalidBody(t *testing.T) {
@@ -228,7 +221,7 @@ func TestForwardHandler_HandleAppTerminatedEventWithProblemsOnDeregistering(t *t
 	marathon := marathon.MarathonerStubForApps()
 	service := consul.NewConsulStub()
 	for _, task := range app.Tasks {
-		err := service.Register(consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
+		err := service.Register(&task, app)
 		assert.NoError(t, err)
 	}
 	service.ErrorServices["/test/app.1"] = fmt.Errorf("Cannot deregister service")
@@ -324,7 +317,7 @@ func TestForwardHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	for _, task := range app.Tasks {
-		service.Register(consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
+		service.Register(&task, app)
 	}
 	handler := NewEventHandler(service, marathon)
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
@@ -367,11 +360,6 @@ func TestForwardHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testin
 	app := NonConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
-	for _, task := range app.Tasks {
-		s := consul.MarathonTaskToConsulService(task, app.HealthChecks, app.Labels)
-		s.Tags = []string{"non-marathon"}
-		service.Register(s)
-	}
 	handler := NewEventHandler(service, marathon)
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
 	for _, taskStatus := range taskStatuses {
@@ -394,12 +382,10 @@ func TestForwardHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testin
 		// when
 		recorder := httptest.NewRecorder()
 		handler.Handle(recorder, req)
-		servicesIds := service.RegisteredServicesIds()
 
 		// then
 		assert.Equal(t, 400, recorder.Code)
 		assert.Equal(t, "No matching Consul services found\n", recorder.Body.String())
-		assert.Len(t, servicesIds, 3)
 	}
 }
 

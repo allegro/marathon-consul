@@ -22,6 +22,6 @@ func consulClientAtAddress(host string, port int) *Consul {
 	}
 	consul := New(config)
 	// initialize the agents cache with a single client pointing at provided location
-	consul.agents.GetAgent(host)
+	consul.GetAgent(host)
 	return consul
 }
