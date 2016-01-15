@@ -159,11 +159,8 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 		return
 	}
 
-	healthCheck := app.HealthChecks
-	labels := app.Labels
-
-	if service.IsTaskHealthy(task.HealthCheckResults) {
-		err := fh.service.Register(service.MarathonTaskToConsulService(task, healthCheck, labels))
+	if task.IsHealthy() {
+		err := fh.service.Register(&task, app)
 		if err != nil {
 			log.WithField("Id", task.ID).WithError(err).Error("There was a problem registering task")
 			fh.handleError(err, w)

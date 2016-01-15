@@ -62,6 +62,7 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Consul.SslCert, "consul-ssl-cert", "", "Path to an SSL client certificate to use to authenticate to the Consul server")
 	flag.StringVar(&config.Consul.SslCaCert, "consul-ssl-ca-cert", "", "Path to a CA certificate file, containing one or more CA certificates to use to validate the certificate sent by the Consul server to us")
 	flag.StringVar(&config.Consul.Token, "consul-token", "", "The Consul ACL token")
+	flag.StringVar(&config.Consul.Tag, "consul-tag", "marathon", "Common tag name added to every service registered in Consul, should be unique for every Marathon-cluster connected to Consul")
 
 	// Web
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "accept connections at this address")

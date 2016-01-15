@@ -10,7 +10,8 @@
     "SslVerify": true,
     "SslCert": "",
     "SslCaCert": "",
-    "Token": ""
+    "Token": "",
+    "Tag": "marathon"
   },
   "Web": {
     "Listen": ":4000"

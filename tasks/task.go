@@ -33,3 +33,14 @@ func ParseTask(event []byte) (*Task, error) {
 	err := json.Unmarshal(event, task)
 	return task, err
 }
+
+func (t *Task) IsHealthy() bool {
+	if len(t.HealthCheckResults) < 1 {
+		return false
+	}
+	register := true
+	for _, healthCheckResult := range t.HealthCheckResults {
+		register = register && healthCheckResult.Alive
+	}
+	return register
+}

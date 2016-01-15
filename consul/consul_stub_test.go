@@ -2,7 +2,6 @@ package consul
 
 import (
 	"fmt"
-	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/utils"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -11,37 +10,27 @@ import (
 func TestConsulStub(t *testing.T) {
 	t.Parallel()
 	// given
-	labels := map[string]string{
-		"consul": "true",
-		"public": "tag",
-	}
-	healthChecks := []apps.HealthCheck{
-		apps.HealthCheck{
-			Path:                   "/",
-			Protocol:               "HTTP",
-			PortIndex:              0,
-			IntervalSeconds:        60,
-			TimeoutSeconds:         20,
-			MaxConsecutiveFailures: 3,
-		},
-	}
 	consul := NewConsulStub()
 	app := utils.ConsulApp("test", 3)
 	stubError := fmt.Errorf("Some error")
 	services, err := consul.GetAllServices()
+	assert.NoError(t, err)
 	testServices, err := consul.GetServices("test")
+	assert.NoError(t, err)
 
 	// then
 	assert.Empty(t, services)
 	assert.Empty(t, testServices)
-	assert.NoError(t, err)
 
 	// when
 	for _, task := range app.Tasks {
-		consul.Register(MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
+		err = consul.Register(&task, app)
+		assert.NoError(t, err)
 	}
-	services, _ = consul.GetAllServices()
-	testServices, _ = consul.GetServices("test")
+	services, err = consul.GetAllServices()
+	assert.NoError(t, err)
+	testServices, err = consul.GetServices("test")
+	assert.NoError(t, err)
 
 	// then
 	assert.Len(t, services, 3)
@@ -68,7 +57,7 @@ func TestConsulStub(t *testing.T) {
 	assert.Equal(t, stubError, err)
 
 	// when
-	err = consul.Register(MarathonTaskToConsulService(app.Tasks[0], healthChecks, labels))
+	err = consul.Register(&app.Tasks[0], app)
 
 	// then
 	assert.Equal(t, stubError, err)
@@ -83,7 +72,7 @@ func TestConsulStub(t *testing.T) {
 	// when
 	app = utils.ConsulApp("other", 2)
 	for _, task := range app.Tasks {
-		consul.Register(MarathonTaskToConsulService(task, app.HealthChecks, app.Labels))
+		consul.Register(&task, app)
 	}
 	services, _ = consul.GetAllServices()
 	testServices, _ = consul.GetServices("test")

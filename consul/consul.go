@@ -1,27 +1,33 @@
 package consul
 
 import (
+	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/tasks"
 	consulapi "github.com/hashicorp/consul/api"
+	"net/url"
+	"strconv"
 )
 
 type ConsulServices interface {
 	GetAllServices() ([]*consulapi.CatalogService, error)
 	GetServices(name tasks.AppId) ([]*consulapi.CatalogService, error)
-	Register(service *consulapi.AgentServiceRegistration) error
+	Register(task *tasks.Task, app *apps.App) error
 	Deregister(serviceId tasks.Id, agentAddress string) error
 	GetAgent(agentAddress string) (*consulapi.Client, error)
 }
 
 type Consul struct {
 	agents Agents
+	config ConsulConfig
 }
 
 func New(config ConsulConfig) *Consul {
 	return &Consul{
 		agents: NewAgents(&config),
+		config: config,
 	}
 }
 
@@ -40,7 +46,7 @@ func (c *Consul) GetServices(name tasks.AppId) ([]*consulapi.CatalogService, err
 		dcAwareQuery := &consulapi.QueryOptions{
 			Datacenter: dc,
 		}
-		services, _, err := agent.Catalog().Service(name.ConsulServiceName(), "marathon", dcAwareQuery)
+		services, _, err := agent.Catalog().Service(name.ConsulServiceName(), c.config.Tag, dcAwareQuery)
 		if err != nil {
 			return nil, err
 		}
@@ -69,8 +75,8 @@ func (c *Consul) GetAllServices() ([]*consulapi.CatalogService, error) {
 			return nil, err
 		}
 		for service, tags := range services {
-			if contains(tags, "marathon") {
-				serviceInstances, _, err := agent.Catalog().Service(service, "marathon", dcAwareQuery)
+			if contains(tags, c.config.Tag) {
+				serviceInstances, _, err := agent.Catalog().Service(service, c.config.Tag, dcAwareQuery)
 				if err != nil {
 					return nil, err
 				}
@@ -90,8 +96,9 @@ func contains(slice []string, search string) bool {
 	return false
 }
 
-func (c *Consul) Register(service *consulapi.AgentServiceRegistration) error {
+func (c *Consul) Register(task *tasks.Task, app *apps.App) error {
 	var err error
+	service := c.marathonTaskToConsulService(task, app.HealthChecks, app.Labels)
 	metrics.Time("consul.register", func() { err = c.register(service) })
 	if err != nil {
 		metrics.Mark("consul.register.error")
@@ -150,4 +157,43 @@ func (c *Consul) deregister(serviceId tasks.Id, agentAddress string) error {
 
 func (c *Consul) GetAgent(agentAddress string) (*consulapi.Client, error) {
 	return c.agents.GetAgent(agentAddress)
+}
+
+func (c *Consul) marathonTaskToConsulService(task *tasks.Task, healthChecks []apps.HealthCheck, labels map[string]string) *consulapi.AgentServiceRegistration {
+	return &consulapi.AgentServiceRegistration{
+		ID:      task.ID.String(),
+		Name:    task.AppID.ConsulServiceName(),
+		Port:    task.Ports[0],
+		Address: task.Host,
+		Tags:    c.marathonLabelsToConsulTags(labels),
+		Check:   c.marathonToConsulCheck(task, healthChecks),
+	}
+}
+
+func (c *Consul) marathonToConsulCheck(task *tasks.Task, healthChecks []apps.HealthCheck) *consulapi.AgentServiceCheck {
+	//	TODO: Handle all types of checks
+	for _, check := range healthChecks {
+		if check.Protocol == "HTTP" {
+			return &consulapi.AgentServiceCheck{
+				HTTP: (&url.URL{
+					Scheme: "http",
+					Host:   task.Host + ":" + strconv.Itoa(task.Ports[check.PortIndex]),
+					Path:   check.Path,
+				}).String(),
+				Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
+				Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
+			}
+		}
+	}
+	return nil
+}
+
+func (c *Consul) marathonLabelsToConsulTags(labels map[string]string) []string {
+	tags := []string{c.config.Tag}
+	for key, value := range labels {
+		if value == "tag" {
+			tags = append(tags, key)
+		}
+	}
+	return tags
 }

@@ -57,3 +57,48 @@ func TestParseTasks(t *testing.T) {
 	assert.Len(t, tasks, 2)
 	assert.Equal(t, expectedTasks, tasks)
 }
+
+func TestIsHealthy(t *testing.T) {
+	t.Parallel()
+
+	// given
+	task := &Task{}
+
+	// when
+	task.HealthCheckResults = nil
+
+	// then
+	assert.False(t, task.IsHealthy())
+
+	// when
+	task.HealthCheckResults = []HealthCheckResult{}
+
+	// then
+	assert.False(t, task.IsHealthy())
+
+	// when
+	task.HealthCheckResults = []HealthCheckResult{
+		HealthCheckResult{Alive: false},
+	}
+
+	// then
+	assert.False(t, task.IsHealthy())
+
+	// when
+	task.HealthCheckResults = []HealthCheckResult{
+		HealthCheckResult{Alive: true},
+		HealthCheckResult{Alive: false},
+	}
+
+	// then
+	assert.False(t, task.IsHealthy())
+
+	// when
+	task.HealthCheckResults = []HealthCheckResult{
+		HealthCheckResult{Alive: true},
+		HealthCheckResult{Alive: true},
+	}
+
+	// then
+	assert.True(t, task.IsHealthy())
+}

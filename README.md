@@ -42,13 +42,12 @@ make test
 
 ## Usage
 
-- Consul Agents should be available at every Mesos Slave, tasks will be registered at host their run on.
+- Consul Agents should be available at every Mesos Slave, tasks will be registered at hosts their run on.
 - Only tasks which are labeled as `consul:true` will be registered in Consul.
-- Only services with tag `marathon` will be maintained. This tag is automatically added during registration.
+- Only services with tag specified by `consul-tag` property will be maintained. This tag is automatically added during registration. **Important**: it should be unique for every Marathon cluster connected to Consul.
 - At least one HTTP healthcheck should be defined for a task. The task is registered when Marathon marks it's as alive.
 - Provided HTTP healtcheck will be transferred to Consul.
-- Labels with `tag` value will be converted to Consul tags, `marathon` tag is added by default
- (e.g, `labels: ["public":"tag", "varnish":"tag", "env": "test"]` → `tags: ["public", "varnish", "marathon"]`).
+- Labels with `tag` value will be converted to Consul tags, e.g. (note: `consul-tag` is set to `marathon`) `labels: ["public":"tag", "varnish":"tag", "env": "test"]` → `tags: ["public", "varnish", "marathon"]`.
 - The scheduled Marathon-consul sync may run in two modes:
     - Only on node that is the current [Marathon-leader](https://mesosphere.github.io/marathon/docs/rest-api.html#get-v2-leader), `sync-leader` parameter should be set to `hostname:port` the current node appears in the Marathon cluster. 
       This mode is **enabled by default** and the `sync-leader` property is set to the hostname resolved by OS.
@@ -69,6 +68,7 @@ consul-ssl-ca-cert     |                       | Path to a CA certificate file, 
 consul-ssl-cert        |                       | Path to an SSL client certificate to use to authenticate to the Consul server
 consul-ssl-verify      | `true`                | Verify certificates when connecting via SSL
 consul-token           |                       | The Consul ACL token
+consul-tag             | `marathon`            | Common tag name added to every service registered in Consul, should be unique for every Marathon-cluster connected to Consul
 listen                 | `:4000`               | Accept connections at this address
 log-level              | `info`                | Log level: panic, fatal, error, warn, info, or debug
 log-format             | `text`                | Log format: JSON, text
