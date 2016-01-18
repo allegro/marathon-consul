@@ -1,4 +1,4 @@
-package tasks
+package apps
 
 import (
 	"encoding/json"
@@ -101,4 +101,9 @@ func TestIsHealthy(t *testing.T) {
 
 	// then
 	assert.True(t, task.IsHealthy())
+}
+
+func TestId_String(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "id", TaskId("id").String())
 }

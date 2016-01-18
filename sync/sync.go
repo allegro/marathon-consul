@@ -7,7 +7,6 @@ import (
 	service "github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
-	"github.com/allegro/marathon-consul/tasks"
 	consul "github.com/hashicorp/consul/api"
 	"os"
 	"time"
@@ -133,10 +132,10 @@ func (s *Sync) addAgentNodes(apps []*apps.App) {
 	}
 }
 
-func (s *Sync) deregisterConsulServicesNotFoundInMarathon(apps []*apps.App, services []*consul.CatalogService) {
-	marathonTaskIdsSet := s.marathonTaskIdsSet(apps)
-	for _, service := range services {
-		serviceId := tasks.Id(service.ServiceID)
+func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.App, consulServices []*consul.CatalogService) {
+	marathonTaskIdsSet := s.marathonTaskIdsSet(marathonApps)
+	for _, service := range consulServices {
+		serviceId := apps.TaskId(service.ServiceID)
 		if _, ok := marathonTaskIdsSet[serviceId]; !ok {
 			err := s.service.Deregister(serviceId, service.Address)
 			if err != nil {
@@ -151,9 +150,9 @@ func (s *Sync) deregisterConsulServicesNotFoundInMarathon(apps []*apps.App, serv
 	}
 }
 
-func (s *Sync) registerAppTasksNotFoundInConsul(apps []*apps.App, services []*consul.CatalogService) {
-	consulServicesIdsSet := s.consulServiceIdsSet(services)
-	for _, app := range apps {
+func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, consulServices []*consul.CatalogService) {
+	consulServicesIdsSet := s.consulServiceIdsSet(consulServices)
+	for _, app := range marathonApps {
 		if !app.IsConsulApp() {
 			log.WithField("Id", app.ID).Debug("Not a Consul app, skipping registration")
 			continue
@@ -175,19 +174,19 @@ func (s *Sync) registerAppTasksNotFoundInConsul(apps []*apps.App, services []*co
 	}
 }
 
-func (s *Sync) consulServiceIdsSet(services []*consul.CatalogService) map[tasks.Id]struct{} {
-	servicesSet := make(map[tasks.Id]struct{})
+func (s *Sync) consulServiceIdsSet(services []*consul.CatalogService) map[apps.TaskId]struct{} {
+	servicesSet := make(map[apps.TaskId]struct{})
 	var exists struct{}
 	for _, service := range services {
-		servicesSet[tasks.Id(service.ServiceID)] = exists
+		servicesSet[apps.TaskId(service.ServiceID)] = exists
 	}
 	return servicesSet
 }
 
-func (s *Sync) marathonTaskIdsSet(apps []*apps.App) map[tasks.Id]struct{} {
-	tasksSet := make(map[tasks.Id]struct{})
+func (s *Sync) marathonTaskIdsSet(marathonApps []*apps.App) map[apps.TaskId]struct{} {
+	tasksSet := make(map[apps.TaskId]struct{})
 	var exists struct{}
-	for _, app := range apps {
+	for _, app := range marathonApps {
 		for _, task := range app.Tasks {
 			tasksSet[task.ID] = exists
 		}

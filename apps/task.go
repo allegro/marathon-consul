@@ -1,16 +1,24 @@
-package tasks
+package apps
 
 import (
 	"encoding/json"
 )
 
 type Task struct {
-	ID                 Id                  `json:"id"`
+	ID                 TaskId              `json:"id"`
 	TaskStatus         string              `json:"taskStatus"`
 	AppID              AppId               `json:"appId"`
 	Host               string              `json:"host"`
 	Ports              []int               `json:"ports"`
 	HealthCheckResults []HealthCheckResult `json:"healthCheckResults"`
+}
+
+// Marathon Task Id
+// Usually in the form of AppId.uuid with '/' replaced with '_'
+type TaskId string
+
+func (id TaskId) String() string {
+	return string(id)
 }
 
 type HealthCheckResult struct {

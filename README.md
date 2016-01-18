@@ -1,9 +1,9 @@
 # marathon-consul [![Build Status](https://travis-ci.org/allegro/marathon-consul.svg?branch=master)](https://travis-ci.org/allegro/marathon-consul)[![Coverage Status](https://coveralls.io/repos/allegro/marathon-consul/badge.svg?branch=master&service=github)](https://coveralls.io/github/allegro/marathon-consul)
 
 
-Register Marathon Tasks as Consul Services for service discovery.
+Register [Marathon](https://mesosphere.github.io/marathon/) Tasks as [Consul](https://www.consul.io/) Services for service discovery.
 
-`marathon-consul` takes information provided by the Marathon event bus and
+`marathon-consul` takes information provided by the [Marathon event bus](https://mesosphere.github.io/marathon/docs/event-bus.html) and
 forwards it to Consul agents. It also re-syncs all the information from Marathon 
 to Consul on startup and repeats it with given interval.
 
@@ -43,7 +43,8 @@ make test
 ## Usage
 
 - Consul Agents should be available at every Mesos Slave, tasks will be registered at hosts their run on.
-- Only tasks which are labeled as `consul:true` will be registered in Consul.
+- Only tasks which are labeled as `consul` will be registered in Consul. By default the registered service name is equal to Marathon's application name. 
+  A different name can be provided as the label's value, e.g. `consul:customName`. As an exception of the rule, for backward compatibility with the `0.3.x` branch, a value of `true` is resolved to the default name.
 - Only services with tag specified by `consul-tag` property will be maintained. This tag is automatically added during registration. **Important**: it should be unique for every Marathon cluster connected to Consul.
 - At least one HTTP healthcheck should be defined for a task. The task is registered when Marathon marks it's as alive.
 - Provided HTTP healtcheck will be transferred to Consul.

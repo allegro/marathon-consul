@@ -2,14 +2,14 @@ package events
 
 import (
 	"encoding/json"
-	"github.com/allegro/marathon-consul/tasks"
+	"github.com/allegro/marathon-consul/apps"
 )
 
 type TaskHealthChange struct {
 	Timestamp  string      `json:"timestamp"`
-	ID         tasks.Id    `json:"id"`
+	ID         apps.TaskId `json:"id"`
 	TaskStatus string      `json:"taskStatus"`
-	AppID      tasks.AppId `json:"appId"`
+	AppID      apps.AppId  `json:"appId"`
 	Version    string      `json:"version"`
 	Alive      bool        `json:"alive"`
 }

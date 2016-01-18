@@ -10,7 +10,6 @@ import (
 
 	"fmt"
 	"github.com/allegro/marathon-consul/apps"
-	"github.com/allegro/marathon-consul/tasks"
 	"os"
 	"time"
 )
@@ -142,7 +141,7 @@ func newConsulServicesMock() *ConsulServicesMock {
 	}
 }
 
-func (c *ConsulServicesMock) GetServices(name tasks.AppId) ([]*consulapi.CatalogService, error) {
+func (c *ConsulServicesMock) GetServices(name string) ([]*consulapi.CatalogService, error) {
 	return nil, nil
 }
 
@@ -150,7 +149,7 @@ func (c *ConsulServicesMock) GetAllServices() ([]*consulapi.CatalogService, erro
 	return nil, nil
 }
 
-func (c *ConsulServicesMock) Register(task *tasks.Task, app *apps.App) error {
+func (c *ConsulServicesMock) Register(task *apps.Task, app *apps.App) error {
 	c.registrations[task.ID.String()]++
 	return nil
 }
@@ -159,7 +158,7 @@ func (c *ConsulServicesMock) RegistrationsCount(instanceId string) int {
 	return c.registrations[instanceId]
 }
 
-func (c *ConsulServicesMock) Deregister(serviceId tasks.Id, agent string) error {
+func (c *ConsulServicesMock) Deregister(serviceId apps.TaskId, agent string) error {
 	return nil
 }
 
@@ -190,6 +189,25 @@ func TestSyncAppsFromMarathonToConsul(t *testing.T) {
 	}
 }
 
+func TestSyncAppsFromMarathonToConsul_CustomServiceName(t *testing.T) {
+	t.Parallel()
+	// given
+	app := ConsulApp("app1", 3)
+	app.Labels["consul"] = "customName"
+	marathoner := marathon.MarathonerStubForApps(app)
+
+	consul := consul.NewConsulStub()
+	marathonSync := newSyncWithDefaultConfig(marathoner, consul)
+
+	// when
+	marathonSync.SyncServices()
+
+	// then
+	services, _ := consul.GetAllServices()
+	assert.Equal(t, 3, len(services))
+	assert.Equal(t, "customName", services[0].ServiceName)
+}
+
 func TestRemoveInvalidServicesFromConsul(t *testing.T) {
 	t.Parallel()
 	// given
@@ -198,7 +216,7 @@ func TestRemoveInvalidServicesFromConsul(t *testing.T) {
 		ConsulApp("app2", 1),
 	)
 	consul := consul.NewConsulStub()
-	marathonSync := New(Config{}, marathoner, consul)
+	marathonSync := newSyncWithDefaultConfig(marathoner, consul)
 	marathonSync.SyncServices()
 
 	// when
@@ -209,6 +227,41 @@ func TestRemoveInvalidServicesFromConsul(t *testing.T) {
 	marathonSync.SyncServices()
 
 	// then
+	services, _ := consul.GetAllServices()
+	assert.Equal(t, 1, len(services))
+	assert.Equal(t, "app2", services[0].ServiceName)
+}
+
+func TestRemoveInvalidServicesFromConsul_WithCustomServiceName(t *testing.T) {
+	t.Parallel()
+	// given
+	invalidApp := ConsulApp("app1-invalid", 1)
+	invalidApp.Labels["consul"] = "customName"
+	marathoner := marathon.MarathonerStubForApps(
+		invalidApp,
+		ConsulApp("app2", 1),
+	)
+	consul := consul.NewConsulStub()
+	marathonSync := newSyncWithDefaultConfig(marathoner, consul)
+
+	// when
+	marathonSync.SyncServices()
+
+	// then
+	customNameServices, _ := consul.GetServices("customName")
+	assert.Equal(t, 1, len(customNameServices))
+
+	// when
+	marathoner = marathon.MarathonerStubForApps(
+		ConsulApp("app2", 1),
+	)
+	marathonSync = newSyncWithDefaultConfig(marathoner, consul)
+	marathonSync.SyncServices()
+
+	// then
+	customNameServices, _ = consul.GetServices("customName")
+	assert.Equal(t, 0, len(customNameServices))
+
 	services, _ := consul.GetAllServices()
 	assert.Equal(t, 1, len(services))
 	assert.Equal(t, "app2", services[0].ServiceName)
@@ -304,11 +357,11 @@ func (m errorMarathon) Apps() ([]*apps.App, error) {
 	return nil, fmt.Errorf("Error")
 }
 
-func (m errorMarathon) App(id tasks.AppId) (*apps.App, error) {
+func (m errorMarathon) App(id apps.AppId) (*apps.App, error) {
 	return nil, fmt.Errorf("Error")
 }
 
-func (m errorMarathon) Tasks(appId tasks.AppId) ([]*tasks.Task, error) {
+func (m errorMarathon) Tasks(appId apps.AppId) ([]*apps.Task, error) {
 	return nil, fmt.Errorf("Error")
 }
 
@@ -319,7 +372,7 @@ func (m errorMarathon) Leader() (string, error) {
 type errorConsul struct {
 }
 
-func (c errorConsul) GetServices(name tasks.AppId) ([]*consulapi.CatalogService, error) {
+func (c errorConsul) GetServices(name string) ([]*consulapi.CatalogService, error) {
 	return nil, fmt.Errorf("Error occured")
 }
 
@@ -327,11 +380,11 @@ func (c errorConsul) GetAllServices() ([]*consulapi.CatalogService, error) {
 	return nil, fmt.Errorf("Error occured")
 }
 
-func (c errorConsul) Register(task *tasks.Task, app *apps.App) error {
+func (c errorConsul) Register(task *apps.Task, app *apps.App) error {
 	return fmt.Errorf("Error occured")
 }
 
-func (c errorConsul) Deregister(serviceId tasks.Id, agent string) error {
+func (c errorConsul) Deregister(serviceId apps.TaskId, agent string) error {
 	return fmt.Errorf("Error occured")
 }
 

@@ -2,7 +2,7 @@ package apps
 
 import (
 	"encoding/json"
-	"github.com/allegro/marathon-consul/tasks"
+	"strings"
 )
 
 type HealthCheck struct {
@@ -26,13 +26,36 @@ type AppsResponse struct {
 type App struct {
 	Labels       map[string]string `json:"labels"`
 	HealthChecks []HealthCheck     `json:"healthChecks"`
-	ID           tasks.AppId       `json:"id"`
-	Tasks        []tasks.Task      `json:"tasks"`
+	ID           AppId             `json:"id"`
+	Tasks        []Task            `json:"tasks"`
+}
+
+// Marathon Application Id (aka PathId)
+// Usually in the form of /rootGroup/subGroup/subSubGroup/name
+// allowed characters: lowercase letters, digits, hyphens, slash
+type AppId string
+
+func (id AppId) String() string {
+	return string(id)
+}
+
+func (id AppId) ConsulServiceName() string {
+	return strings.Replace(strings.Trim(strings.TrimSpace(id.String()), "/"), "/", ".", -1)
 }
 
 func (app *App) IsConsulApp() bool {
-	value, ok := app.Labels["consul"]
-	return ok && value == "true"
+	_, ok := app.Labels["consul"]
+	return ok
+}
+
+func (app *App) ConsulServiceName() string {
+	if value, ok := app.Labels["consul"]; ok && value != "true" {
+		value = AppId(value).ConsulServiceName()
+		if value != "" {
+			return value
+		}
+	}
+	return app.ID.ConsulServiceName()
 }
 
 func ParseApps(jsonBlob []byte) ([]*App, error) {

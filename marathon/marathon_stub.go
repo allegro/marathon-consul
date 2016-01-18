@@ -3,13 +3,12 @@ package marathon
 import (
 	"fmt"
 	"github.com/allegro/marathon-consul/apps"
-	"github.com/allegro/marathon-consul/tasks"
 )
 
 type MarathonerStub struct {
 	AppsStub  []*apps.App
-	AppStub   map[tasks.AppId]*apps.App
-	TasksStub map[tasks.AppId][]*tasks.Task
+	AppStub   map[apps.AppId]*apps.App
+	TasksStub map[apps.AppId][]*apps.Task
 	leader    string
 }
 
@@ -17,7 +16,7 @@ func (m MarathonerStub) Apps() ([]*apps.App, error) {
 	return m.AppsStub, nil
 }
 
-func (m MarathonerStub) App(id tasks.AppId) (*apps.App, error) {
+func (m MarathonerStub) App(id apps.AppId) (*apps.App, error) {
 	if app, ok := m.AppStub[id]; ok {
 		return app, nil
 	} else {
@@ -25,7 +24,7 @@ func (m MarathonerStub) App(id tasks.AppId) (*apps.App, error) {
 	}
 }
 
-func (m MarathonerStub) Tasks(appId tasks.AppId) ([]*tasks.Task, error) {
+func (m MarathonerStub) Tasks(appId apps.AppId) ([]*apps.Task, error) {
 	if app, ok := m.TasksStub[appId]; ok {
 		return app, nil
 	} else {
@@ -44,12 +43,12 @@ func MarathonerStubWithLeaderForApps(leader string, args ...*apps.App) *Marathon
 }
 
 func MarathonerStubForApps(args ...*apps.App) *MarathonerStub {
-	appsMap := make(map[tasks.AppId]*apps.App)
-	tasksMap := make(map[tasks.AppId][]*tasks.Task)
+	appsMap := make(map[apps.AppId]*apps.App)
+	tasksMap := make(map[apps.AppId][]*apps.Task)
 
 	for _, app := range args {
 		appsMap[app.ID] = app
-		tasks := []*tasks.Task{}
+		tasks := []*apps.Task{}
 		for _, task := range app.Tasks {
 			t := task
 			tasks = append(tasks, &t)

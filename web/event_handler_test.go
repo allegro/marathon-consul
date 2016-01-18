@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/events"
 	"github.com/allegro/marathon-consul/marathon"
-	"github.com/allegro/marathon-consul/tasks"
 	. "github.com/allegro/marathon-consul/utils"
 	"github.com/stretchr/testify/assert"
 	"net/http"
@@ -111,56 +111,6 @@ func TestForwardHandler_NotHandleInvalidEventType(t *testing.T) {
 	assert.Equal(t, "json: cannot unmarshal array into Go value of type string\n", recorder.Body.String())
 }
 
-func TestForwardHandler_HandleAppTerminatedEvent(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := ConsulApp("/test/app", 3)
-	marathon := marathon.MarathonerStubForApps() // imagine the app was already destroyed
-	service := consul.NewConsulStub()
-	for _, task := range app.Tasks {
-		service.Register(&task, app)
-	}
-	handler := NewEventHandler(service, marathon)
-	body, _ := json.Marshal(events.AppTerminatedEvent{
-		Type:  "app_terminated_event",
-		AppID: app.ID,
-	})
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
-
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	services, _ := service.GetAllServices()
-
-	// then
-	assert.Equal(t, 200, recorder.Code)
-	assert.Equal(t, "OK\n", recorder.Body.String())
-	assert.Empty(t, services)
-}
-
-func TestForwardHandler_NotHandleNonConsulAppTerminatedEvent(t *testing.T) {
-	t.Parallel()
-
-	// given
-	marathon := marathon.MarathonerStubForApps()
-	service := consul.NewConsulStub()
-	handler := NewEventHandler(service, marathon)
-	body, _ := json.Marshal(events.AppTerminatedEvent{
-		Type:  "app_terminated_event",
-		AppID: "/myApp",
-	})
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
-
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-
-	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "No matching Consul services found\n", recorder.Body.String())
-}
-
 func TestForwardHandler_HandleAppInvalidBody(t *testing.T) {
 	t.Parallel()
 
@@ -178,59 +128,61 @@ func TestForwardHandler_HandleAppInvalidBody(t *testing.T) {
 	assert.Equal(t, "no event\n", recorder.Body.String())
 }
 
-func TestForwardHandler_HandleAppTerminatedEventInvalidBody(t *testing.T) {
-	t.Parallel()
-
-	// given
-	handler := NewEventHandler(nil, nil)
-	body := `{"appId":"/python/simple","eventType":"app_terminated_event","timestamp":2015}`
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
-
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-
-	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "json: cannot unmarshal number into Go value of type string\n", recorder.Body.String())
-}
-
-func TestForwardHandler_HandleAppTerminatedEventForUnknownApp(t *testing.T) {
-	t.Parallel()
-
-	// given
-	service := consul.NewConsulStub()
-	handler := NewEventHandler(service, nil)
-	body := `{"appId":"/unknown/app","eventType":"app_terminated_event","timestamp":"2015-12-07T09:02:49.934Z"}`
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
-
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-
-	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "No matching Consul services found\n", recorder.Body.String())
-}
-
-func TestForwardHandler_HandleAppTerminatedEventWithProblemsOnDeregistering(t *testing.T) {
+func TestForwardHandler_HandleDeploymentInfoWithStopApplicationAction(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps()
-	service := consul.NewConsulStub()
-	for _, task := range app.Tasks {
-		err := service.Register(&task, app)
-		assert.NoError(t, err)
-	}
-	service.ErrorServices["/test/app.1"] = fmt.Errorf("Cannot deregister service")
-	service.ErrorServices["/test/app.2"] = fmt.Errorf("Cannot deregister service")
+	service := newConsulStubWithApplicationsTasksRegistered(app)
+	assert.Len(t, service.RegisteredServicesIds(), 3)
 	handler := NewEventHandler(service, marathon)
-	body, _ := json.Marshal(events.AppTerminatedEvent{
-		Type:  "app_terminated_event",
-		AppID: app.ID,
-	})
+	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 200, recorder.Code)
+	assert.Len(t, service.RegisteredServicesIds(), 0)
+}
+
+func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleApps(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app1 := ConsulApp("/test/app", 3)
+	app2 := ConsulApp("/test/otherapp", 2)
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
+	assert.Len(t, service.RegisteredServicesIds(), 5)
+	handler := NewEventHandler(service, marathon)
+	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app1, app2))
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 200, recorder.Code)
+	assert.Len(t, service.RegisteredServicesIds(), 0)
+}
+
+func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleAppsAndProblemsDeregisteringOne(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app1 := ConsulApp("/test/app", 3)
+	app2 := ConsulApp("/test/otherapp", 2)
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
+	service.ErrorServices["/test/app.1"] = fmt.Errorf("Cannot deregister service")
+	assert.Len(t, service.RegisteredServicesIds(), 5)
+	handler := NewEventHandler(service, marathon)
+	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app1, app2))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
@@ -239,11 +191,272 @@ func TestForwardHandler_HandleAppTerminatedEventWithProblemsOnDeregistering(t *t
 
 	// then
 	assert.Equal(t, 500, recorder.Code)
-	assert.Equal(t, "2 errors occured deregistering 3 services:\n0: Cannot deregister service\n1: Cannot deregister service\n", recorder.Body.String())
-	assert.Len(t, service.RegisteredServicesIds(), 2)
-	assert.NotContains(t, "test/app.0", service.RegisteredServicesIds())
-	assert.Contains(t, service.RegisteredServicesIds(), "/test/app.1")
-	assert.Contains(t, service.RegisteredServicesIds(), "/test/app.2")
+	assert.Len(t, service.RegisteredServicesIds(), 1)
+}
+
+func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleAppsAndProblemsGettingServicesForOne(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app1 := ConsulApp("/test/app", 3)
+	app2 := ConsulApp("/test/otherapp", 2)
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
+	service.ErrorGetServices["test.app"] = fmt.Errorf("Something went terribly wrong!")
+	assert.Len(t, service.RegisteredServicesIds(), 5)
+	handler := NewEventHandler(service, marathon)
+	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app1, app2))
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 500, recorder.Code)
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+}
+
+func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionWithNoServicesRegistered(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := ConsulApp("/test/app", 3)
+	marathon := marathon.MarathonerStubForApps()
+	service := consul.NewConsulStub()
+	assert.Len(t, service.RegisteredServicesIds(), 0)
+	handler := NewEventHandler(service, marathon)
+	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 200, recorder.Code)
+	assert.Len(t, service.RegisteredServicesIds(), 0)
+}
+
+func TestForwardHandler_HandleDeploymentInfoWithInvalidBody(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := ConsulApp("/test/app", 3)
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(app)
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+	handler := NewEventHandler(service, marathon)
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":"deployment_info", "Plan": 123}`)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 400, recorder.Code)
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+}
+
+func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForNonConsulApp(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := NonConsulApp("/test/app", 3)
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(app)
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+	handler := NewEventHandler(service, marathon)
+	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 200, recorder.Code)
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+}
+
+func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForCustomServiceName(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := ConsulApp("/test/app", 3)
+	app.Labels["consul"] = "someCustomServiceName"
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(app)
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+	handler := NewEventHandler(service, marathon)
+	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 200, recorder.Code)
+	assert.Len(t, service.RegisteredServicesIds(), 0)
+}
+
+func TestForwardHandler_NotHandleDeploymentInfoWithScaleApplicationAction(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := ConsulApp("/test/app", 3)
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(app)
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+	handler := NewEventHandler(service, marathon)
+	deploymentInfo := deploymentInfoWithStopApplicationActionForApps(app)
+	deploymentInfo.CurrentStep.Actions[0].Type = "ScaleApplication"
+	body, _ := json.Marshal(deploymentInfo)
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 200, recorder.Code)
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+}
+
+func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionAndProblemsDeregistering(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := ConsulApp("/test/app", 3)
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(app)
+	service.ErrorServices["/test/app.1"] = fmt.Errorf("Cannot deregister service")
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+	handler := NewEventHandler(service, marathon)
+	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 500, recorder.Code)
+	assert.Equal(t, "1 errors occured handling service deregistration\n0: Cannot deregister service\n", recorder.Body.String())
+	assert.Len(t, service.RegisteredServicesIds(), 1)
+}
+
+func deploymentInfoWithStopApplicationActionForApps(applications ...*apps.App) *events.DeploymentEvent {
+
+	deploymentInfo := &events.DeploymentEvent{
+		Type: "deployment_info",
+		Plan: &events.Plan{
+			Original: &events.Deployments{
+				Apps: []*apps.App{},
+			},
+		},
+		CurrentStep: &events.CurrentStep{
+			Actions: []*events.Action{},
+		},
+	}
+	for _, app := range applications {
+		deploymentInfo.Plan.Original.Apps = append(deploymentInfo.Plan.Original.Apps, app)
+		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppId: app.ID, Type: "StopApplication"})
+	}
+	return deploymentInfo
+}
+
+func TestForwardHandler_HandleDeploymentStepSuccessWithRestartAndRenameApplicationAction(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := ConsulApp("/test/app", 3)
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(app)
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+	handler := NewEventHandler(service, marathon)
+	body, _ := json.Marshal(deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(app))
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 200, recorder.Code)
+	assert.Len(t, service.RegisteredServicesIds(), 0)
+}
+
+func TestForwardHandler_HandleDeploymentStepSuccessWithInvalidBody(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := ConsulApp("/test/app", 3)
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(app)
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+	handler := NewEventHandler(service, marathon)
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":"deployment_step_success", "Plan": 123}`)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 400, recorder.Code)
+	assert.Len(t, service.RegisteredServicesIds(), 3)
+}
+
+func TestForwardHandler_HandleDeploymentStepSuccessWithRestartApplicationActionForMultipleAppsAndProblemsDeregisteringOne(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app1 := ConsulApp("/test/app", 3)
+	app2 := ConsulApp("/test/otherapp", 2)
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
+	service.ErrorServices["/test/app.1"] = fmt.Errorf("Cannot deregister service")
+	assert.Len(t, service.RegisteredServicesIds(), 5)
+	handler := NewEventHandler(service, marathon)
+	body, _ := json.Marshal(deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(app1, app2))
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 500, recorder.Code)
+	assert.Equal(t, "1 errors occured handling service deregistration\n0: Cannot deregister service\n", recorder.Body.String())
+	assert.Len(t, service.RegisteredServicesIds(), 1)
+}
+
+func deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(applications ...*apps.App) *events.DeploymentEvent {
+	deploymentInfo := &events.DeploymentEvent{
+		Type: "deployment_step_success",
+		Plan: &events.Plan{
+			Original: &events.Deployments{
+				Apps: []*apps.App{},
+			},
+			Target: &events.Deployments{
+				Apps: []*apps.App{},
+			},
+		},
+		CurrentStep: &events.CurrentStep{
+			Actions: []*events.Action{},
+		},
+	}
+	for _, app := range applications {
+		deploymentInfo.Plan.Original.Apps = append(deploymentInfo.Plan.Original.Apps, app)
+		targetApp := &apps.App{ID: app.ID, Labels: map[string]string{}}
+		if name, ok := app.Labels["consul"]; ok {
+			targetApp.Labels["consul"] = fmt.Sprintf("New%s", name)
+		}
+		deploymentInfo.Plan.Target.Apps = append(deploymentInfo.Plan.Target.Apps, targetApp)
+		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppId: app.ID, Type: "RestartApplication"})
+	}
+	return deploymentInfo
 }
 
 func TestForwardHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
@@ -407,7 +620,7 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *te
 
 	// then
 	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "/test/app is not consul app. Missing consul:true label\n", recorder.Body.String())
+	assert.Equal(t, "/test/app is not consul app. Missing consul label\n", recorder.Body.String())
 	assert.Len(t, servicesIds, 0)
 }
 
@@ -462,7 +675,7 @@ func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNotAllHeathChecksPa
 
 	// given
 	app := ConsulApp("/test/app", 3)
-	app.Tasks[1].HealthCheckResults = []tasks.HealthCheckResult{tasks.HealthCheckResult{Alive: true}, tasks.HealthCheckResult{Alive: false}}
+	app.Tasks[1].HealthCheckResults = []apps.HealthCheckResult{apps.HealthCheckResult{Alive: true}, apps.HealthCheckResult{Alive: false}}
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	handler := NewEventHandler(service, marathon)
@@ -485,7 +698,7 @@ func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *te
 
 	// given
 	app := ConsulApp("/test/app", 1)
-	app.Tasks[0].HealthCheckResults = []tasks.HealthCheckResult{}
+	app.Tasks[0].HealthCheckResults = []apps.HealthCheckResult{}
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	handler := NewEventHandler(service, marathon)
@@ -594,6 +807,16 @@ func TestForwardHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testin
 	// then
 	assert.Equal(t, 500, recorder.Code)
 	assert.Equal(t, "Task unknown.1 not found\n", recorder.Body.String())
+}
+
+func newConsulStubWithApplicationsTasksRegistered(applications ...*apps.App) *consul.ConsulStub {
+	service := consul.NewConsulStub()
+	for _, app := range applications {
+		for _, task := range app.Tasks {
+			service.Register(&task, app)
+		}
+	}
+	return service
 }
 
 type BadReader struct{}

@@ -1,7 +1,6 @@
 package apps
 
 import (
-	"github.com/allegro/marathon-consul/tasks"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"testing"
@@ -26,15 +25,15 @@ func TestParseApps(t *testing.T) {
 				},
 			},
 			ID: "/bridged-webapp",
-			Tasks: []tasks.Task{
-				tasks.Task{
+			Tasks: []Task{
+				Task{
 					ID:                 "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8",
 					AppID:              "/test",
 					Host:               "192.168.2.114",
 					Ports:              []int{31315},
-					HealthCheckResults: []tasks.HealthCheckResult{tasks.HealthCheckResult{Alive: true}},
+					HealthCheckResults: []HealthCheckResult{HealthCheckResult{Alive: true}},
 				},
-				tasks.Task{
+				Task{
 					ID:    "test.4453212c-1a81-11e5-bdb6-e6cb6734eaf8",
 					AppID: "/test",
 					Host:  "192.168.2.114",
@@ -63,7 +62,7 @@ func TestParseApp(t *testing.T) {
 			TimeoutSeconds:         10,
 			MaxConsecutiveFailures: 3}},
 		ID: "/myapp",
-		Tasks: []tasks.Task{tasks.Task{
+		Tasks: []Task{Task{
 			ID:    "myapp.cc49ccc1-9812-11e5-a06e-56847afe9799",
 			AppID: "/myapp",
 			Host:  "10.141.141.10",
@@ -71,8 +70,8 @@ func TestParseApp(t *testing.T) {
 				31679,
 				31680,
 				31681},
-			HealthCheckResults: []tasks.HealthCheckResult{tasks.HealthCheckResult{Alive: true}}},
-			tasks.Task{
+			HealthCheckResults: []HealthCheckResult{HealthCheckResult{Alive: true}}},
+			Task{
 				ID:    "myapp.c8b449f0-9812-11e5-a06e-56847afe9799",
 				AppID: "/myapp",
 				Host:  "10.141.141.10",
@@ -80,7 +79,7 @@ func TestParseApp(t *testing.T) {
 					31308,
 					31309,
 					31310},
-				HealthCheckResults: []tasks.HealthCheckResult{tasks.HealthCheckResult{Alive: true}}}}}
+				HealthCheckResults: []HealthCheckResult{HealthCheckResult{Alive: true}}}}}
 
 	app, err := ParseApp(appBlob)
 	assert.NoError(t, err)
@@ -100,11 +99,11 @@ func TestConsulApp(t *testing.T) {
 
 	// when
 	app = &App{
-		Labels: map[string]string{"consul": "false", "marathon": "true"},
+		Labels: map[string]string{"consul": "someName", "marathon": "true"},
 	}
 
 	// then
-	assert.False(t, app.IsConsulApp())
+	assert.True(t, app.IsConsulApp())
 
 	// when
 	app = &App{
@@ -113,4 +112,74 @@ func TestConsulApp(t *testing.T) {
 
 	// then
 	assert.False(t, app.IsConsulApp())
+}
+
+func TestAppId_String(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "appId", AppId("appId").String())
+}
+
+func TestAppId_ConsulServiceName(t *testing.T) {
+	t.Parallel()
+
+	// given
+	id := AppId("/rootGroup/subGroup/subSubGroup/name")
+
+	// when
+	serviceName := id.ConsulServiceName()
+
+	// then
+	assert.Equal(t, "rootGroup.subGroup.subSubGroup.name", serviceName)
+}
+
+func TestConsulServiceName_BackwardCompatibilityForConsulTrue(t *testing.T) {
+	t.Parallel()
+
+	// when
+	app := &App{
+		ID:     "/someApp",
+		Labels: map[string]string{"consul": "true"},
+	}
+
+	// then
+	assert.Equal(t, "someApp", app.ConsulServiceName())
+}
+
+func TestConsulServiceName_EmptyConsulLabelValue(t *testing.T) {
+	t.Parallel()
+
+	// when
+	app := &App{
+		ID:     "/someApp/other",
+		Labels: map[string]string{"consul": ""},
+	}
+
+	// then
+	assert.Equal(t, "someApp.other", app.ConsulServiceName())
+}
+
+func TestConsulServiceName_CustomName(t *testing.T) {
+	t.Parallel()
+
+	// when
+	app := &App{
+		ID:     "/someApp/other",
+		Labels: map[string]string{"consul": "otherName"},
+	}
+
+	// then
+	assert.Equal(t, "otherName", app.ConsulServiceName())
+}
+
+func TestConsulServiceName_CustomNameEscapingNotAllowedChars(t *testing.T) {
+	t.Parallel()
+
+	// when
+	app := &App{
+		ID:     "/someApp/other",
+		Labels: map[string]string{"consul": "/otherName/something"},
+	}
+
+	// then
+	assert.Equal(t, "otherName.something", app.ConsulServiceName())
 }
