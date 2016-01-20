@@ -1,7 +1,5 @@
 TEST?=./...
 TESTARGS?=
-NAME = $(shell awk -F\" '/^const Name/ { print $$2 }' main.go)
-VERSION = $(shell awk -F\" '/^const Version/ { print $$2 }' main.go)
 DEPS = $(shell go list -f '{{range .TestImports}}{{.}} {{end}}' ./...)
 CURRENT_DIR = $(shell pwd)
 SOURCEDIR = $(CURRENT_DIR)
@@ -20,7 +18,7 @@ updatedeps:
 
 build: deps test
 	@mkdir -p bin/
-	go build -o bin/$(NAME)
+	go build -o bin/marathon-consul
 
 test: deps $(SOURCES)
 	PATH=$(CURRENT_DIR)/bin:$(PATH) go test $(TEST) $(TESTARGS)
