@@ -2,7 +2,6 @@ package consul
 
 import (
 	"github.com/allegro/marathon-consul/apps"
-	"github.com/allegro/marathon-consul/tasks"
 	"github.com/allegro/marathon-consul/utils"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -215,6 +214,64 @@ func TestRegisterServices(t *testing.T) {
 	assert.Equal(t, []string{"marathon", "test"}, services[0].ServiceTags)
 }
 
+func TestRegisterServices_CustomServiceName(t *testing.T) {
+	t.Parallel()
+	server := CreateConsulTestServer("dc1", t)
+	defer server.Stop()
+
+	consul := ConsulClientAtServer(server)
+	consul.config.Tag = "marathon"
+
+	// given
+	app := utils.ConsulApp("serviceA", 1)
+	app.Tasks[0].Host = server.Config.Bind
+	app.Labels["test"] = "tag"
+	app.Labels["consul"] = "myCustomServiceName"
+
+	// when
+	err := consul.Register(&app.Tasks[0], app)
+
+	// then
+	assert.NoError(t, err)
+
+	// when
+	services, _ := consul.GetAllServices()
+
+	// then
+	assert.Len(t, services, 1)
+	assert.Equal(t, "myCustomServiceName", services[0].ServiceName)
+	assert.Equal(t, []string{"marathon", "test"}, services[0].ServiceTags)
+}
+
+func TestRegisterServices_InvalidCustomServiceName(t *testing.T) {
+	t.Parallel()
+	server := CreateConsulTestServer("dc1", t)
+	defer server.Stop()
+
+	consul := ConsulClientAtServer(server)
+	consul.config.Tag = "marathon"
+
+	// given
+	app := utils.ConsulApp("serviceA", 1)
+	app.Tasks[0].Host = server.Config.Bind
+	app.Labels["test"] = "tag"
+	app.Labels["consul"] = " /"
+
+	// when
+	err := consul.Register(&app.Tasks[0], app)
+
+	// then
+	assert.NoError(t, err)
+
+	// when
+	services, _ := consul.GetAllServices()
+
+	// then
+	assert.Len(t, services, 1)
+	assert.Equal(t, "serviceA", services[0].ServiceName)
+	assert.Equal(t, []string{"marathon", "test"}, services[0].ServiceTags)
+}
+
 func TestRegisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 	t.Parallel()
 
@@ -276,30 +333,33 @@ func TestMarathonTaskToConsulServiceMapping_WithNoHttpChecks(t *testing.T) {
 
 	// given
 	consul := New(ConsulConfig{})
-	task := tasks.Task{
+
+	app := &apps.App{
+		ID: "someApp",
+		HealthChecks: []apps.HealthCheck{
+			apps.HealthCheck{
+				Path:                   "/",
+				Protocol:               "TCP",
+				PortIndex:              0,
+				IntervalSeconds:        60,
+				TimeoutSeconds:         20,
+				MaxConsecutiveFailures: 3,
+			},
+		},
+		Labels: map[string]string{
+			"consul": "true",
+			"public": "tag",
+		},
+	}
+	task := &apps.Task{
 		ID:    "someTask",
-		AppID: "someApp",
+		AppID: app.ID,
 		Host:  "127.0.0.6",
 		Ports: []int{8090, 8443},
 	}
 
-	labels := map[string]string{
-		"consul": "true",
-		"public": "tag",
-	}
-	healthChecks := []apps.HealthCheck{
-		apps.HealthCheck{
-			Path:                   "/",
-			Protocol:               "TCP",
-			PortIndex:              0,
-			IntervalSeconds:        60,
-			TimeoutSeconds:         20,
-			MaxConsecutiveFailures: 3,
-		},
-	}
-
 	// when
-	service := consul.marathonTaskToConsulService(&task, healthChecks, labels)
+	service := consul.marathonTaskToConsulService(task, app)
 
 	// then
 	assert.Equal(t, "127.0.0.6", service.Address)
@@ -313,30 +373,32 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 
 	// given
 	consul := New(ConsulConfig{Tag: "marathon"})
-	task := tasks.Task{
+	app := &apps.App{
+		ID: "someApp",
+		HealthChecks: []apps.HealthCheck{
+			apps.HealthCheck{
+				Path:                   "/api/health",
+				Protocol:               "HTTP",
+				PortIndex:              0,
+				IntervalSeconds:        60,
+				TimeoutSeconds:         20,
+				MaxConsecutiveFailures: 3,
+			},
+		},
+		Labels: map[string]string{
+			"consul": "true",
+			"public": "tag",
+		},
+	}
+	task := &apps.Task{
 		ID:    "someTask",
-		AppID: "someApp",
+		AppID: app.ID,
 		Host:  "127.0.0.6",
 		Ports: []int{8090, 8443},
 	}
 
-	labels := map[string]string{
-		"consul": "true",
-		"public": "tag",
-	}
-	healthChecks := []apps.HealthCheck{
-		apps.HealthCheck{
-			Path:                   "/api/health",
-			Protocol:               "HTTP",
-			PortIndex:              0,
-			IntervalSeconds:        60,
-			TimeoutSeconds:         20,
-			MaxConsecutiveFailures: 3,
-		},
-	}
-
 	// when
-	service := consul.marathonTaskToConsulService(&task, healthChecks, labels)
+	service := consul.marathonTaskToConsulService(task, app)
 
 	// then
 	assert.Equal(t, "127.0.0.6", service.Address)

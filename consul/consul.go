@@ -5,7 +5,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/metrics"
-	"github.com/allegro/marathon-consul/tasks"
 	consulapi "github.com/hashicorp/consul/api"
 	"net/url"
 	"strconv"
@@ -13,9 +12,9 @@ import (
 
 type ConsulServices interface {
 	GetAllServices() ([]*consulapi.CatalogService, error)
-	GetServices(name tasks.AppId) ([]*consulapi.CatalogService, error)
-	Register(task *tasks.Task, app *apps.App) error
-	Deregister(serviceId tasks.Id, agentAddress string) error
+	GetServices(name string) ([]*consulapi.CatalogService, error)
+	Register(task *apps.Task, app *apps.App) error
+	Deregister(serviceId apps.TaskId, agentAddress string) error
 	GetAgent(agentAddress string) (*consulapi.Client, error)
 }
 
@@ -31,7 +30,7 @@ func New(config ConsulConfig) *Consul {
 	}
 }
 
-func (c *Consul) GetServices(name tasks.AppId) ([]*consulapi.CatalogService, error) {
+func (c *Consul) GetServices(name string) ([]*consulapi.CatalogService, error) {
 	agent, err := c.agents.GetAnyAgent()
 	if err != nil {
 		return nil, err
@@ -46,7 +45,7 @@ func (c *Consul) GetServices(name tasks.AppId) ([]*consulapi.CatalogService, err
 		dcAwareQuery := &consulapi.QueryOptions{
 			Datacenter: dc,
 		}
-		services, _, err := agent.Catalog().Service(name.ConsulServiceName(), c.config.Tag, dcAwareQuery)
+		services, _, err := agent.Catalog().Service(name, c.config.Tag, dcAwareQuery)
 		if err != nil {
 			return nil, err
 		}
@@ -96,9 +95,12 @@ func contains(slice []string, search string) bool {
 	return false
 }
 
-func (c *Consul) Register(task *tasks.Task, app *apps.App) error {
+func (c *Consul) Register(task *apps.Task, app *apps.App) error {
 	var err error
-	service := c.marathonTaskToConsulService(task, app.HealthChecks, app.Labels)
+	service := c.marathonTaskToConsulService(task, app)
+	if value, ok := app.Labels["consul"]; ok && value == "true" {
+		log.WithField("Id", app.ID).Warn("Warning! Application configuration is deprecated (labeled as `consul:true`). Support for special `true` value will be removed in the future!")
+	}
 	metrics.Time("consul.register", func() { err = c.register(service) })
 	if err != nil {
 		metrics.Mark("consul.register.error")
@@ -129,7 +131,7 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 	return err
 }
 
-func (c *Consul) Deregister(serviceId tasks.Id, agentAddress string) error {
+func (c *Consul) Deregister(serviceId apps.TaskId, agentAddress string) error {
 	var err error
 	metrics.Time("consul.deregister", func() { err = c.deregister(serviceId, agentAddress) })
 	if err != nil {
@@ -140,7 +142,7 @@ func (c *Consul) Deregister(serviceId tasks.Id, agentAddress string) error {
 	return err
 }
 
-func (c *Consul) deregister(serviceId tasks.Id, agentAddress string) error {
+func (c *Consul) deregister(serviceId apps.TaskId, agentAddress string) error {
 	agent, err := c.agents.GetAgent(agentAddress)
 	if err != nil {
 		return err
@@ -159,18 +161,18 @@ func (c *Consul) GetAgent(agentAddress string) (*consulapi.Client, error) {
 	return c.agents.GetAgent(agentAddress)
 }
 
-func (c *Consul) marathonTaskToConsulService(task *tasks.Task, healthChecks []apps.HealthCheck, labels map[string]string) *consulapi.AgentServiceRegistration {
+func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) *consulapi.AgentServiceRegistration {
 	return &consulapi.AgentServiceRegistration{
 		ID:      task.ID.String(),
-		Name:    task.AppID.ConsulServiceName(),
+		Name:    app.ConsulServiceName(),
 		Port:    task.Ports[0],
 		Address: task.Host,
-		Tags:    c.marathonLabelsToConsulTags(labels),
-		Check:   c.marathonToConsulCheck(task, healthChecks),
+		Tags:    c.marathonLabelsToConsulTags(app.Labels),
+		Check:   c.marathonToConsulCheck(task, app.HealthChecks),
 	}
 }
 
-func (c *Consul) marathonToConsulCheck(task *tasks.Task, healthChecks []apps.HealthCheck) *consulapi.AgentServiceCheck {
+func (c *Consul) marathonToConsulCheck(task *apps.Task, healthChecks []apps.HealthCheck) *consulapi.AgentServiceCheck {
 	//	TODO: Handle all types of checks
 	for _, check := range healthChecks {
 		if check.Protocol == "HTTP" {

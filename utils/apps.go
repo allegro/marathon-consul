@@ -3,7 +3,6 @@ package utils
 import (
 	"fmt"
 	"github.com/allegro/marathon-consul/apps"
-	"github.com/allegro/marathon-consul/tasks"
 )
 
 func ConsulApp(name string, instances int) *apps.App {
@@ -19,19 +18,19 @@ func NonConsulApp(name string, instances int) *apps.App {
 }
 
 func app(name string, instances int, consul bool, unhealthyInstances int) *apps.App {
-	var appTasks []tasks.Task
+	var appTasks []apps.Task
 	for i := 0; i < instances; i++ {
-		task := tasks.Task{
-			AppID: tasks.AppId(name),
-			ID:    tasks.Id(fmt.Sprintf("%s.%d", name, i)),
+		task := apps.Task{
+			AppID: apps.AppId(name),
+			ID:    apps.TaskId(fmt.Sprintf("%s.%d", name, i)),
 			Ports: []int{8080 + i},
 			Host:  "",
 		}
 		if unhealthyInstances > 0 {
 			unhealthyInstances--
 		} else {
-			task.HealthCheckResults = []tasks.HealthCheckResult{
-				tasks.HealthCheckResult{
+			task.HealthCheckResults = []apps.HealthCheckResult{
+				apps.HealthCheckResult{
 					Alive: true,
 				},
 			}
@@ -45,7 +44,7 @@ func app(name string, instances int, consul bool, unhealthyInstances int) *apps.
 	}
 
 	return &apps.App{
-		ID:     tasks.AppId(name),
+		ID:     apps.AppId(name),
 		Tasks:  appTasks,
 		Labels: labels,
 	}

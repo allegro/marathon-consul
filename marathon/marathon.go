@@ -7,7 +7,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/metrics"
-	"github.com/allegro/marathon-consul/tasks"
 	"github.com/sethgrid/pester"
 	"io/ioutil"
 	"net/http"
@@ -17,8 +16,8 @@ import (
 
 type Marathoner interface {
 	Apps() ([]*apps.App, error)
-	App(tasks.AppId) (*apps.App, error)
-	Tasks(tasks.AppId) ([]*tasks.Task, error)
+	App(apps.AppId) (*apps.App, error)
+	Tasks(apps.AppId) ([]*apps.Task, error)
 	Leader() (string, error)
 }
 
@@ -53,7 +52,7 @@ func New(config Config) (*Marathon, error) {
 	}, nil
 }
 
-func (m Marathon) App(appId tasks.AppId) (*apps.App, error) {
+func (m Marathon) App(appId apps.AppId) (*apps.App, error) {
 	log.WithField("Location", m.Location).Debug("Asking Marathon for " + appId)
 
 	body, err := m.get(m.urlWithQuery(fmt.Sprintf("/v2/apps/%s", appId), "embed=apps.tasks"))
@@ -74,7 +73,7 @@ func (m Marathon) Apps() ([]*apps.App, error) {
 	return apps.ParseApps(body)
 }
 
-func (m Marathon) Tasks(app tasks.AppId) ([]*tasks.Task, error) {
+func (m Marathon) Tasks(app apps.AppId) ([]*apps.Task, error) {
 	log.WithFields(log.Fields{
 		"Location": m.Location,
 		"Id":       app,
@@ -86,7 +85,7 @@ func (m Marathon) Tasks(app tasks.AppId) ([]*tasks.Task, error) {
 		return nil, err
 	}
 
-	return tasks.ParseTasks(body)
+	return apps.ParseTasks(body)
 }
 
 func (m Marathon) Leader() (string, error) {
