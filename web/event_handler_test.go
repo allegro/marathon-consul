@@ -27,8 +27,7 @@ func TestForwardHandler_NotHandleUnknownEventType(t *testing.T) {
 	handler.Handle(recorder, req)
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "Cannot handle test_event\n", recorder.Body.String())
+	assert.Equal(t, 200, recorder.Code)
 }
 
 func TestForwardHandler_HandleRadderError(t *testing.T) {
@@ -492,9 +491,10 @@ func TestForwardHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := NewEventHandler(nil, nil)
-	ignoringTaskStatuses := []string{"TASK_STAGING", "TASK_STARTING", "TASK_RUNNING", "unknown"}
-	for _, taskStatus := range ignoringTaskStatuses {
+	services := consul.NewConsulStub()
+	handler := NewEventHandler(services, nil)
+	ignoredTaskStatuses := []string{"TASK_STAGING", "TASK_STARTING", "TASK_RUNNING", "unknown"}
+	for _, taskStatus := range ignoredTaskStatuses {
 		body := `{
 		  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
 		  "taskId":"python_simple.4a7e99d0-9cc1-11e5-b4d8-0a0027000004",
@@ -516,9 +516,8 @@ func TestForwardHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 		handler.Handle(recorder, req)
 
 		// then
-		assert.Equal(t, 400, recorder.Code)
-		assert.Equal(t, "Not Handling task python_simple.4a7e99d0-9cc1-11e5-b4d8-0a0027000004 with status "+taskStatus+"\n",
-			recorder.Body.String())
+		assert.Equal(t, 200, recorder.Code)
+		assert.Len(t, services.RegisteredServicesIds(), 0)
 	}
 }
 
@@ -597,8 +596,7 @@ func TestForwardHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testin
 		handler.Handle(recorder, req)
 
 		// then
-		assert.Equal(t, 400, recorder.Code)
-		assert.Equal(t, "No matching Consul services found\n", recorder.Body.String())
+		assert.Equal(t, 200, recorder.Code)
 	}
 }
 
@@ -619,8 +617,7 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *te
 	servicesIds := service.RegisteredServicesIds()
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "/test/app is not consul app. Missing consul label\n", recorder.Body.String())
+	assert.Equal(t, 200, recorder.Code)
 	assert.Len(t, servicesIds, 0)
 }
 
@@ -670,7 +667,7 @@ func TestForwardHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testi
 	assert.Len(t, servicesIds, 0)
 }
 
-func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNotAllHeathChecksPassed(t *testing.T) {
+func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNotAllHealthChecksPassed(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -688,8 +685,7 @@ func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNotAllHeathChecksPa
 	servicesIds := service.RegisteredServicesIds()
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "Task /test/app.1 is not healthy. Not registering\n", recorder.Body.String())
+	assert.Equal(t, 200, recorder.Code)
 	assert.Len(t, servicesIds, 0)
 }
 
@@ -711,8 +707,7 @@ func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *te
 	servicesIds := service.RegisteredServicesIds()
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "Task /test/app.0 is not healthy. Not registering\n", recorder.Body.String())
+	assert.Equal(t, 200, recorder.Code)
 	assert.Len(t, servicesIds, 0)
 }
 
@@ -720,7 +715,8 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.
 	t.Parallel()
 
 	// given
-	handler := NewEventHandler(nil, nil)
+	services := consul.NewConsulStub()
+	handler := NewEventHandler(services, nil)
 	body := `{
 	  "appId":"/test/app",
 	  "taskId":"/test/app.1",
@@ -736,8 +732,8 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.
 	handler.Handle(recorder, req)
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "Task /test/app.1 is not healthy. Not registering\n", recorder.Body.String())
+	assert.Equal(t, 200, recorder.Code)
+	assert.Len(t, services.RegisteredServicesIds(), 0)
 }
 
 func TestForwardHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T) {
