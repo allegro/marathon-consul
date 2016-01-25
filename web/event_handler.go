@@ -37,7 +37,7 @@ func (fh *EventHandler) handle(w http.ResponseWriter, r *http.Request) {
 		fh.handleBadRequest(err, w)
 		return
 	}
-	log.WithField("Body", string(body)).Debug("Received")
+	log.WithField("Body", string(body)).Debug("Received request")
 
 	eventType, err := events.EventType(body)
 	if err != nil {
@@ -59,7 +59,8 @@ func (fh *EventHandler) handle(w http.ResponseWriter, r *http.Request) {
 	case "deployment_step_success":
 		fh.handleDeploymentStepSuccess(w, body)
 	default:
-		fh.handleBadRequest(fmt.Errorf("Cannot handle %s", eventType), w)
+		log.WithField("EventType", eventType).Debug("Not handled event type")
+		fh.okResponse(w)
 	}
 
 	fh.markSuccess()
@@ -83,7 +84,7 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 	if !taskHealthChange.Alive {
 		err := fmt.Errorf("Task %s is not healthy. Not registering", taskHealthChange.ID)
 		log.WithField("Id", taskHealthChange.ID).WithError(err).Debug("Task is not healthy. Not registering")
-		fh.handleBadRequest(err, w)
+		fh.okResponse(w)
 		return
 	}
 
@@ -98,7 +99,7 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 	if !app.IsConsulApp() {
 		err = fmt.Errorf("%s is not consul app. Missing consul label", app.ID)
 		log.WithField("Id", taskHealthChange.ID).WithError(err).Debug("Skipping app registration in Consul")
-		fh.handleBadRequest(err, w)
+		fh.okResponse(w)
 		return
 	}
 
@@ -117,13 +118,12 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 			log.WithField("Id", task.ID).WithError(err).Error("There was a problem registering task")
 			fh.handleError(err, w)
 		} else {
-			w.WriteHeader(200)
-			fmt.Fprintln(w, "OK")
+			fh.okResponse(w)
 		}
 	} else {
 		err := fmt.Errorf("Task %s is not healthy. Not registering", task.ID)
 		log.WithField("Id", task.ID).WithError(err).Debug("Task is not healthy. Not registering")
-		fh.handleBadRequest(err, w)
+		fh.okResponse(w)
 	}
 }
 
@@ -169,8 +169,7 @@ func (fh *EventHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
 
 		if len(services) == 0 {
 			log.WithField("AppId", app.ID).WithField("ServiceName", serviceName).Info("No matching Consul services found")
-			w.WriteHeader(400)
-			fmt.Fprintln(w, "No matching Consul services found")
+			fh.okResponse(w)
 			return
 		}
 
@@ -182,15 +181,13 @@ func (fh *EventHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
 				}
 			}
 		}
-		w.WriteHeader(200)
-		fmt.Fprintln(w, "OK")
 	default:
 		log.WithFields(log.Fields{
 			"Id":         task.ID,
 			"taskStatus": task.TaskStatus,
-		}).Info("Not handling event")
-		fh.handleBadRequest(fmt.Errorf("Not Handling task %s with status %s", task.ID, task.TaskStatus), w)
+		}).Debug("Not handled task status")
 	}
+	fh.okResponse(w)
 }
 
 /*
@@ -205,8 +202,6 @@ func (fh *EventHandler) handleDeploymentInfo(w http.ResponseWriter, body []byte)
 		fh.handleBadRequest(err, w)
 		return
 	}
-
-	log.Info("Got DeploymentInfoEvent")
 
 	errors := []error{}
 	for _, app := range deploymentEvent.StoppedConsulApps() {
@@ -233,8 +228,6 @@ func (fh *EventHandler) handleDeploymentStepSuccess(w http.ResponseWriter, body 
 		fh.handleBadRequest(err, w)
 		return
 	}
-
-	log.Info("Got DeploymentStepSuccessEvent")
 
 	errors := []error{}
 	for _, app := range deploymentEvent.RenamedConsulApps() {
