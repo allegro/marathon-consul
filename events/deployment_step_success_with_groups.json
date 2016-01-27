@@ -1,0 +1,148 @@
+{
+  "plan": {
+    "id": "eaeaade6-f485-4271-9058-913a885efa27",
+    "original": {
+      "id": "/",
+      "apps": [],
+      "groups": [{
+        "id": "/com.example",
+        "apps": [],
+        "groups": [{
+          "id": "/com.example/things",
+          "apps": [{
+            "id": "/com.example/things/something",
+            "cmd": "python -m SimpleHTTPServer $PORT0",
+            "args": null,
+            "user": null,
+            "env": {},
+            "instances": 1,
+            "cpus": 0.1,
+            "mem": 16,
+            "disk": 0,
+            "executor": "",
+            "constraints": [],
+            "uris": [],
+            "storeUrls": [],
+            "ports": [10000],
+            "requirePorts": false,
+            "backoffSeconds": 1,
+            "backoffFactor": 1.15,
+            "maxLaunchDelaySeconds": 3600,
+            "container": null,
+            "healthChecks": [{
+              "path": "/",
+              "protocol": "HTTP",
+              "portIndex": 0,
+              "gracePeriodSeconds": 300,
+              "intervalSeconds": 60,
+              "timeoutSeconds": 20,
+              "maxConsecutiveFailures": 3,
+              "ignoreHttp1xx": false
+            }],
+            "dependencies": [],
+            "upgradeStrategy": {
+              "minimumHealthCapacity": 1,
+              "maximumOverCapacity": 1
+            },
+            "labels": {
+              "consul": "something"
+            },
+            "acceptedResourceRoles": null,
+            "ipAddress": null,
+            "version": "2016-01-27T08:36:36.016Z",
+            "versionInfo": {
+              "lastScalingAt": "2016-01-27T08:36:36.016Z",
+              "lastConfigChangeAt": "2016-01-27T08:36:36.016Z"
+            }
+          }],
+          "groups": [],
+          "dependencies": [],
+          "version": "2016-01-27T08:36:36.016Z"
+        }],
+        "dependencies": [],
+        "version": "2016-01-27T08:36:36.016Z"
+      }],
+      "dependencies": [],
+      "version": "2016-01-27T08:36:36.016Z"
+    },
+    "target": {
+      "id": "/",
+      "apps": [],
+      "groups": [{
+        "id": "/com.example",
+        "apps": [],
+        "groups": [{
+          "id": "/com.example/things",
+          "apps": [{
+            "id": "/com.example/things/something",
+            "cmd": "python -m SimpleHTTPServer $PORT0",
+            "args": null,
+            "user": null,
+            "env": {},
+            "instances": 1,
+            "cpus": 0.1,
+            "mem": 16,
+            "disk": 0,
+            "executor": "",
+            "constraints": [],
+            "uris": [],
+            "storeUrls": [],
+            "ports": [10000],
+            "requirePorts": false,
+            "backoffSeconds": 1,
+            "backoffFactor": 1.15,
+            "maxLaunchDelaySeconds": 3600,
+            "container": null,
+            "healthChecks": [{
+              "path": "/",
+              "protocol": "HTTP",
+              "portIndex": 0,
+              "gracePeriodSeconds": 300,
+              "intervalSeconds": 60,
+              "timeoutSeconds": 20,
+              "maxConsecutiveFailures": 3,
+              "ignoreHttp1xx": false
+            }],
+            "dependencies": [],
+            "upgradeStrategy": {
+              "minimumHealthCapacity": 1,
+              "maximumOverCapacity": 1
+            },
+            "labels": {
+              "consul": "somethingDifferent"
+            },
+            "acceptedResourceRoles": null,
+            "ipAddress": null,
+            "version": "2016-01-27T08:38:43.039Z",
+            "versionInfo": {
+              "lastScalingAt": "2016-01-27T08:38:43.039Z",
+              "lastConfigChangeAt": "2016-01-27T08:38:43.039Z"
+            }
+          }],
+          "groups": [],
+          "dependencies": [],
+          "version": "2016-01-27T08:38:43.039Z"
+        }],
+        "dependencies": [],
+        "version": "2016-01-27T08:38:43.039Z"
+      }],
+      "dependencies": [],
+      "version": "2016-01-27T08:38:43.039Z"
+    },
+    "steps": [{
+      "actions": [{
+        "type": "RestartApplication",
+        "app": "/com.example/things/something"
+      }]
+    }],
+    "version": "2016-01-27T08:38:43.039Z"
+  },
+  "currentStep": {
+    "actions": [{
+      "type": "RestartApplication",
+      "app": "/com.example/things/something"
+    }]
+  },
+  "eventType": "deployment_step_success",
+  "timestamp": "2016-01-27T08:39:43.235Z"
+}

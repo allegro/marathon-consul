@@ -95,6 +95,16 @@ Endpoint  | Description
 `/health` | healthcheck - returns `OK`
 `/events` | event sink - returns `OK` if all keys are set in an event, error message otherwise
 
+### Known limitations
+
+The following section describes known limitations with `marathon-consul`.
+
+* Every marathon application needs to have a unique service name in Consul.
+* In Marathon when a deployment changing the application's service name (by changing its `labels`) is being stopped, it changes app's configuration anyway.
+  This means we loose the link between the app and the services registered with the old name in Consul. 
+  Later on, if another deployment takes place, new services are registered with a new name, the old ones are not being deregistered though.
+  A scheduled sync is required to wipe them out.
+
 ## Code
 
 This project is based on
