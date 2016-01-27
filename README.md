@@ -73,6 +73,7 @@ consul-tag             | `marathon`            | Common tag name added to every 
 listen                 | `:4000`               | Accept connections at this address
 log-level              | `info`                | Log level: panic, fatal, error, warn, info, or debug
 log-format             | `text`                | Log format: JSON, text
+log-file               |                       | Save logs to file (e.g.: `/var/log/marathon-consul.log`). If empty logs are published to STDERR
 marathon-location      | `localhost:8080`      | Marathon URL
 marathon-password      |                       | Marathon password for basic auth
 marathon-protocol      | `http`                | Marathon protocol (http or https)

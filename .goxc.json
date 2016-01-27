@@ -16,8 +16,9 @@
 		},
 		"deb": {
 			"other-mapped-files": {
+				"/etc/marathon-consul.d/config.json": "debian/config.json",
 				"/etc/init/marathon-consul.conf": "debian/marathon-consul.upstart",
-				"/etc/marathon-consul.d/config.json": "debian/config.json"
+				"/etc/systemd/system/marathon-consul.service": "debian/marathon-consul.service"
 			}
 		},
 		"publish-github": {

@@ -9,6 +9,7 @@ import (
 	"github.com/allegro/marathon-consul/sync"
 	flag "github.com/ogier/pflag"
 	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 )
@@ -24,6 +25,7 @@ type Config struct {
 	Log      struct {
 		Level  string
 		Format string
+		File   string
 	}
 	configFile string
 }
@@ -41,9 +43,12 @@ func New() (*Config, error) {
 		return nil, err
 	}
 
+	err = config.setLogOutput()
+	if err != nil {
+		return nil, err
+	}
 	config.setLogFormat()
 	err = config.setLogLevel()
-
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +94,7 @@ func (config *Config) parseFlags() {
 	// Log
 	flag.StringVar(&config.Log.Level, "log-level", "info", "Log level: panic, fatal, error, warn, info, or debug")
 	flag.StringVar(&config.Log.Format, "log-format", "text", "Log format: JSON, text")
+	flag.StringVar(&config.Log.File, "log-file", "", "Save logs to file (e.g.: `/var/log/marathon-consul.log`). If empty logs are published to STDERR")
 
 	// General
 	flag.StringVar(&config.configFile, "config-file", "", "Path to a JSON file to read configuration from. Note: Will override options set earlier on the command line")
@@ -112,6 +118,24 @@ func (config *Config) setLogLevel() error {
 		return err
 	}
 	log.SetLevel(level)
+	return nil
+}
+
+func (config *Config) setLogOutput() error {
+	path := config.Log.File
+
+	if len(path) == 0 {
+		log.SetOutput(os.Stderr)
+		return nil
+	}
+
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.WithError(err).Errorf("error opening file: %s", path)
+		return err
+	}
+
+	log.SetOutput(f)
 	return nil
 }
 

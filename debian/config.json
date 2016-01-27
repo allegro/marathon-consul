@@ -37,6 +37,7 @@
   },
   "Log": {
     "Level": "info",
-    "Format": "text"
+    "Format": "text",
+    "File": ""
   }
 }

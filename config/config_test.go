@@ -110,9 +110,10 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			Prefix:   "default",
 			Interval: 30 * time.Second,
 			Addr:     ""},
-		Log: struct{ Level, Format string }{
+		Log: struct{ Level, Format, File string }{
 			Level:  "info",
 			Format: "text",
+			File:   "",
 		},
 		configFile: "../debian/config.json",
 	}
