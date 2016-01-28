@@ -14,8 +14,8 @@ func TestParseDeploymentInfo(t *testing.T) {
 
 	// when
 	deploymentInfo, err := ParseDeploymentEvent(blob)
-	action := deploymentInfo.Actions()[0]
-	app := deploymentInfo.OriginalApps()[0]
+	action := deploymentInfo.actions()[0]
+	app := deploymentInfo.originalDeployments().apps()[0]
 
 	// then
 	assert.NoError(t, err)
@@ -23,7 +23,6 @@ func TestParseDeploymentInfo(t *testing.T) {
 	assert.Equal(t, "/internalName", action.AppId.String())
 	assert.Equal(t, "/internalName", app.ID.String())
 	assert.Equal(t, "consulName", app.Labels["consul"])
-	assert.Equal(t, app, deploymentInfo.StoppedConsulApps()[0])
 }
 
 func TestParseDeploymentStepSuccess(t *testing.T) {
@@ -33,8 +32,8 @@ func TestParseDeploymentStepSuccess(t *testing.T) {
 
 	// when
 	deploymentInfo, err := ParseDeploymentEvent(blob)
-	action := deploymentInfo.Actions()[0]
-	app := deploymentInfo.OriginalApps()[1]
+	action := deploymentInfo.actions()[0]
+	app := deploymentInfo.RestartedConsulApps()[0]
 
 	// then
 	assert.NoError(t, err)
@@ -42,31 +41,48 @@ func TestParseDeploymentStepSuccess(t *testing.T) {
 	assert.Equal(t, "/a", action.AppId.String())
 	assert.Equal(t, "/a", app.ID.String())
 	assert.Equal(t, "b", app.Labels["consul"])
-	assert.Equal(t, app, deploymentInfo.RestartedConsulApps()[0])
 }
 
-func TestOriginalApps_OnEmpty(t *testing.T) {
+func TestParseDeploymentStepSuccessWithGroups(t *testing.T) {
+	t.Parallel()
+	// given
+	blob, _ := ioutil.ReadFile("deployment_step_success_with_groups.json")
+
+	// when
+	deploymentInfo, err := ParseDeploymentEvent(blob)
+	action := deploymentInfo.actions()[0]
+	app := deploymentInfo.RestartedConsulApps()[0]
+
+	// then
+	assert.NoError(t, err)
+	assert.Equal(t, "RestartApplication", action.Type)
+	assert.Equal(t, "/com.example/things/something", action.AppId.String())
+	assert.Equal(t, "/com.example/things/something", app.ID.String())
+	assert.Equal(t, "something", app.Labels["consul"])
+}
+
+func TestOriginalDeployments_OnEmpty(t *testing.T) {
 	t.Parallel()
 	// given
 	deploymentInfo := &DeploymentEvent{}
 
 	// when
-	apps := deploymentInfo.OriginalApps()
+	deployments := deploymentInfo.originalDeployments()
 
 	// then
-	assert.Len(t, apps, 0)
+	assert.NotNil(t, deployments)
 }
 
-func TestTargetApps_OnEmpty(t *testing.T) {
+func TestTargetDeployments_OnEmpty(t *testing.T) {
 	t.Parallel()
 	// given
 	deploymentInfo := &DeploymentEvent{}
 
 	// when
-	apps := deploymentInfo.TargetApps()
+	deployments := deploymentInfo.targetDeployments()
 
 	// then
-	assert.Len(t, apps, 0)
+	assert.NotNil(t, deployments)
 }
 
 func TestActions_OnEmpty(t *testing.T) {
@@ -75,7 +91,7 @@ func TestActions_OnEmpty(t *testing.T) {
 	deploymentInfo := &DeploymentEvent{}
 
 	// when
-	actions := deploymentInfo.Actions()
+	actions := deploymentInfo.actions()
 
 	// then
 	assert.Len(t, actions, 0)
@@ -110,8 +126,8 @@ func TestStoppedConsulApps(t *testing.T) {
 
 	// then
 	assert.Len(t, stoppedApps, 2)
-	assert.Contains(t, stoppedApps, deploymentInfo.OriginalApps()[1])
-	assert.Contains(t, stoppedApps, deploymentInfo.OriginalApps()[2])
+	assert.Contains(t, stoppedApps, deploymentInfo.originalDeployments().apps()[1])
+	assert.Contains(t, stoppedApps, deploymentInfo.originalDeployments().apps()[2])
 }
 
 func TestRestartedConsulApps(t *testing.T) {
@@ -143,8 +159,8 @@ func TestRestartedConsulApps(t *testing.T) {
 
 	// then
 	assert.Len(t, restartedApps, 2)
-	assert.Contains(t, restartedApps, deploymentInfo.OriginalApps()[1])
-	assert.Contains(t, restartedApps, deploymentInfo.OriginalApps()[2])
+	assert.Contains(t, restartedApps, deploymentInfo.originalDeployments().apps()[1])
+	assert.Contains(t, restartedApps, deploymentInfo.originalDeployments().apps()[2])
 }
 
 func TestStoppedConsulApps_NoStoppedApps(t *testing.T) {
@@ -218,7 +234,7 @@ func TestRenamedConsulApps(t *testing.T) {
 
 	// then
 	assert.Len(t, renamedApps, 1)
-	assert.Contains(t, renamedApps, deploymentInfo.OriginalApps()[2])
+	assert.Contains(t, renamedApps, deploymentInfo.originalDeployments().apps()[2])
 }
 
 func TestRenamedConsulApps_OnEmptyPlan(t *testing.T) {
@@ -305,7 +321,7 @@ func TestRenamedConsulApps_OnCustomNameAdded(t *testing.T) {
 
 	// then
 	assert.Len(t, renamedApps, 1)
-	assert.Contains(t, renamedApps, deploymentInfo.OriginalApps()[0])
+	assert.Contains(t, renamedApps, deploymentInfo.originalDeployments().apps()[0])
 }
 
 func TestRenamedConsulApps_OnCustomNameAddedToNonConsulApp(t *testing.T) {
@@ -372,5 +388,5 @@ func TestRenamedConsulApps_OnConsulLabelRemoved(t *testing.T) {
 
 	// then
 	assert.Len(t, renamedApps, 1)
-	assert.Contains(t, renamedApps, deploymentInfo.OriginalApps()[0])
+	assert.Contains(t, renamedApps, deploymentInfo.originalDeployments().apps()[0])
 }

@@ -3,6 +3,7 @@ package events
 import (
 	"encoding/json"
 	"github.com/allegro/marathon-consul/apps"
+	"strings"
 )
 
 type DeploymentEvent struct {
@@ -17,7 +18,9 @@ type Plan struct {
 }
 
 type Deployments struct {
-	Apps []*apps.App `json:"apps"`
+	Id     string         `json:"id"`
+	Apps   []*apps.App    `json:"apps"`
+	Groups []*Deployments `json:"groups"`
 }
 
 type CurrentStep struct {
@@ -29,29 +32,39 @@ type Action struct {
 	AppId apps.AppId `json:"app"`
 }
 
-func (d *DeploymentEvent) OriginalApps() []*apps.App {
+func (d *Deployments) groups() []*Deployments {
+	if d.Groups != nil {
+		return d.Groups
+	}
+	return []*Deployments{}
+}
+
+func (d *Deployments) apps() []*apps.App {
+	if d.Apps != nil {
+		return d.Apps
+	}
+	return []*apps.App{}
+}
+
+func (d *DeploymentEvent) originalDeployments() *Deployments {
 	if d.Plan != nil {
 		if d.Plan.Original != nil {
-			if d.Plan.Original.Apps != nil {
-				return d.Plan.Original.Apps
-			}
+			return d.Plan.Original
 		}
 	}
-	return []*apps.App{}
+	return &Deployments{}
 }
 
-func (d *DeploymentEvent) TargetApps() []*apps.App {
+func (d *DeploymentEvent) targetDeployments() *Deployments {
 	if d.Plan != nil {
 		if d.Plan.Target != nil {
-			if d.Plan.Target.Apps != nil {
-				return d.Plan.Target.Apps
-			}
+			return d.Plan.Target
 		}
 	}
-	return []*apps.App{}
+	return &Deployments{}
 }
 
-func (d *DeploymentEvent) Actions() []*Action {
+func (d *DeploymentEvent) actions() []*Action {
 	if d.CurrentStep != nil {
 		if d.CurrentStep.Actions != nil {
 			return d.CurrentStep.Actions
@@ -61,19 +74,19 @@ func (d *DeploymentEvent) Actions() []*Action {
 }
 
 func (d *DeploymentEvent) StoppedConsulApps() []*apps.App {
-	return d.consulAppsWithActionPerformed(d.OriginalApps(), "StopApplication")
+	return d.consulAppsWithActionPerformed(d.originalDeployments(), "StopApplication")
 }
 
 func (d *DeploymentEvent) RestartedConsulApps() []*apps.App {
-	return d.consulAppsWithActionPerformed(d.OriginalApps(), "RestartApplication")
+	return d.consulAppsWithActionPerformed(d.originalDeployments(), "RestartApplication")
 }
 
 func (d *DeploymentEvent) RenamedConsulApps() []*apps.App {
-	original := d.consulAppsWithActionPerformed(d.OriginalApps(), "RestartApplication")
+	original := d.consulAppsWithActionPerformed(d.originalDeployments(), "RestartApplication")
 	renamedApps := []*apps.App{}
 	if len(original) > 0 {
 
-		target := d.consulAppsWithActionPerformed(d.TargetApps(), "RestartApplication")
+		target := d.consulAppsWithActionPerformed(d.targetDeployments(), "RestartApplication")
 		originalMap := d.appsMap(original)
 		targetMap := d.appsMap(target)
 		for id, originalApp := range originalMap {
@@ -94,25 +107,87 @@ func (d *DeploymentEvent) appsMap(applications []*apps.App) map[apps.AppId]*apps
 	return result
 }
 
-func (d *DeploymentEvent) consulAppsWithActionPerformed(allApps []*apps.App, actionType string) []*apps.App {
-	foundApps := []*apps.App{}
-	foundAppIdSet := make(map[apps.AppId]struct{})
+func (d *DeploymentEvent) consulAppsWithActionPerformed(deployments *Deployments, actionType string) []*apps.App {
+	appIds := make(map[apps.AppId]struct{})
 	var exists struct{}
 
-	for _, action := range d.Actions() {
+	for _, action := range d.actions() {
 		if action.Type == actionType {
-			foundAppIdSet[action.AppId] = exists
+			appIds[action.AppId] = exists
 		}
 	}
+	return d.filterConsulApps(d.findAppsInDeploymentsGroup(appIds, deployments))
+}
 
-	if len(foundAppIdSet) > 0 {
-		for _, app := range allApps {
-			if _, ok := foundAppIdSet[app.ID]; ok && app.IsConsulApp() {
-				foundApps = append(foundApps, app)
-			}
+func (d *DeploymentEvent) filterConsulApps(allApps []*apps.App) []*apps.App {
+	filtered := []*apps.App{}
+	for _, app := range allApps {
+		if app.IsConsulApp() {
+			filtered = append(filtered, app)
+		}
+	}
+	return filtered
+}
+
+func (d *DeploymentEvent) findAppsInDeploymentsGroup(appIds map[apps.AppId]struct{}, deployment *Deployments) []*apps.App {
+	foundApps := []*apps.App{}
+	filteredAppIds := deployment.filterCurrentGroupAppIds(appIds)
+
+	foundInCurrentGroup := d.findAppsInCurrentDeploymentGroupApps(filteredAppIds, deployment)
+	for _, app := range foundInCurrentGroup {
+		foundApps = append(foundApps, app)
+	}
+
+	foundInChildGroups := d.findAppsInDeploymentChildGroups(filteredAppIds, deployment)
+	for _, app := range foundInChildGroups {
+		foundApps = append(foundApps, app)
+	}
+	return foundApps
+}
+
+func (d *DeploymentEvent) findAppsInCurrentDeploymentGroupApps(appIds map[apps.AppId]struct{}, deployment *Deployments) []*apps.App {
+	foundApps := []*apps.App{}
+	searchForCount := len(appIds)
+
+	for _, app := range deployment.apps() {
+		if searchForCount < 1 {
+			break
+		}
+		if _, ok := appIds[app.ID]; ok {
+			foundApps = append(foundApps, app)
+			searchForCount--
 		}
 	}
 	return foundApps
+}
+
+func (d *DeploymentEvent) findAppsInDeploymentChildGroups(appIds map[apps.AppId]struct{}, deployment *Deployments) []*apps.App {
+	foundApps := []*apps.App{}
+	searchForCount := len(appIds)
+
+	for _, group := range deployment.groups() {
+		if searchForCount < 1 {
+			break
+		}
+		foundInChildGroup := d.findAppsInDeploymentsGroup(appIds, group)
+		for _, app := range foundInChildGroup {
+			foundApps = append(foundApps, app)
+		}
+		searchForCount -= len(foundInChildGroup)
+	}
+	return foundApps
+}
+
+func (d *Deployments) filterCurrentGroupAppIds(appIds map[apps.AppId]struct{}) map[apps.AppId]struct{} {
+	filteredAppIds := make(map[apps.AppId]struct{})
+	var exists struct{}
+
+	for appId, _ := range appIds {
+		if strings.HasPrefix(appId.String(), d.Id) {
+			filteredAppIds[appId] = exists
+		}
+	}
+	return filteredAppIds
 }
 
 func ParseDeploymentEvent(jsonBlob []byte) (*DeploymentEvent, error) {
