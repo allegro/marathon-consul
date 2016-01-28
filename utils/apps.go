@@ -24,7 +24,7 @@ func app(name string, instances int, consul bool, unhealthyInstances int) *apps.
 			AppID: apps.AppId(name),
 			ID:    apps.TaskId(fmt.Sprintf("%s.%d", name, i)),
 			Ports: []int{8080 + i},
-			Host:  "",
+			Host:  "localhost",
 		}
 		if unhealthyInstances > 0 {
 			unhealthyInstances--

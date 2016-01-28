@@ -7,7 +7,6 @@ import (
 	"github.com/allegro/marathon-consul/metrics"
 	consulapi "github.com/hashicorp/consul/api"
 	"net/url"
-	"strconv"
 )
 
 type ConsulServices interface {
@@ -96,8 +95,10 @@ func contains(slice []string, search string) bool {
 }
 
 func (c *Consul) Register(task *apps.Task, app *apps.App) error {
-	var err error
-	service := c.marathonTaskToConsulService(task, app)
+	service, err := c.marathonTaskToConsulService(task, app)
+	if err != nil {
+		return err
+	}
 	if value, ok := app.Labels["consul"]; ok && value == "true" {
 		log.WithField("Id", app.ID).Warn("Warning! Application configuration is deprecated (labeled as `consul:true`). Support for special `true` value will be removed in the future!")
 	}
@@ -161,25 +162,31 @@ func (c *Consul) GetAgent(agentAddress string) (*consulapi.Client, error) {
 	return c.agents.GetAgent(agentAddress)
 }
 
-func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) *consulapi.AgentServiceRegistration {
+func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*consulapi.AgentServiceRegistration, error) {
+	IP, err := task.HostToIPv4()
+	if err != nil {
+		return nil, err
+	}
+	serviceAddress := IP.String()
+
 	return &consulapi.AgentServiceRegistration{
 		ID:      task.ID.String(),
 		Name:    app.ConsulServiceName(),
 		Port:    task.Ports[0],
-		Address: task.Host,
+		Address: serviceAddress,
 		Tags:    c.marathonLabelsToConsulTags(app.Labels),
-		Check:   c.marathonToConsulCheck(task, app.HealthChecks),
-	}
+		Check:   c.marathonToConsulCheck(task, app.HealthChecks, serviceAddress),
+	}, nil
 }
 
-func (c *Consul) marathonToConsulCheck(task *apps.Task, healthChecks []apps.HealthCheck) *consulapi.AgentServiceCheck {
+func (c *Consul) marathonToConsulCheck(task *apps.Task, healthChecks []apps.HealthCheck, serviceAddress string) *consulapi.AgentServiceCheck {
 	//	TODO: Handle all types of checks
 	for _, check := range healthChecks {
 		if check.Protocol == "HTTP" {
 			return &consulapi.AgentServiceCheck{
 				HTTP: (&url.URL{
 					Scheme: "http",
-					Host:   task.Host + ":" + strconv.Itoa(task.Ports[check.PortIndex]),
+					Host:   fmt.Sprintf("%s:%d", serviceAddress, task.Ports[check.PortIndex]),
 					Path:   check.Path,
 				}).String(),
 				Interval: fmt.Sprintf("%ds", check.IntervalSeconds),

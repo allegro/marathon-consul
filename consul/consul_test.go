@@ -359,9 +359,10 @@ func TestMarathonTaskToConsulServiceMapping_WithNoHttpChecks(t *testing.T) {
 	}
 
 	// when
-	service := consul.marathonTaskToConsulService(task, app)
+	service, err := consul.marathonTaskToConsulService(task, app)
 
 	// then
+	assert.NoError(t, err)
 	assert.Equal(t, "127.0.0.6", service.Address)
 	assert.Equal(t, 8090, service.Port)
 	assert.Nil(t, service.Check)
@@ -398,9 +399,10 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 	}
 
 	// when
-	service := consul.marathonTaskToConsulService(task, app)
+	service, err := consul.marathonTaskToConsulService(task, app)
 
 	// then
+	assert.NoError(t, err)
 	assert.Equal(t, "127.0.0.6", service.Address)
 	assert.Equal(t, []string{"marathon", "public"}, service.Tags)
 	assert.Equal(t, 8090, service.Port)
@@ -408,4 +410,40 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 	assert.Empty(t, service.Checks)
 	assert.Equal(t, "http://127.0.0.6:8090/api/health", service.Check.HTTP)
 	assert.Equal(t, "60s", service.Check.Interval)
+}
+
+func TestMarathonTaskToConsulServiceMapping_NotResolvableTaskHost(t *testing.T) {
+	t.Parallel()
+
+	// given
+	consul := New(ConsulConfig{Tag: "marathon"})
+	app := &apps.App{
+		ID: "someApp",
+		HealthChecks: []apps.HealthCheck{
+			apps.HealthCheck{
+				Path:                   "/api/health",
+				Protocol:               "HTTP",
+				PortIndex:              0,
+				IntervalSeconds:        60,
+				TimeoutSeconds:         20,
+				MaxConsecutiveFailures: 3,
+			},
+		},
+		Labels: map[string]string{
+			"consul": "true",
+			"public": "tag",
+		},
+	}
+	task := &apps.Task{
+		ID:    "someTask",
+		AppID: app.ID,
+		Host:  "invalid.localhost",
+		Ports: []int{8090, 8443},
+	}
+
+	// when
+	_, err := consul.marathonTaskToConsulService(task, app)
+
+	// then
+	assert.Error(t, err)
 }
