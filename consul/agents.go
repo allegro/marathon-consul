@@ -85,6 +85,9 @@ func (a *ConcurrentAgents) createAgent(host string) (*consulapi.Client, error) {
 		config.Scheme = "https"
 	}
 
+	log.Debugf("Setting timeout to %s", a.config.Timeout.String())
+	config.HttpClient.Timeout = a.config.Timeout
+
 	if !a.config.SslVerify {
 		log.Debugf("Disabled SSL verification")
 		config.HttpClient.Transport = &http.Transport{
