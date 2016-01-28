@@ -64,7 +64,11 @@ func (c *ConsulStub) Register(task *apps.Task, app *apps.App) error {
 	if err, ok := c.ErrorServices[task.ID]; ok {
 		return err
 	} else {
-		c.services[task.ID] = c.consul.marathonTaskToConsulService(task, app)
+		service, err := c.consul.marathonTaskToConsulService(task, app)
+		if err != nil {
+			return err
+		}
+		c.services[task.ID] = service
 		return nil
 	}
 }

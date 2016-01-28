@@ -15,13 +15,13 @@ func TestConsulApp(t *testing.T) {
 		Tasks: []apps.Task{apps.Task{ID: "name.0",
 			TaskStatus:         "",
 			AppID:              "name",
-			Host:               "",
+			Host:               "localhost",
 			Ports:              []int{8080},
 			HealthCheckResults: []apps.HealthCheckResult{apps.HealthCheckResult{Alive: true}}},
 			apps.Task{ID: "name.1",
 				TaskStatus:         "",
 				AppID:              "name",
-				Host:               "",
+				Host:               "localhost",
 				Ports:              []int{8081},
 				HealthCheckResults: []apps.HealthCheckResult{apps.HealthCheckResult{Alive: true}}}}}
 
@@ -37,13 +37,13 @@ func TestNonConsulApp(t *testing.T) {
 		Tasks: []apps.Task{apps.Task{ID: "name.0",
 			TaskStatus:         "",
 			AppID:              "name",
-			Host:               "",
+			Host:               "localhost",
 			Ports:              []int{8080},
 			HealthCheckResults: []apps.HealthCheckResult{apps.HealthCheckResult{Alive: true}}},
 			apps.Task{ID: "name.1",
 				TaskStatus:         "",
 				AppID:              "name",
-				Host:               "",
+				Host:               "localhost",
 				Ports:              []int{8081},
 				HealthCheckResults: []apps.HealthCheckResult{apps.HealthCheckResult{Alive: true}}}}}
 
@@ -59,13 +59,13 @@ func TestConsulAppWithUnhelathyInstancesgreaterThanInstances(t *testing.T) {
 		Tasks: []apps.Task{apps.Task{ID: "name.0",
 			TaskStatus:         "",
 			AppID:              "name",
-			Host:               "",
+			Host:               "localhost",
 			Ports:              []int{8080},
 			HealthCheckResults: nil},
 			apps.Task{ID: "name.1",
 				TaskStatus:         "",
 				AppID:              "name",
-				Host:               "",
+				Host:               "localhost",
 				Ports:              []int{8081},
 				HealthCheckResults: nil}}}
 
@@ -81,13 +81,13 @@ func TestConsulAppWithUnhelathyInstances(t *testing.T) {
 		Tasks: []apps.Task{apps.Task{ID: "name.0",
 			TaskStatus:         "",
 			AppID:              "name",
-			Host:               "",
+			Host:               "localhost",
 			Ports:              []int{8080},
 			HealthCheckResults: nil},
 			apps.Task{ID: "name.1",
 				TaskStatus:         "",
 				AppID:              "name",
-				Host:               "",
+				Host:               "localhost",
 				Ports:              []int{8081},
 				HealthCheckResults: []apps.HealthCheckResult{apps.HealthCheckResult{Alive: true}}}}}
 

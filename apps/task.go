@@ -2,6 +2,8 @@ package apps
 
 import (
 	"encoding/json"
+	"net"
+	"fmt"
 )
 
 type Task struct {
@@ -51,4 +53,17 @@ func (t *Task) IsHealthy() bool {
 		register = register && healthCheckResult.Alive
 	}
 	return register
+}
+
+func (t *Task) HostToIPv4() (net.IP, error) {
+	IPs, err := net.LookupIP(t.Host)
+	if err != nil {
+		return nil, err
+	}
+	for _, IP := range IPs {
+		if IP.To4() != nil {
+			return IP, nil
+		}
+	}
+	return nil, fmt.Errorf("Could not resolve host to IPv4")
 }
