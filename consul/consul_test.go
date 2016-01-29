@@ -5,6 +5,7 @@ import (
 	"github.com/allegro/marathon-consul/utils"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 func TestGetAgent_WithEmptyHost(t *testing.T) {
@@ -23,7 +24,7 @@ func TestGetAgent_FullConfig(t *testing.T) {
 
 	// given
 	agents := NewAgents(&ConsulConfig{Token: "token", SslEnabled: true,
-		Auth: Auth{Enabled: true, Username: "", Password: ""}})
+		Auth: Auth{Enabled: true, Username: "", Password: ""}, Timeout: time.Second})
 
 	// when
 	agent, err := agents.GetAgent("host")

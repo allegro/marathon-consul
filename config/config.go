@@ -68,6 +68,7 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Consul.SslCaCert, "consul-ssl-ca-cert", "", "Path to a CA certificate file, containing one or more CA certificates to use to validate the certificate sent by the Consul server to us")
 	flag.StringVar(&config.Consul.Token, "consul-token", "", "The Consul ACL token")
 	flag.StringVar(&config.Consul.Tag, "consul-tag", "marathon", "Common tag name added to every service registered in Consul, should be unique for every Marathon-cluster connected to Consul")
+	flag.DurationVar(&config.Consul.Timeout, "consul-timeout", time.Second, "Time limit for requests made by the Consul HTTP client. A Timeout of zero means no timeout")
 
 	// Web
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "accept connections at this address")

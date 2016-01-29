@@ -1,5 +1,7 @@
 package consul
 
+import "time"
+
 type ConsulConfig struct {
 	Auth       Auth
 	Port       string
@@ -9,6 +11,7 @@ type ConsulConfig struct {
 	SslCaCert  string
 	Token      string
 	Tag        string
+	Timeout    time.Duration
 }
 
 type Auth struct {

@@ -70,6 +70,7 @@ consul-ssl-cert        |                       | Path to an SSL client certifica
 consul-ssl-verify      | `true`                | Verify certificates when connecting via SSL
 consul-token           |                       | The Consul ACL token
 consul-tag             | `marathon`            | Common tag name added to every service registered in Consul, should be unique for every Marathon-cluster connected to Consul
+consul-timeout         | `1s`                  | Time limit for requests made by the Consul HTTP client. A Timeout of zero means no timeout
 listen                 | `:4000`               | Accept connections at this address
 log-level              | `info`                | Log level: panic, fatal, error, warn, info, or debug
 log-format             | `text`                | Log format: JSON, text
