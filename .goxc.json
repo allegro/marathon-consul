@@ -4,7 +4,7 @@
 		"default"
 	],
 	"BuildConstraints": "linux,!arm darwin",
-	"PackageVersion": "0.3.3",
+	"PackageVersion": "0.3.4",
 	"TaskSettings": {
 		"bintray": {
 			"downloadspage": "bintray.md",
@@ -16,8 +16,8 @@
 		},
 		"deb": {
 			"other-mapped-files": {
-				"/etc/marathon-consul.d/config.json": "debian/config.json",
 				"/etc/init/marathon-consul.conf": "debian/marathon-consul.upstart",
+				"/etc/marathon-consul.d/config.json": "debian/config.json",
 				"/etc/systemd/system/marathon-consul.service": "debian/marathon-consul.service"
 			}
 		},
