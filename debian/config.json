@@ -12,7 +12,7 @@
     "SslCaCert": "",
     "Token": "",
     "Tag": "marathon",
-    "Timeout": 1000000000
+    "Timeout": 3000000000
   },
   "Web": {
     "Listen": ":4000"
@@ -28,7 +28,8 @@
     "Protocol": "http",
     "Username": "",
     "Password": "",
-    "VerifySsl": true
+    "VerifySsl": true,
+    "Timeout": 30000000000
   },
   "Metrics": {
     "Target": "stdout",

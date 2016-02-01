@@ -17,7 +17,7 @@ func TestMarathon_AppsWhenMarathonReturnEmptyList(t *testing.T) {
 
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 	// when
 	apps, err := m.Apps()
 	//then
@@ -50,7 +50,7 @@ func TestMarathon_AppsWhenServerIsNotResponding(t *testing.T) {
 	assert.Nil(t, apps)
 }
 
-func TestMarathon_AppsWhenMarathonConnectionFailedShouldRetry(t *testing.T) {
+func TestMarathon_AppsWhenMarathonConnectionFailedShouldNotRetry(t *testing.T) {
 	t.Parallel()
 	// given
 	calls := 0
@@ -62,16 +62,16 @@ func TestMarathon_AppsWhenMarathonConnectionFailedShouldRetry(t *testing.T) {
 
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 	// when
 	apps, err := m.Apps()
 	//then
 	assert.Error(t, err)
 	assert.Empty(t, apps)
-	assert.Equal(t, 3, calls)
+	assert.Equal(t, 1, calls)
 }
 
-func TestMarathon_TasksWhenMarathonConnectionFailedShouldRetry(t *testing.T) {
+func TestMarathon_TasksWhenMarathonConnectionFailedShouldNotRetry(t *testing.T) {
 	t.Parallel()
 	// given
 	calls := 0
@@ -83,16 +83,16 @@ func TestMarathon_TasksWhenMarathonConnectionFailedShouldRetry(t *testing.T) {
 
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 	// when
 	tasks, err := m.Tasks("/app/id")
 	//then
 	assert.Error(t, err)
 	assert.Empty(t, tasks)
-	assert.Equal(t, 3, calls)
+	assert.Equal(t, 1, calls)
 }
 
-func TestMarathon_AppWhenMarathonConnectionFailedShouldRetry(t *testing.T) {
+func TestMarathon_AppWhenMarathonConnectionFailedShouldNotRetry(t *testing.T) {
 	t.Parallel()
 	// given
 	calls := 0
@@ -104,13 +104,13 @@ func TestMarathon_AppWhenMarathonConnectionFailedShouldRetry(t *testing.T) {
 
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 	// when
 	app, err := m.App("/app/id")
 	//then
 	assert.Error(t, err)
 	assert.Nil(t, app)
-	assert.Equal(t, 3, calls)
+	assert.Equal(t, 1, calls)
 }
 
 func TestMarathon_AppsWhenMarathonReturnEmptyResponse(t *testing.T) {
@@ -121,7 +121,7 @@ func TestMarathon_AppsWhenMarathonReturnEmptyResponse(t *testing.T) {
 
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 	// when
 	apps, err := m.Apps()
 	//then
@@ -137,7 +137,7 @@ func TestMarathon_AppsWhenMarathonReturnMalformedJsonResponse(t *testing.T) {
 
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 	// when
 	app, err := m.App("/test/app")
 	//then
@@ -153,7 +153,7 @@ func TestMarathon_AppWhenMarathonReturnEmptyApp(t *testing.T) {
 
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 	// when
 	app, err := m.App("/test/app")
 	//then
@@ -169,7 +169,7 @@ func TestMarathon_AppWhenMarathonReturnEmptyResponse(t *testing.T) {
 
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 	// when
 	app, err := m.App("/test/app")
 	//then
@@ -185,7 +185,7 @@ func TestMarathon_AppWhenMarathonReturnMalformedJsonResponse(t *testing.T) {
 
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 	// when
 	apps, err := m.Apps()
 	//then
@@ -207,7 +207,7 @@ func TestMarathon_TasksWhenMarathonReturnEmptyList(t *testing.T) {
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 	// when
 	tasks, err := m.Tasks("//test/app")
 	//then
@@ -222,7 +222,7 @@ func TestMarathon_TasksWhenMarathonReturnEmptyResponse(t *testing.T) {
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 	// when
 	tasks, err := m.Tasks("/test/app")
 	//then
@@ -237,7 +237,7 @@ func TestMarathon_TasksWhenMarathonReturnMalformedJsonResponse(t *testing.T) {
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 	// when
 	tasks, err := m.Tasks("/test/app")
 	//then
@@ -252,7 +252,7 @@ func TestConfig_transport(t *testing.T) {
 	// when
 	marathon, _ := New(config)
 	// then
-	transport, ok := marathon.transport.(*http.Transport)
+	transport, ok := marathon.client.Transport.(*http.Transport)
 	assert.True(t, ok)
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 }
@@ -285,7 +285,7 @@ func TestLeader_SuccessfulResponse(t *testing.T) {
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 
 	// when
 	leader, err := m.Leader()
@@ -303,7 +303,7 @@ func TestLeader_ErrorOnMalformedJsonResponse(t *testing.T) {
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 
 	// when
 	leader, err := m.Leader()
@@ -313,7 +313,7 @@ func TestLeader_ErrorOnMalformedJsonResponse(t *testing.T) {
 	assert.Empty(t, leader)
 }
 
-func TestLeader_RetryOnFailingResponse(t *testing.T) {
+func TestLeader_NotRetryOnFailingResponse(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -325,14 +325,14 @@ func TestLeader_RetryOnFailingResponse(t *testing.T) {
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
-	m.transport = transport
+	m.client.Transport = transport
 
 	// when
 	leader, err := m.Leader()
 
 	//then
 	assert.Error(t, err)
-	assert.Equal(t, 3, calls)
+	assert.Equal(t, 1, calls)
 	assert.Empty(t, leader)
 }
 

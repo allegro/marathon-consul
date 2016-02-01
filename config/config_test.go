@@ -94,7 +94,7 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			SslCaCert:  "",
 			Token:      "",
 			Tag:        "marathon",
-			Timeout:    1 * time.Second,
+			Timeout:    3 * time.Second,
 		},
 		Web: struct{ Listen string }{Listen: ":4000"},
 		Sync: sync.Config{
@@ -107,7 +107,8 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			Protocol:  "http",
 			Username:  "",
 			Password:  "",
-			VerifySsl: true},
+			VerifySsl: true,
+			Timeout:   30 * time.Second},
 		Metrics: metrics.Config{Target: "stdout",
 			Prefix:   "default",
 			Interval: 30 * time.Second,
