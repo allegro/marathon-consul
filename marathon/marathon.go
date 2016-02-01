@@ -7,7 +7,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/metrics"
-	"github.com/sethgrid/pester"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -22,10 +21,10 @@ type Marathoner interface {
 }
 
 type Marathon struct {
-	Location  string
-	Protocol  string
-	Auth      *url.Userinfo
-	transport http.RoundTripper
+	Location string
+	Protocol string
+	Auth     *url.Userinfo
+	client   *http.Client
 }
 
 type LeaderResponse struct {
@@ -39,15 +38,19 @@ func New(config Config) (*Marathon, error) {
 	} else {
 		auth = url.UserPassword(config.Username, config.Password)
 	}
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: !config.VerifySsl,
+		},
+	}
 	return &Marathon{
 		Location: config.Location,
 		Protocol: config.Protocol,
 		Auth:     auth,
-		transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: !config.VerifySsl,
-			},
+		client: &http.Client{
+			Transport: transport,
+			Timeout:   config.Timeout,
 		},
 	}, nil
 }
@@ -103,7 +106,6 @@ func (m Marathon) Leader() (string, error) {
 }
 
 func (m Marathon) get(url string) ([]byte, error) {
-	client := m.getClient()
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Error(err.Error())
@@ -118,7 +120,7 @@ func (m Marathon) get(url string) ([]byte, error) {
 	}).Debug("Sending GET request to marathon")
 
 	var response *http.Response
-	metrics.Time("marathon.get", func() { response, err = client.Do(request) })
+	metrics.Time("marathon.get", func() { response, err = m.client.Do(request) })
 	if err != nil {
 		metrics.Mark("marathon.get.error")
 		m.logHTTPError(response, err)
@@ -162,10 +164,4 @@ func (m Marathon) urlWithQuery(path string, query string) string {
 		RawQuery: query,
 	}
 	return marathon.String()
-}
-
-func (m Marathon) getClient() *pester.Client {
-	client := pester.New()
-	client.Transport = m.transport
-	return client
 }

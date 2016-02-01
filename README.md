@@ -70,7 +70,7 @@ consul-ssl-cert        |                       | Path to an SSL client certifica
 consul-ssl-verify      | `true`                | Verify certificates when connecting via SSL
 consul-token           |                       | The Consul ACL token
 consul-tag             | `marathon`            | Common tag name added to every service registered in Consul, should be unique for every Marathon-cluster connected to Consul
-consul-timeout         | `1s`                  | Time limit for requests made by the Consul HTTP client. A Timeout of zero means no timeout
+consul-timeout         | `3s`                  | Time limit for requests made by the Consul HTTP client. A Timeout of zero means no timeout
 listen                 | `:4000`               | Accept connections at this address
 log-level              | `info`                | Log level: panic, fatal, error, warn, info, or debug
 log-format             | `text`                | Log format: JSON, text
@@ -79,6 +79,7 @@ marathon-location      | `localhost:8080`      | Marathon URL
 marathon-password      |                       | Marathon password for basic auth
 marathon-protocol      | `http`                | Marathon protocol (http or https)
 marathon-username      |                       | Marathon username for basic auth
+marathon-timeout       | `30s`                 | Time limit for requests made by the Marathon HTTP client. A Timeout of zero means no timeout
 metrics-interval       | `30s`                 | Metrics reporting [interval](https://golang.org/pkg/time/#Duration) **Note:** While using file configuration intervals should be provided in *nanoseconds*
 metrics-location       |                       | Graphite URL (used when metrics-target is set to graphite)
 metrics-prefix         | `default`             | Metrics prefix (resolved to `<hostname>.<app_name>` by default)
