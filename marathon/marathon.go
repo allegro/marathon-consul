@@ -124,6 +124,7 @@ func (m Marathon) get(url string) ([]byte, error) {
 		m.logHTTPError(response, err)
 		return nil, err
 	}
+	defer response.Body.Close()
 	if response.StatusCode != 200 {
 		metrics.Mark("marathon.get.error")
 		metrics.Mark(fmt.Sprintf("marathon.get.error.%d", response.StatusCode))
