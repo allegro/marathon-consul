@@ -258,7 +258,7 @@ func (fh *EventHandler) deregisterAllAppServices(app *apps.App) []error {
 	}
 
 	if len(services) == 0 {
-		log.WithField("Id", serviceName).Info("No matching Consul services found")
+		log.WithField("AppId", app.ID).WithField("ServiceName", serviceName).Info("No matching Consul services found")
 		return errors
 	}
 
