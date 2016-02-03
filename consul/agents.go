@@ -35,7 +35,7 @@ func (a *ConcurrentAgents) GetAnyAgent() (*consulapi.Client, error) {
 	if len(a.agents) > 0 {
 		return a.agents[a.getRandomAgentHost()], nil
 	}
-	return nil, fmt.Errorf("No agent available")
+	return nil, fmt.Errorf("No Consul client available in agents cache")
 }
 
 func (a *ConcurrentAgents) getRandomAgentHost() string {
@@ -68,28 +68,22 @@ func (a *ConcurrentAgents) addAgent(agentHost string, agent *consulapi.Client) {
 
 func (a *ConcurrentAgents) createAgent(host string) (*consulapi.Client, error) {
 	if host == "" {
-		return nil, fmt.Errorf("Invalid address for Agent")
+		return nil, fmt.Errorf("Invalid agent address for Consul client")
 	}
 	config := consulapi.DefaultConfig()
 
 	config.Address = fmt.Sprintf("%s:%s", host, a.config.Port)
-	log.Debugf("Consul address: %s", config.Address)
+	config.HttpClient.Timeout = a.config.Timeout
 
 	if a.config.Token != "" {
-		log.Debugf("Setting token to %s", a.config.Token)
 		config.Token = a.config.Token
 	}
 
 	if a.config.SslEnabled {
-		log.Debugf("Enabling SSL")
 		config.Scheme = "https"
 	}
 
-	log.Debugf("Setting timeout to %s", a.config.Timeout.String())
-	config.HttpClient.Timeout = a.config.Timeout
-
 	if !a.config.SslVerify {
-		log.Debugf("Disabled SSL verification")
 		config.HttpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
@@ -98,12 +92,20 @@ func (a *ConcurrentAgents) createAgent(host string) (*consulapi.Client, error) {
 	}
 
 	if a.config.Auth.Enabled {
-		log.Debugf("Setting basic auth")
 		config.HttpAuth = &consulapi.HttpBasicAuth{
 			Username: a.config.Auth.Username,
 			Password: a.config.Auth.Password,
 		}
 	}
+
+	log.WithFields(log.Fields{
+		"Address": config.Address,
+		"Scheme": config.Scheme,
+		"Timeout": config.HttpClient.Timeout,
+		"BasicAuthEnabled": a.config.Auth.Enabled,
+		"TokenEnabled": a.config.Token != "",
+		"SslVerificationEnabled": a.config.SslVerify,
+	}).Debug("Creating Consul client")
 
 	return consulapi.NewClient(config)
 }

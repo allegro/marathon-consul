@@ -99,7 +99,7 @@ Endpoint  | Description
 
 ### Known limitations
 
-The following section describes known limitations with `marathon-consul`.
+The following section describes known limitations in `marathon-consul`.
 
 * Every marathon application needs to have a unique service name in Consul.
 * In Marathon when a deployment changing the application's service name (by changing its `labels`) is being stopped, it changes app's configuration anyway.
