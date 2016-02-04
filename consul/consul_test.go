@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"fmt"
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/utils"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +28,7 @@ func TestGetAgent_FullConfig(t *testing.T) {
 		Auth: Auth{Enabled: true, Username: "", Password: ""}, Timeout: time.Second})
 
 	// when
-	agent, err := agents.GetAgent("host")
+	agent, err := agents.GetAgent("127.23.23.23")
 
 	// then
 	assert.NoError(t, err)
@@ -107,6 +108,33 @@ func TestGetServices(t *testing.T) {
 	assert.Contains(t, serviceNames, "serviceA")
 }
 
+func TestGetServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
+	t.Parallel()
+	// create server
+	server1 := CreateConsulTestServer("dc1", t)
+	defer server1.Stop()
+
+	// create client
+	consul := ConsulClientAtServer(server1)
+	consul.config.Tag = "marathon"
+
+	// given
+	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
+	server1.AddService("serviceB", "passing", []string{"marathon"})
+
+	// add failing clients
+	for i := 2; i < 100; i++ {
+		consul.GetAgent(fmt.Sprintf("127.0.0.%d", i))
+	}
+
+	// when
+	services, err := consul.GetServices("serviceA")
+
+	// then
+	assert.NoError(t, err)
+	assert.Len(t, services, 1)
+}
+
 func TestGetServices_SelectOnlyTaggedServices(t *testing.T) {
 	t.Parallel()
 	// create cluster of 2 consul servers
@@ -161,6 +189,51 @@ func TestGetAllServices(t *testing.T) {
 	// create client
 	consul := ConsulClientAtServer(server1)
 	consul.config.Tag = "marathon"
+
+	// given
+	// register services in both servers
+	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
+	server1.AddService("serviceB", "passing", []string{"marathon"})
+	server1.AddService("serviceC", "passing", []string{"zookeeper"})
+
+	server2.AddService("serviceA", "passing", []string{"private", "marathon"})
+	server2.AddService("serviceB", "passing", []string{"zookeeper"})
+
+	// when
+	services, err := consul.GetAllServices()
+
+	// then
+	assert.NoError(t, err)
+	assert.Len(t, services, 3)
+
+	serviceNames := make(map[string]struct{})
+	for _, s := range services {
+		serviceNames[s.ServiceName] = struct{}{}
+	}
+	assert.Len(t, serviceNames, 2)
+	assert.Contains(t, serviceNames, "serviceA")
+	assert.Contains(t, serviceNames, "serviceB")
+}
+
+func TestGetAllServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
+	t.Parallel()
+	// create cluster of 2 consul servers
+	server1 := CreateConsulTestServer("dc1", t)
+	defer server1.Stop()
+
+	server2 := CreateConsulTestServer("dc2", t)
+	defer server2.Stop()
+
+	server1.JoinWAN(server2.LANAddr)
+
+	// create client
+	consul := ConsulClientAtServer(server1)
+	consul.config.Tag = "marathon"
+
+	// add failing clients
+	for i := 2; i < 100; i++ {
+		consul.GetAgent(fmt.Sprintf("127.0.0.%d", i))
+	}
 
 	// given
 	// register services in both servers

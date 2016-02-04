@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/hashicorp/consul/testutil"
 	"testing"
+	"time"
 )
 
 func CreateConsulTestServer(dc string, t *testing.T) *testutil.TestServer {
@@ -18,7 +19,8 @@ func ConsulClientAtServer(server *testutil.TestServer) *Consul {
 
 func consulClientAtAddress(host string, port int) *Consul {
 	config := ConsulConfig{
-		Port: fmt.Sprintf("%d", port),
+		Timeout: 10 * time.Millisecond,
+		Port:    fmt.Sprintf("%d", port),
 	}
 	consul := New(config)
 	// initialize the agents cache with a single client pointing at provided location

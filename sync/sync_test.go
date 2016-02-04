@@ -405,8 +405,8 @@ func TestSync_AddingAgentsFromMarathonTasks(t *testing.T) {
 	app := ConsulApp("serviceA", 2)
 	app.Tasks[0].Host = consulServer.Config.Bind
 	app.Tasks[1].Host = consulServer.Config.Bind
-	marathon := marathon.MarathonerStubWithLeaderForApps("leader:8080", app)
-	sync := New(Config{Leader: "leader:8080"}, marathon, consulServices)
+	marathon := marathon.MarathonerStubWithLeaderForApps("localhost:8080", app)
+	sync := New(Config{Leader: "localhost:8080"}, marathon, consulServices)
 
 	// when
 	err := sync.SyncServices()

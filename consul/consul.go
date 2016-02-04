@@ -5,6 +5,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 	"net/url"
 )
@@ -22,6 +23,8 @@ type Consul struct {
 	config ConsulConfig
 }
 
+type ServicesProvider func(*consulapi.Client) ([]*consulapi.CatalogService, error)
+
 func New(config ConsulConfig) *Consul {
 	return &Consul{
 		agents: NewAgents(&config),
@@ -30,10 +33,29 @@ func New(config ConsulConfig) *Consul {
 }
 
 func (c *Consul) GetServices(name string) ([]*consulapi.CatalogService, error) {
-	agent, err := c.agents.GetAnyAgent()
-	if err != nil {
-		return nil, err
+	return c.getServicesUsingProviderWithRetriesOnAgentFailure(func(agent *consulapi.Client) ([]*consulapi.CatalogService, error) {
+		return c.getServicesUsingAgent(name, agent)
+	})
+}
+
+func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide ServicesProvider) ([]*consulapi.CatalogService, error) {
+	var services []*consulapi.CatalogService = nil
+	for {
+		agent, agentAddress, err := c.agents.GetAnyAgent()
+		if err != nil {
+			return nil, err
+		}
+		if services, err = provide(agent); err != nil {
+			log.WithError(err).WithField("Address", agentAddress).Error("An error occurred getting services from Consul, retrying with another agent")
+			c.agents.RemoveAgent(agentAddress)
+		} else {
+			break
+		}
 	}
+	return services, nil
+}
+
+func (c *Consul) getServicesUsingAgent(name string, agent *consulapi.Client) ([]*consulapi.CatalogService, error) {
 	datacenters, err := agent.Catalog().Datacenters()
 	if err != nil {
 		return nil, err
@@ -54,10 +76,10 @@ func (c *Consul) GetServices(name string) ([]*consulapi.CatalogService, error) {
 }
 
 func (c *Consul) GetAllServices() ([]*consulapi.CatalogService, error) {
-	agent, err := c.agents.GetAnyAgent()
-	if err != nil {
-		return nil, err
-	}
+	return c.getServicesUsingProviderWithRetriesOnAgentFailure(c.getAllServices)
+}
+
+func (c *Consul) getAllServices(agent *consulapi.Client) ([]*consulapi.CatalogService, error) {
 	datacenters, err := agent.Catalog().Datacenters()
 	if err != nil {
 		return nil, err
@@ -163,7 +185,7 @@ func (c *Consul) GetAgent(agentAddress string) (*consulapi.Client, error) {
 }
 
 func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*consulapi.AgentServiceRegistration, error) {
-	IP, err := task.HostToIPv4()
+	IP, err := utils.HostToIPv4(task.Host)
 	if err != nil {
 		return nil, err
 	}
