@@ -10,35 +10,71 @@ import (
 )
 
 func TestMark(t *testing.T) {
+	t.Parallel()
 	// given
 	Init(Config{Target: "stdout", Prefix: ""})
-	// then
+
+	// expect
 	assert.Nil(t, metrics.Get("marker"))
+
 	// when
 	Mark("marker")
+
 	// then
 	mark, _ := metrics.Get("marker").(metrics.Meter)
 	assert.Equal(t, int64(1), mark.Count())
+
 	// when
 	Mark("marker")
+
 	// then
 	assert.Equal(t, int64(2), mark.Count())
 }
 
 func TestTime(t *testing.T) {
+	t.Parallel()
+
 	// given
 	Init(Config{Target: "stdout", Prefix: ""})
-	// then
+
+	// expect
 	assert.Nil(t, metrics.Get("timer"))
+
 	// when
 	Time("timer", func() {})
+
 	// then
 	time, _ := metrics.Get("timer").(metrics.Timer)
 	assert.Equal(t, int64(1), time.Count())
+
 	// when
 	Time("timer", func() {})
+
 	// then
 	assert.Equal(t, int64(2), time.Count())
+}
+
+func TestUpdateGauge(t *testing.T) {
+	t.Parallel()
+
+	// given
+	Init(Config{Target: "stdout", Prefix: ""})
+
+	// expect
+	assert.Nil(t, metrics.Get("counter"))
+
+	// when
+	UpdateGauge("counter", 2)
+
+	// then
+	gauge := metrics.Get("counter").(metrics.Gauge)
+	assert.Equal(t, int64(2), gauge.Value())
+
+	// when
+	UpdateGauge("counter", 123)
+
+	// then
+	assert.Equal(t, int64(123), gauge.Value())
 }
 
 func TestMetricsInit_ForGraphiteWithNoAddress(t *testing.T) {
@@ -62,15 +98,21 @@ func TestMetricsInit_ForUnknownTarget(t *testing.T) {
 }
 
 func TestMetricsInit(t *testing.T) {
-	Init(Config{Prefix: "prefix"})
+	// when
+	err := Init(Config{Prefix: "prefix"})
+
+	// then
 	assert.Equal(t, "prefix", pfx)
+	assert.NoError(t, err)
 }
 
 func TestInit_DefaultPrefix(t *testing.T) {
 	// given
 	hostname = func() (string, error) { return "", fmt.Errorf("Some error") }
+
 	// when
 	err := Init(Config{Prefix: "default"})
+
 	// then
 	assert.Error(t, err)
 }
@@ -79,15 +121,16 @@ func TestInit_DefaultPrefix_WithErrors(t *testing.T) {
 	// given
 	hostname = func() (string, error) { return "myhost", nil }
 	os.Args = []string{"./myapp"}
+
 	// when
 	err := Init(Config{Prefix: "default"})
+
 	// then
 	assert.NoError(t, err)
 	assert.Equal(t, "myhost.myapp", pfx)
 }
 
 func TestTargetName(t *testing.T) {
-	t.Parallel()
 	tests := []struct {
 		service, host, path, target string
 		name                        string

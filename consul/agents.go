@@ -4,6 +4,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 	"math/rand"
 	"net/http"
@@ -11,8 +13,9 @@ import (
 )
 
 type Agents interface {
-	GetAgent(string) (*consulapi.Client, error)
-	GetAnyAgent() (*consulapi.Client, error)
+	GetAgent(agentAddress string) (agent *consulapi.Client, err error)
+	GetAnyAgent() (agent *consulapi.Client, ipAddress string, err error)
+	RemoveAgent(agentAddress string)
 }
 
 type ConcurrentAgents struct {
@@ -28,51 +31,72 @@ func NewAgents(config *ConsulConfig) *ConcurrentAgents {
 	}
 }
 
-func (a *ConcurrentAgents) GetAnyAgent() (*consulapi.Client, error) {
+func (a *ConcurrentAgents) GetAnyAgent() (*consulapi.Client, string, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
 	if len(a.agents) > 0 {
-		return a.agents[a.getRandomAgentHost()], nil
+		ipAddress := a.getRandomAgentIpAddress()
+		return a.agents[ipAddress], ipAddress, nil
 	}
-	return nil, fmt.Errorf("No Consul client available in agents cache")
+	return nil, "", fmt.Errorf("No Consul client available in agents cache")
 }
 
-func (a *ConcurrentAgents) getRandomAgentHost() string {
-	hosts := []string{}
-	for host, _ := range a.agents {
-		hosts = append(hosts, host)
+func (a *ConcurrentAgents) getRandomAgentIpAddress() string {
+	ipAddresses := []string{}
+	for ipAddress, _ := range a.agents {
+		ipAddresses = append(ipAddresses, ipAddress)
 	}
 	idx := rand.Intn(len(a.agents))
-	return hosts[idx]
+	return ipAddresses[idx]
 }
 
-func (a *ConcurrentAgents) GetAgent(agentHost string) (*consulapi.Client, error) {
+func (a *ConcurrentAgents) RemoveAgent(agentAddress string) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	if agent, ok := a.agents[agentHost]; ok {
-		return agent, nil
-	}
 
-	newAgent, err := a.createAgent(agentHost)
+	if IP, err := utils.HostToIPv4(agentAddress); err != nil {
+		log.WithError(err).Error("Could not remove agent from cache")
+	} else {
+		ipAddress := IP.String()
+		log.WithField("Address", ipAddress).Info("Removing agent from cache")
+		delete(a.agents, ipAddress)
+		a.updateAgentsCacheSizeMetricValue()
+	}
+}
+
+func (a *ConcurrentAgents) GetAgent(agentAddress string) (*consulapi.Client, error) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	IP, err := utils.HostToIPv4(agentAddress)
 	if err != nil {
 		return nil, err
 	}
-	a.addAgent(agentHost, newAgent)
+	ipAddress := IP.String()
+
+	if agent, ok := a.agents[ipAddress]; ok {
+		return agent, nil
+	}
+
+	newAgent, err := a.createAgent(ipAddress)
+	if err != nil {
+		return nil, err
+	}
+	a.addAgent(ipAddress, newAgent)
+
 	return newAgent, nil
 }
 
 func (a *ConcurrentAgents) addAgent(agentHost string, agent *consulapi.Client) {
 	a.agents[agentHost] = agent
+	a.updateAgentsCacheSizeMetricValue()
 }
 
-func (a *ConcurrentAgents) createAgent(host string) (*consulapi.Client, error) {
-	if host == "" {
-		return nil, fmt.Errorf("Invalid agent address for Consul client")
-	}
+func (a *ConcurrentAgents) createAgent(ipAddress string) (*consulapi.Client, error) {
 	config := consulapi.DefaultConfig()
 
-	config.Address = fmt.Sprintf("%s:%s", host, a.config.Port)
+	config.Address = fmt.Sprintf("%s:%s", ipAddress, a.config.Port)
 	config.HttpClient.Timeout = a.config.Timeout
 
 	if a.config.Token != "" {
@@ -99,13 +123,17 @@ func (a *ConcurrentAgents) createAgent(host string) (*consulapi.Client, error) {
 	}
 
 	log.WithFields(log.Fields{
-		"Address": config.Address,
-		"Scheme": config.Scheme,
-		"Timeout": config.HttpClient.Timeout,
-		"BasicAuthEnabled": a.config.Auth.Enabled,
-		"TokenEnabled": a.config.Token != "",
+		"Address":                config.Address,
+		"Scheme":                 config.Scheme,
+		"Timeout":                config.HttpClient.Timeout,
+		"BasicAuthEnabled":       a.config.Auth.Enabled,
+		"TokenEnabled":           a.config.Token != "",
 		"SslVerificationEnabled": a.config.SslVerify,
 	}).Debug("Creating Consul client")
 
 	return consulapi.NewClient(config)
+}
+
+func (a *ConcurrentAgents) updateAgentsCacheSizeMetricValue() {
+	metrics.UpdateGauge("consul.agents.cache.size", int64(len(a.agents)))
 }

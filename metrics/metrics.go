@@ -29,6 +29,11 @@ func Time(name string, function func()) {
 	timer.Time(function)
 }
 
+func UpdateGauge(name string, value int64) {
+	gauge := metrics.GetOrRegisterGauge(name, metrics.DefaultRegistry)
+	gauge.Update(value)
+}
+
 func Init(cfg Config) error {
 	pfx = cfg.Prefix
 	if pfx == "default" {
