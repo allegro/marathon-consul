@@ -7,30 +7,14 @@ Register [Marathon](https://mesosphere.github.io/marathon/) Tasks as [Consul](ht
 forwards it to Consul agents. It also re-syncs all the information from Marathon 
 to Consul on startup and repeats it with given interval.
 
-## Running the program
+## Installation
 
-Just run `marathon-consul`.
-You can also add some [options](#options).
-
-The Marathon event bus should point to [`/events`](#endpoints). You can
-set up the event subscription with a call similar to this one:
-
-```
-curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callbackUrl=http://marathon-consul.service.consul:4000/events'
-```
-
-## Building from source
+### Installing from source code
 
 To simply compile and run the source code:
 
 ```
 go run main.go [options]
-```
-
-To build the binary:
-
-```
-make build
 ```
 
 To run the tests:
@@ -39,6 +23,49 @@ To run the tests:
 make test
 ```
 
+To build the binary:
+
+```
+make build
+```
+
+### Installing from binary distribution
+
+Binary distribution of `marathon-consul` can be downloaded directly from [the releases page](https://github.com/allegro/marathon-consul/releases).
+Download the build dedicated to your OS. After unpacking the archive, run `marathon-consul` binary. You can also add some [options](#options), for example:
+
+```bash
+marathon-consul --marathon-location=marathon.service.consul:8080 --sync-interval=5m --log-level=debug
+```
+
+### Installing via APT package manager
+
+If you are a Debian/Ubuntu user, you can easily install `marathon-consul` as a `deb` package using `APT` package manager. Both `upstart` and `systemd` service managers are supported.
+All releases are published as `deb` packages to [our repository at Bintray](https://bintray.com/allegro/deb/marathon-consul/view).
+
+To install `marathon-consul` with `apt-get`, simply follow the instructions:
+
+```bash
+# add our public key to apt
+curl -s https://bintray.com/user/downloadSubjectPublicKey?username=allegro | sudo apt-key add -
+# add the repository url
+echo "deb http://dl.bintray.com/v1/content/allegro/deb /" | sudo tee /etc/apt/sources.list.d/marathon-consul.list
+# update apt cache
+sudo apt-get -y update
+# install latest release of marathon-consul
+sudo apt-get -qy install marathon-consul
+```
+
+Run it with `service marathon-consul start`. The configuration file is located at `/etc/marathon-consul.d/config.json`.
+
+## Setting up `marathon-consul` after installation
+
+The Marathon [event bus](https://mesosphere.github.io/marathon/docs/event-bus.html) should point to [`/events`](#endpoints). You can
+set up the event subscription with a call similar to this one:
+
+```
+curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callbackUrl=http://marathon-consul.service.consul:4000/events'
+```
 
 ## Usage
 
