@@ -1,10 +1,11 @@
 package events
 
 import (
-	"github.com/allegro/marathon-consul/apps"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"testing"
+
+	"github.com/allegro/marathon-consul/apps"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseDeploymentInfo(t *testing.T) {
@@ -104,19 +105,19 @@ func TestStoppedConsulApps(t *testing.T) {
 		Plan: &Plan{
 			Original: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1"},
-					&apps.App{ID: "app2", Labels: map[string]string{"consul": ""}},
-					&apps.App{ID: "app3", Labels: map[string]string{"consul": ""}},
-					&apps.App{ID: "app4"},
+					{ID: "app1"},
+					{ID: "app2", Labels: map[string]string{"consul": ""}},
+					{ID: "app3", Labels: map[string]string{"consul": ""}},
+					{ID: "app4"},
 				},
 			},
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				&Action{Type: "StartApplication", AppId: "app1"},
-				&Action{Type: "StopApplication", AppId: "app2"},
-				&Action{Type: "StopApplication", AppId: "app3"},
-				&Action{Type: "StopApplication", AppId: "app4"},
+				{Type: "StartApplication", AppId: "app1"},
+				{Type: "StopApplication", AppId: "app2"},
+				{Type: "StopApplication", AppId: "app3"},
+				{Type: "StopApplication", AppId: "app4"},
 			},
 		},
 	}
@@ -137,19 +138,19 @@ func TestRestartedConsulApps(t *testing.T) {
 		Plan: &Plan{
 			Original: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1"},
-					&apps.App{ID: "app2", Labels: map[string]string{"consul": ""}},
-					&apps.App{ID: "app3", Labels: map[string]string{"consul": "someName"}},
-					&apps.App{ID: "app4"},
+					{ID: "app1"},
+					{ID: "app2", Labels: map[string]string{"consul": ""}},
+					{ID: "app3", Labels: map[string]string{"consul": "someName"}},
+					{ID: "app4"},
 				},
 			},
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				&Action{Type: "StartApplication", AppId: "app1"},
-				&Action{Type: "RestartApplication", AppId: "app2"},
-				&Action{Type: "RestartApplication", AppId: "app3"},
-				&Action{Type: "RestartApplication", AppId: "app4"},
+				{Type: "StartApplication", AppId: "app1"},
+				{Type: "RestartApplication", AppId: "app2"},
+				{Type: "RestartApplication", AppId: "app3"},
+				{Type: "RestartApplication", AppId: "app4"},
 			},
 		},
 	}
@@ -170,13 +171,13 @@ func TestStoppedConsulApps_NoStoppedApps(t *testing.T) {
 		Plan: &Plan{
 			Original: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1"},
+					{ID: "app1"},
 				},
 			},
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				&Action{Type: "StartApplication", AppId: "app1"},
+				{Type: "StartApplication", AppId: "app1"},
 			},
 		},
 	}
@@ -207,24 +208,24 @@ func TestRenamedConsulApps(t *testing.T) {
 		Plan: &Plan{
 			Original: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1", Labels: map[string]string{"consul": "same"}},
-					&apps.App{ID: "app2"},
-					&apps.App{ID: "app3", Labels: map[string]string{"consul": "customName"}},
+					{ID: "app1", Labels: map[string]string{"consul": "same"}},
+					{ID: "app2"},
+					{ID: "app3", Labels: map[string]string{"consul": "customName"}},
 				},
 			},
 			Target: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1", Labels: map[string]string{"consul": "same"}},
-					&apps.App{ID: "app2"},
-					&apps.App{ID: "app3", Labels: map[string]string{"consul": "newCustomName"}},
+					{ID: "app1", Labels: map[string]string{"consul": "same"}},
+					{ID: "app2"},
+					{ID: "app3", Labels: map[string]string{"consul": "newCustomName"}},
 				},
 			},
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				&Action{Type: "RestartApplication", AppId: "app1"},
-				&Action{Type: "StartApplication", AppId: "app2"},
-				&Action{Type: "RestartApplication", AppId: "app3"},
+				{Type: "RestartApplication", AppId: "app1"},
+				{Type: "StartApplication", AppId: "app2"},
+				{Type: "RestartApplication", AppId: "app3"},
 			},
 		},
 	}
@@ -243,9 +244,9 @@ func TestRenamedConsulApps_OnEmptyPlan(t *testing.T) {
 	deploymentInfo := &DeploymentEvent{
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				&Action{Type: "RestartApplication", AppId: "app2"},
-				&Action{Type: "StartApplication", AppId: "app1"},
-				&Action{Type: "RestartApplication", AppId: "app3"},
+				{Type: "RestartApplication", AppId: "app2"},
+				{Type: "StartApplication", AppId: "app1"},
+				{Type: "RestartApplication", AppId: "app3"},
 			},
 		},
 	}
@@ -264,21 +265,21 @@ func TestRenamedConsulApps_OnConsulTrueCase(t *testing.T) {
 		Plan: &Plan{
 			Original: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1"},
-					&apps.App{ID: "app2"},
+					{ID: "app1"},
+					{ID: "app2"},
 				},
 			},
 			Target: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1", Labels: map[string]string{"consul": "true"}},
-					&apps.App{ID: "app2"},
+					{ID: "app1", Labels: map[string]string{"consul": "true"}},
+					{ID: "app2"},
 				},
 			},
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				&Action{Type: "RestartApplication", AppId: "app1"},
-				&Action{Type: "RestartApplication", AppId: "app2"},
+				{Type: "RestartApplication", AppId: "app1"},
+				{Type: "RestartApplication", AppId: "app2"},
 			},
 		},
 	}
@@ -297,21 +298,21 @@ func TestRenamedConsulApps_OnCustomNameAdded(t *testing.T) {
 		Plan: &Plan{
 			Original: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1", Labels: map[string]string{"consul": ""}},
-					&apps.App{ID: "app2"},
+					{ID: "app1", Labels: map[string]string{"consul": ""}},
+					{ID: "app2"},
 				},
 			},
 			Target: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1", Labels: map[string]string{"consul": "customName"}},
-					&apps.App{ID: "app2"},
+					{ID: "app1", Labels: map[string]string{"consul": "customName"}},
+					{ID: "app2"},
 				},
 			},
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				&Action{Type: "RestartApplication", AppId: "app1"},
-				&Action{Type: "StartApplication", AppId: "app2"},
+				{Type: "RestartApplication", AppId: "app1"},
+				{Type: "StartApplication", AppId: "app2"},
 			},
 		},
 	}
@@ -331,21 +332,21 @@ func TestRenamedConsulApps_OnCustomNameAddedToNonConsulApp(t *testing.T) {
 		Plan: &Plan{
 			Original: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1"},
-					&apps.App{ID: "app2"},
+					{ID: "app1"},
+					{ID: "app2"},
 				},
 			},
 			Target: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1", Labels: map[string]string{"consul": "customName"}},
-					&apps.App{ID: "app2"},
+					{ID: "app1", Labels: map[string]string{"consul": "customName"}},
+					{ID: "app2"},
 				},
 			},
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				&Action{Type: "RestartApplication", AppId: "app1"},
-				&Action{Type: "StartApplication", AppId: "app2"},
+				{Type: "RestartApplication", AppId: "app1"},
+				{Type: "StartApplication", AppId: "app2"},
 			},
 		},
 	}
@@ -364,21 +365,21 @@ func TestRenamedConsulApps_OnConsulLabelRemoved(t *testing.T) {
 		Plan: &Plan{
 			Original: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1", Labels: map[string]string{"consul": "customName"}},
-					&apps.App{ID: "app2"},
+					{ID: "app1", Labels: map[string]string{"consul": "customName"}},
+					{ID: "app2"},
 				},
 			},
 			Target: &Deployments{
 				Apps: []*apps.App{
-					&apps.App{ID: "app1"},
-					&apps.App{ID: "app2"},
+					{ID: "app1"},
+					{ID: "app2"},
 				},
 			},
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				&Action{Type: "RestartApplication", AppId: "app1"},
-				&Action{Type: "StartApplication", AppId: "app2"},
+				{Type: "RestartApplication", AppId: "app1"},
+				{Type: "StartApplication", AppId: "app2"},
 			},
 		},
 	}

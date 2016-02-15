@@ -1,9 +1,10 @@
 package consul
 
 import (
+	"testing"
+
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestGetAgent(t *testing.T) {

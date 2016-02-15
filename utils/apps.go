@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+
 	"github.com/allegro/marathon-consul/apps"
 )
 
@@ -30,7 +31,7 @@ func app(name string, instances int, consul bool, unhealthyInstances int) *apps.
 			unhealthyInstances--
 		} else {
 			task.HealthCheckResults = []apps.HealthCheckResult{
-				apps.HealthCheckResult{
+				{
 					Alive: true,
 				},
 			}

@@ -3,6 +3,7 @@ package events
 import (
 	"encoding/json"
 	"errors"
+
 	"github.com/allegro/marathon-consul/apps"
 )
 

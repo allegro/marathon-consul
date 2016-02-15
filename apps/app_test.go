@@ -1,9 +1,10 @@
 package apps
 
 import (
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseApps(t *testing.T) {
@@ -12,9 +13,9 @@ func TestParseApps(t *testing.T) {
 	appBlob, _ := ioutil.ReadFile("apps.json")
 
 	expected := []*App{
-		&App{
+		{
 			HealthChecks: []HealthCheck{
-				HealthCheck{
+				{
 					Path:                   "/",
 					PortIndex:              0,
 					Protocol:               "HTTP",
@@ -26,14 +27,14 @@ func TestParseApps(t *testing.T) {
 			},
 			ID: "/bridged-webapp",
 			Tasks: []Task{
-				Task{
+				{
 					ID:                 "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8",
 					AppID:              "/test",
 					Host:               "192.168.2.114",
 					Ports:              []int{31315},
-					HealthCheckResults: []HealthCheckResult{HealthCheckResult{Alive: true}},
+					HealthCheckResults: []HealthCheckResult{{Alive: true}},
 				},
-				Task{
+				{
 					ID:    "test.4453212c-1a81-11e5-bdb6-e6cb6734eaf8",
 					AppID: "/test",
 					Host:  "192.168.2.114",
@@ -54,7 +55,7 @@ func TestParseApp(t *testing.T) {
 	appBlob, _ := ioutil.ReadFile("app.json")
 
 	expected := &App{Labels: map[string]string{"consul": "true", "public": "tag"},
-		HealthChecks: []HealthCheck{HealthCheck{Path: "/",
+		HealthChecks: []HealthCheck{{Path: "/",
 			PortIndex:              0,
 			Protocol:               "HTTP",
 			GracePeriodSeconds:     10,
@@ -62,7 +63,7 @@ func TestParseApp(t *testing.T) {
 			TimeoutSeconds:         10,
 			MaxConsecutiveFailures: 3}},
 		ID: "/myapp",
-		Tasks: []Task{Task{
+		Tasks: []Task{{
 			ID:    "myapp.cc49ccc1-9812-11e5-a06e-56847afe9799",
 			AppID: "/myapp",
 			Host:  "10.141.141.10",
@@ -70,8 +71,8 @@ func TestParseApp(t *testing.T) {
 				31679,
 				31680,
 				31681},
-			HealthCheckResults: []HealthCheckResult{HealthCheckResult{Alive: true}}},
-			Task{
+			HealthCheckResults: []HealthCheckResult{{Alive: true}}},
+			{
 				ID:    "myapp.c8b449f0-9812-11e5-a06e-56847afe9799",
 				AppID: "/myapp",
 				Host:  "10.141.141.10",
@@ -79,7 +80,7 @@ func TestParseApp(t *testing.T) {
 					31308,
 					31309,
 					31310},
-				HealthCheckResults: []HealthCheckResult{HealthCheckResult{Alive: true}}}}}
+				HealthCheckResults: []HealthCheckResult{{Alive: true}}}}}
 
 	app, err := ParseApp(appBlob)
 	assert.NoError(t, err)

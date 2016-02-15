@@ -4,15 +4,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/events"
 	"github.com/allegro/marathon-consul/marathon"
 	. "github.com/allegro/marathon-consul/utils"
 	"github.com/stretchr/testify/assert"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 func TestForwardHandler_NotHandleUnknownEventType(t *testing.T) {
@@ -672,7 +673,7 @@ func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNotAllHealthChecksP
 
 	// given
 	app := ConsulApp("/test/app", 3)
-	app.Tasks[1].HealthCheckResults = []apps.HealthCheckResult{apps.HealthCheckResult{Alive: true}, apps.HealthCheckResult{Alive: false}}
+	app.Tasks[1].HealthCheckResults = []apps.HealthCheckResult{{Alive: true}, {Alive: false}}
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	handler := NewEventHandler(service, marathon)

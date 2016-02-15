@@ -2,14 +2,15 @@ package sync
 
 import (
 	"fmt"
+	"os"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
 	service "github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	consul "github.com/hashicorp/consul/api"
-	"os"
-	"time"
 )
 
 type Sync struct {
@@ -124,7 +125,7 @@ func (s *Sync) addAgentNodes(apps []*apps.App) {
 			nodes[task.Host] = exists
 		}
 	}
-	for node, _ := range nodes {
+	for node := range nodes {
 		_, err := s.service.GetAgent(node)
 		if err != nil {
 			log.WithError(err).WithField("Node", node).Error("Can't add agent node")

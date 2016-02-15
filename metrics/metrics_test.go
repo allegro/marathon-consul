@@ -2,11 +2,12 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/rcrowley/go-metrics"
-	"github.com/stretchr/testify/assert"
 	"net/url"
 	"os"
 	"testing"
+
+	"github.com/rcrowley/go-metrics"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMark(t *testing.T) {

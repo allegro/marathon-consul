@@ -2,9 +2,10 @@ package apps
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseTask(t *testing.T) {
@@ -15,7 +16,7 @@ func TestParseTask(t *testing.T) {
 		AppID:              "/my-app",
 		Host:               "slave-1234.acme.org",
 		Ports:              []int{31372},
-		HealthCheckResults: []HealthCheckResult{HealthCheckResult{Alive: true}},
+		HealthCheckResults: []HealthCheckResult{{Alive: true}},
 	}
 
 	jsonified, err := json.Marshal(testTask)
@@ -37,14 +38,14 @@ func TestParseTasks(t *testing.T) {
 	tasksBlob, _ := ioutil.ReadFile("tasks.json")
 
 	expectedTasks := []*Task{
-		&Task{
+		{
 			ID:                 "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8",
 			AppID:              "/test",
 			Host:               "192.168.2.114",
 			Ports:              []int{31315},
-			HealthCheckResults: []HealthCheckResult{HealthCheckResult{Alive: true}},
+			HealthCheckResults: []HealthCheckResult{{Alive: true}},
 		},
-		&Task{
+		{
 			ID:    "test.4453212c-1a81-11e5-bdb6-e6cb6734eaf8",
 			AppID: "/test",
 			Host:  "192.168.2.114",
@@ -78,7 +79,7 @@ func TestIsHealthy(t *testing.T) {
 
 	// when
 	task.HealthCheckResults = []HealthCheckResult{
-		HealthCheckResult{Alive: false},
+		{Alive: false},
 	}
 
 	// then
@@ -86,8 +87,8 @@ func TestIsHealthy(t *testing.T) {
 
 	// when
 	task.HealthCheckResults = []HealthCheckResult{
-		HealthCheckResult{Alive: true},
-		HealthCheckResult{Alive: false},
+		{Alive: true},
+		{Alive: false},
 	}
 
 	// then
@@ -95,8 +96,8 @@ func TestIsHealthy(t *testing.T) {
 
 	// when
 	task.HealthCheckResults = []HealthCheckResult{
-		HealthCheckResult{Alive: true},
-		HealthCheckResult{Alive: true},
+		{Alive: true},
+		{Alive: true},
 	}
 
 	// then

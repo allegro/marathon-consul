@@ -3,13 +3,14 @@ package consul
 import (
 	"crypto/tls"
 	"fmt"
+	"math/rand"
+	"net/http"
+	"sync"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
-	"math/rand"
-	"net/http"
-	"sync"
 )
 
 type Agents interface {
@@ -44,7 +45,7 @@ func (a *ConcurrentAgents) GetAnyAgent() (*consulapi.Client, string, error) {
 
 func (a *ConcurrentAgents) getRandomAgentIpAddress() string {
 	ipAddresses := []string{}
-	for ipAddress, _ := range a.agents {
+	for ipAddress := range a.agents {
 		ipAddresses = append(ipAddresses, ipAddress)
 	}
 	idx := rand.Intn(len(a.agents))

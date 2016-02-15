@@ -2,6 +2,7 @@ package marathon
 
 import (
 	"fmt"
+
 	"github.com/allegro/marathon-consul/apps"
 )
 
