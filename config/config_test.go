@@ -1,15 +1,16 @@
 package config
 
 import (
+	"os"
+	"reflect"
+	"testing"
+	"time"
+
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/sync"
 	"github.com/stretchr/testify/assert"
-	"os"
-	"reflect"
-	"testing"
-	"time"
 )
 
 func TestConfig_NewReturnsErrorWhenFileNotExist(t *testing.T) {

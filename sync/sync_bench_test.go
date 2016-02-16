@@ -2,11 +2,12 @@ package sync
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/consul"
 	. "github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
-	"testing"
 )
 
 func BenchmarkDeregisterConsulServicesThatAreNotInMarathonApps10x2(b *testing.B) {

@@ -2,9 +2,10 @@ package consul
 
 import (
 	"fmt"
-	"github.com/hashicorp/consul/testutil"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/consul/testutil"
 )
 
 func CreateConsulTestServer(dc string, t *testing.T) *testutil.TestServer {

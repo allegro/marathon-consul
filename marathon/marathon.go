@@ -4,13 +4,14 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/allegro/marathon-consul/apps"
-	"github.com/allegro/marathon-consul/metrics"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/allegro/marathon-consul/apps"
+	"github.com/allegro/marathon-consul/metrics"
 )
 
 type Marathoner interface {

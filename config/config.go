@@ -2,16 +2,17 @@ package config
 
 import (
 	"encoding/json"
+	"io/ioutil"
+	"os"
+	"strings"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/sync"
 	flag "github.com/ogier/pflag"
-	"io/ioutil"
-	"os"
-	"strings"
-	"time"
 )
 
 type Config struct {

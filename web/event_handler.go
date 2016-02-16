@@ -3,14 +3,15 @@ package web
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
 	service "github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/events"
 	marathon "github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
-	"io/ioutil"
-	"net/http"
 )
 
 type EventHandler struct {

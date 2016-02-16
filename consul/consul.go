@@ -2,12 +2,13 @@ package consul
 
 import (
 	"fmt"
+	"net/url"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
-	"net/url"
 )
 
 type ConsulServices interface {

@@ -2,11 +2,12 @@ package consul
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/utils"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
 )
 
 func TestGetAgent_WithEmptyHost(t *testing.T) {
@@ -411,7 +412,7 @@ func TestMarathonTaskToConsulServiceMapping_WithNoHttpChecks(t *testing.T) {
 	app := &apps.App{
 		ID: "someApp",
 		HealthChecks: []apps.HealthCheck{
-			apps.HealthCheck{
+			{
 				Path:                   "/",
 				Protocol:               "TCP",
 				PortIndex:              0,
@@ -451,7 +452,7 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 	app := &apps.App{
 		ID: "someApp",
 		HealthChecks: []apps.HealthCheck{
-			apps.HealthCheck{
+			{
 				Path:                   "/api/health",
 				Protocol:               "HTTP",
 				PortIndex:              0,
@@ -494,7 +495,7 @@ func TestMarathonTaskToConsulServiceMapping_NotResolvableTaskHost(t *testing.T) 
 	app := &apps.App{
 		ID: "someApp",
 		HealthChecks: []apps.HealthCheck{
-			apps.HealthCheck{
+			{
 				Path:                   "/api/health",
 				Protocol:               "HTTP",
 				PortIndex:              0,

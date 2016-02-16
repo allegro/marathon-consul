@@ -1,17 +1,19 @@
 package sync
 
 import (
+	"testing"
+
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	. "github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
-	"testing"
 
 	"fmt"
-	"github.com/allegro/marathon-consul/apps"
 	"os"
 	"time"
+
+	"github.com/allegro/marathon-consul/apps"
 )
 
 func TestSyncJob_ShouldSyncOnLeadership(t *testing.T) {

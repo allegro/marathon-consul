@@ -1,10 +1,11 @@
 package marathon_test
 
 import (
+	"testing"
+
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/utils"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestMarathonStub(t *testing.T) {

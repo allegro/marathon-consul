@@ -2,8 +2,9 @@ package events
 
 import (
 	"encoding/json"
-	"github.com/allegro/marathon-consul/apps"
 	"strings"
+
+	"github.com/allegro/marathon-consul/apps"
 )
 
 type DeploymentEvent struct {
@@ -182,7 +183,7 @@ func (d *Deployments) filterCurrentGroupAppIds(appIds map[apps.AppId]struct{}) m
 	filteredAppIds := make(map[apps.AppId]struct{})
 	var exists struct{}
 
-	for appId, _ := range appIds {
+	for appId := range appIds {
 		if strings.HasPrefix(appId.String(), d.Id) {
 			filteredAppIds[appId] = exists
 		}
