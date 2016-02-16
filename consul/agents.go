@@ -23,12 +23,23 @@ type ConcurrentAgents struct {
 	agents map[string]*consulapi.Client
 	config *ConsulConfig
 	lock   sync.Mutex
+	client *http.Client
 }
 
 func NewAgents(config *ConsulConfig) *ConcurrentAgents {
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: !config.SslVerify,
+			},
+		},
+		Timeout: config.Timeout,
+	}
 	return &ConcurrentAgents{
 		agents: make(map[string]*consulapi.Client),
 		config: config,
+		client: client,
 	}
 }
 
@@ -97,8 +108,9 @@ func (a *ConcurrentAgents) addAgent(agentHost string, agent *consulapi.Client) {
 func (a *ConcurrentAgents) createAgent(ipAddress string) (*consulapi.Client, error) {
 	config := consulapi.DefaultConfig()
 
+	config.HttpClient = a.client
+
 	config.Address = fmt.Sprintf("%s:%s", ipAddress, a.config.Port)
-	config.HttpClient.Timeout = a.config.Timeout
 
 	if a.config.Token != "" {
 		config.Token = a.config.Token
@@ -106,14 +118,6 @@ func (a *ConcurrentAgents) createAgent(ipAddress string) (*consulapi.Client, err
 
 	if a.config.SslEnabled {
 		config.Scheme = "https"
-	}
-
-	if !a.config.SslVerify {
-		config.HttpClient.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		}
 	}
 
 	if a.config.Auth.Enabled {
