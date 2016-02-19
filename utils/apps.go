@@ -41,7 +41,7 @@ func app(name string, instances int, consul bool, unhealthyInstances int) *apps.
 
 	labels := make(map[string]string)
 	if consul {
-		labels["consul"] = "true"
+		labels[apps.MARATHON_CONSUL_LABEL] = "true"
 	}
 
 	return &apps.App{

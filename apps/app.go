@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// Only Marathon apps with this label will be registered in Consul
+const MARATHON_CONSUL_LABEL = "consul"
+
 type HealthCheck struct {
 	Path                   string `json:"path"`
 	PortIndex              int    `json:"portIndex"`
@@ -44,12 +47,12 @@ func (id AppId) ConsulServiceName() string {
 }
 
 func (app *App) IsConsulApp() bool {
-	_, ok := app.Labels["consul"]
+	_, ok := app.Labels[MARATHON_CONSUL_LABEL]
 	return ok
 }
 
 func (app *App) ConsulServiceName() string {
-	if value, ok := app.Labels["consul"]; ok && value != "true" {
+	if value, ok := app.Labels[MARATHON_CONSUL_LABEL]; ok && value != "true" {
 		value = AppId(value).ConsulServiceName()
 		if value != "" {
 			return value

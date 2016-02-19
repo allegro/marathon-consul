@@ -13,14 +13,14 @@ import (
 func TestMarathon_AppsWhenMarathonReturnEmptyList(t *testing.T) {
 	t.Parallel()
 	// given
-	server, transport := stubServer("/v2/apps?embed=apps.tasks", `{"apps": []}`)
+	server, transport := stubServer("/v2/apps?embed=apps.tasks&label=consul", `{"apps": []}`)
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
-	apps, err := m.Apps()
+	apps, err := m.ConsulApps()
 	//then
 	assert.NoError(t, err)
 	assert.Empty(t, apps)
@@ -31,7 +31,7 @@ func TestMarathon_AppsWhenConfigIsWrong(t *testing.T) {
 	// given
 	m, _ := New(Config{Location: "not::valid/location", Protocol: "HTTP"})
 	// when
-	apps, err := m.Apps()
+	apps, err := m.ConsulApps()
 	//then
 	assert.Error(t, err)
 	assert.Nil(t, apps)
@@ -45,7 +45,7 @@ func TestMarathon_AppsWhenServerIsNotResponding(t *testing.T) {
 	// given
 	m, _ := New(Config{Location: "unknown:22", Protocol: "HTTP"})
 	// when
-	apps, err := m.Apps()
+	apps, err := m.ConsulApps()
 	//then
 	assert.Error(t, err)
 	assert.Nil(t, apps)
@@ -65,7 +65,7 @@ func TestMarathon_AppsWhenMarathonConnectionFailedShouldNotRetry(t *testing.T) {
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
-	apps, err := m.Apps()
+	apps, err := m.ConsulApps()
 	//then
 	assert.Error(t, err)
 	assert.Empty(t, apps)
@@ -117,14 +117,14 @@ func TestMarathon_AppWhenMarathonConnectionFailedShouldNotRetry(t *testing.T) {
 func TestMarathon_AppsWhenMarathonReturnEmptyResponse(t *testing.T) {
 	t.Parallel()
 	// given
-	server, transport := stubServer("/v2/apps?embed=apps.tasks", ``)
+	server, transport := stubServer("/v2/apps?label=consul&embed=apps.tasks", ``)
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
-	apps, err := m.Apps()
+	apps, err := m.ConsulApps()
 	//then
 	assert.Nil(t, apps)
 	assert.Error(t, err)
@@ -133,7 +133,7 @@ func TestMarathon_AppsWhenMarathonReturnEmptyResponse(t *testing.T) {
 func TestMarathon_AppsWhenMarathonReturnMalformedJsonResponse(t *testing.T) {
 	t.Parallel()
 	// given
-	server, transport := stubServer("/v2/apps?embed=apps.tasks", `{"apps":}`)
+	server, transport := stubServer("/v2/apps?label=consul&embed=apps.tasks", `{"apps":}`)
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
@@ -181,14 +181,14 @@ func TestMarathon_AppWhenMarathonReturnEmptyResponse(t *testing.T) {
 func TestMarathon_AppWhenMarathonReturnMalformedJsonResponse(t *testing.T) {
 	t.Parallel()
 	// given
-	server, transport := stubServer("/v2/apps//test/app?embed=apps.tasks", `{apps:}`)
+	server, transport := stubServer("/v2/apps//test/app?label=consul&embed=apps.tasks", `{apps:}`)
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
-	apps, err := m.Apps()
+	apps, err := m.ConsulApps()
 	//then
 	assert.Nil(t, apps)
 	assert.Error(t, err)
