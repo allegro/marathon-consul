@@ -7,6 +7,7 @@ import (
 
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/utils"
+	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -109,6 +110,31 @@ func TestGetServices(t *testing.T) {
 	assert.Contains(t, serviceNames, "serviceA")
 }
 
+func TestGetService_FailingAgent_GivingUp(t *testing.T) {
+	t.Parallel()
+	// create cluster of 2 consul servers
+	server1 := CreateConsulTestServer("dc1", t)
+	defer server1.Stop()
+
+	// create client
+	consul := ConsulClientAtServer(server1)
+	consul.config.Tag = "marathon"
+
+	// add failing client
+	consul.GetAgent("127.0.0.2")
+
+	// given
+	// register services in both servers
+	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
+
+	// when
+	services, err := consul.GetServices("serviceA")
+
+	// then
+	assert.EqualError(t, err, "An error occurred getting services from Consul. Giving up")
+	assert.Nil(t, services)
+}
+
 func TestGetServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	t.Parallel()
 	// create server
@@ -118,13 +144,14 @@ func TestGetServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	// create client
 	consul := ConsulClientAtServer(server1)
 	consul.config.Tag = "marathon"
+	consul.config.RequestRetries = 100
 
 	// given
 	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
 	server1.AddService("serviceB", "passing", []string{"marathon"})
 
 	// add failing clients
-	for i := 2; i < 100; i++ {
+	for i := uint32(2); i < consul.config.RequestRetries; i++ {
 		consul.GetAgent(fmt.Sprintf("127.0.0.%d", i))
 	}
 
@@ -216,6 +243,62 @@ func TestGetAllServices(t *testing.T) {
 	assert.Contains(t, serviceNames, "serviceB")
 }
 
+func TestGetServicesUsingProviderWithRetriesOnAgentFailure_ShouldRetryConfiguredNumberOfTimes(t *testing.T) {
+	t.Parallel()
+	// create cluster of 2 consul servers
+	server1 := CreateConsulTestServer("dc1", t)
+	defer server1.Stop()
+
+	// create client
+	consul := ConsulClientAtServer(server1)
+	consul.config.AgentFailuresTolerance = 2
+	consul.config.RequestRetries = 3
+
+	var called uint32
+	provider := func(agent *consulapi.Client) ([]*consulapi.CatalogService, error) {
+		called++
+		return nil, fmt.Errorf("error")
+	}
+
+	// add failing clients
+	consul.GetAgent("127.0.0.1")
+	consul.GetAgent("127.0.0.2")
+
+	// when
+	consul.getServicesUsingProviderWithRetriesOnAgentFailure(provider)
+
+	//then
+	assert.Equal(t, consul.config.RequestRetries+1, called)
+	assert.Len(t, consul.agents.(*ConcurrentAgents).agents, 1)
+}
+
+func TestGetAllServices_GivingUp(t *testing.T) {
+	t.Parallel()
+	// create cluster of 2 consul servers
+	server1 := CreateConsulTestServer("dc1", t)
+	defer server1.Stop()
+
+	// create client
+	consul := ConsulClientAtServer(server1)
+	consul.config.Tag = "marathon"
+
+	// add failing clients
+	consul.GetAgent("127.0.0.2")
+
+	// given
+	// register services in both servers
+	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
+	server1.AddService("serviceB", "passing", []string{"marathon"})
+	server1.AddService("serviceC", "passing", []string{"zookeeper"})
+
+	// when
+	services, err := consul.GetAllServices()
+
+	// then
+	assert.EqualError(t, err, "An error occurred getting services from Consul. Giving up")
+	assert.Nil(t, services)
+}
+
 func TestGetAllServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	t.Parallel()
 	// create cluster of 2 consul servers
@@ -230,9 +313,10 @@ func TestGetAllServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	// create client
 	consul := ConsulClientAtServer(server1)
 	consul.config.Tag = "marathon"
+	consul.config.RequestRetries = 100
 
 	// add failing clients
-	for i := 2; i < 100; i++ {
+	for i := uint32(2); i < consul.config.RequestRetries; i++ {
 		consul.GetAgent(fmt.Sprintf("127.0.0.%d", i))
 	}
 
@@ -316,6 +400,26 @@ func TestRegisterServices_CustomServiceName(t *testing.T) {
 	assert.Len(t, services, 1)
 	assert.Equal(t, "myCustomServiceName", services[0].ServiceName)
 	assert.Equal(t, []string{"marathon", "test"}, services[0].ServiceTags)
+}
+
+func TestRegisterServices_InvalidHostnameShouldFail(t *testing.T) {
+	t.Parallel()
+	server := CreateConsulTestServer("dc1", t)
+	defer server.Stop()
+
+	consul := ConsulClientAtServer(server)
+	consul.config.Tag = "marathon"
+
+	// given
+	app := utils.ConsulApp("serviceA", 1)
+	app.Tasks[0].Host = "unknown.host.name.1"
+	app.Labels["consul"] = ""
+
+	// when
+	err := consul.Register(&app.Tasks[0], app)
+
+	// then
+	assert.Error(t, err)
 }
 
 func TestRegisterServices_InvalidCustomServiceName(t *testing.T) {
