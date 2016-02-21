@@ -44,6 +44,8 @@ func Init(cfg Config) error {
 		pfx = prefix
 	}
 
+	collectSystemMetrics()
+
 	switch cfg.Target {
 	case "stdout":
 		log.Info("Sending metrics to stdout")
@@ -57,10 +59,10 @@ func Init(cfg Config) error {
 		return initGraphite(cfg.Addr, cfg.Interval)
 	case "":
 		log.Infof("Metrics disabled")
+		return nil
 	default:
 		return fmt.Errorf("Invalid metrics target %s", cfg.Target)
 	}
-	return nil
 }
 
 func TargetName(service, host, path string, targetURL *url.URL) string {
