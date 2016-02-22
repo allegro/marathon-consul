@@ -70,6 +70,8 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Consul.Token, "consul-token", "", "The Consul ACL token")
 	flag.StringVar(&config.Consul.Tag, "consul-tag", "marathon", "Common tag name added to every service registered in Consul, should be unique for every Marathon-cluster connected to Consul")
 	flag.DurationVar(&config.Consul.Timeout, "consul-timeout", 3*time.Second, "Time limit for requests made by the Consul HTTP client. A Timeout of zero means no timeout")
+	flag.Uint32Var(&config.Consul.AgentFailuresTolerance, "consul-max-agent-failures", 3, "Max number of consecutive request failures for agent before removal from cache")
+	flag.Uint32Var(&config.Consul.RequestRetries, "consul-get-services-retry", 3, "Number of retries on failure when performing requests to Consul. Each retry uses different cached agent")
 
 	// Web
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "accept connections at this address")

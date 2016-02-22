@@ -15,12 +15,12 @@ import (
 
 type Agents interface {
 	GetAgent(agentAddress string) (agent *consulapi.Client, err error)
-	GetAnyAgent() (agent *consulapi.Client, ipAddress string, err error)
+	GetAnyAgent() (agent *Agent, err error)
 	RemoveAgent(agentAddress string)
 }
 
 type ConcurrentAgents struct {
-	agents map[string]*consulapi.Client
+	agents map[string]*Agent
 	config *ConsulConfig
 	lock   sync.Mutex
 	client *http.Client
@@ -37,21 +37,21 @@ func NewAgents(config *ConsulConfig) *ConcurrentAgents {
 		Timeout: config.Timeout,
 	}
 	return &ConcurrentAgents{
-		agents: make(map[string]*consulapi.Client),
+		agents: make(map[string]*Agent),
 		config: config,
 		client: client,
 	}
 }
 
-func (a *ConcurrentAgents) GetAnyAgent() (*consulapi.Client, string, error) {
+func (a *ConcurrentAgents) GetAnyAgent() (*Agent, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
 	if len(a.agents) > 0 {
 		ipAddress := a.getRandomAgentIpAddress()
-		return a.agents[ipAddress], ipAddress, nil
+		return a.agents[ipAddress], nil
 	}
-	return nil, "", fmt.Errorf("No Consul client available in agents cache")
+	return nil, fmt.Errorf("No Consul client available in agents cache")
 }
 
 func (a *ConcurrentAgents) getRandomAgentIpAddress() string {
@@ -88,7 +88,7 @@ func (a *ConcurrentAgents) GetAgent(agentAddress string) (*consulapi.Client, err
 	ipAddress := IP.String()
 
 	if agent, ok := a.agents[ipAddress]; ok {
-		return agent, nil
+		return agent.Client, nil
 	}
 
 	newAgent, err := a.createAgent(ipAddress)
@@ -97,46 +97,12 @@ func (a *ConcurrentAgents) GetAgent(agentAddress string) (*consulapi.Client, err
 	}
 	a.addAgent(ipAddress, newAgent)
 
-	return newAgent, nil
+	return newAgent.Client, nil
 }
 
-func (a *ConcurrentAgents) addAgent(agentHost string, agent *consulapi.Client) {
+func (a *ConcurrentAgents) addAgent(agentHost string, agent *Agent) {
 	a.agents[agentHost] = agent
 	a.updateAgentsCacheSizeMetricValue()
-}
-
-func (a *ConcurrentAgents) createAgent(ipAddress string) (*consulapi.Client, error) {
-	config := consulapi.DefaultConfig()
-
-	config.HttpClient = a.client
-
-	config.Address = fmt.Sprintf("%s:%s", ipAddress, a.config.Port)
-
-	if a.config.Token != "" {
-		config.Token = a.config.Token
-	}
-
-	if a.config.SslEnabled {
-		config.Scheme = "https"
-	}
-
-	if a.config.Auth.Enabled {
-		config.HttpAuth = &consulapi.HttpBasicAuth{
-			Username: a.config.Auth.Username,
-			Password: a.config.Auth.Password,
-		}
-	}
-
-	log.WithFields(log.Fields{
-		"Address":                config.Address,
-		"Scheme":                 config.Scheme,
-		"Timeout":                config.HttpClient.Timeout,
-		"BasicAuthEnabled":       a.config.Auth.Enabled,
-		"TokenEnabled":           a.config.Token != "",
-		"SslVerificationEnabled": a.config.SslVerify,
-	}).Debug("Creating Consul client")
-
-	return consulapi.NewClient(config)
 }
 
 func (a *ConcurrentAgents) updateAgentsCacheSizeMetricValue() {

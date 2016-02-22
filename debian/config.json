@@ -12,7 +12,9 @@
     "SslCaCert": "",
     "Token": "",
     "Tag": "marathon",
-    "Timeout": 3000000000
+    "Timeout": 3000000000,
+    "AgentFailuresTolerance": 3,
+    "RequestRetries": 5
   },
   "Web": {
     "Listen": ":4000"

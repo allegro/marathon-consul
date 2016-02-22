@@ -24,7 +24,7 @@ type Consul struct {
 	config ConsulConfig
 }
 
-type ServicesProvider func(*consulapi.Client) ([]*consulapi.CatalogService, error)
+type ServicesProvider func(agent *consulapi.Client) ([]*consulapi.CatalogService, error)
 
 func New(config ConsulConfig) *Consul {
 	return &Consul{
@@ -40,20 +40,25 @@ func (c *Consul) GetServices(name string) ([]*consulapi.CatalogService, error) {
 }
 
 func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide ServicesProvider) ([]*consulapi.CatalogService, error) {
-	var services []*consulapi.CatalogService = nil
-	for {
-		agent, agentAddress, err := c.agents.GetAnyAgent()
+	for retry := uint32(0); retry <= c.config.RequestRetries; retry++ {
+		agent, err := c.agents.GetAnyAgent()
 		if err != nil {
 			return nil, err
 		}
-		if services, err = provide(agent); err != nil {
-			log.WithError(err).WithField("Address", agentAddress).Error("An error occurred getting services from Consul, retrying with another agent")
-			c.agents.RemoveAgent(agentAddress)
+		if services, err := provide(agent.Client); err != nil {
+			log.WithError(err).WithField("Address", agent.IP).
+				Error("An error occurred getting services from Consul, retrying with another agent")
+			if failures := agent.IncFailures(); failures > c.config.AgentFailuresTolerance {
+				log.WithField("Address", agent.IP).WithField("Failures", failures).
+					Warn("Removing agent due to too many failures")
+				c.agents.RemoveAgent(agent.IP)
+			}
 		} else {
-			break
+			agent.ClearFailures()
+			return services, nil
 		}
 	}
-	return services, nil
+	return nil, fmt.Errorf("An error occurred getting services from Consul. Giving up")
 }
 
 func (c *Consul) getServicesUsingAgent(name string, agent *consulapi.Client) ([]*consulapi.CatalogService, error) {

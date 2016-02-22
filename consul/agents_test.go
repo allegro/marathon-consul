@@ -27,11 +27,11 @@ func TestGetAnyAgent_SingleAgentAvailable(t *testing.T) {
 
 	// when
 	agents.GetAgent("127.0.0.1") // create
-	agent, address, err := agents.GetAnyAgent()
+	agent, err := agents.GetAnyAgent()
 
 	// then
 	assert.NotNil(t, agent)
-	assert.Equal(t, "127.0.0.1", address)
+	assert.Equal(t, "127.0.0.1", agent.IP)
 	assert.NoError(t, err)
 }
 
@@ -44,10 +44,11 @@ func TestGetAnyAgent(t *testing.T) {
 	agent3, _ := agents.GetAgent("127.0.0.3")
 
 	// when
-	anyAgent, _, _ := agents.GetAnyAgent()
+	anyAgent, err := agents.GetAnyAgent()
 
 	// then
-	assert.Contains(t, []*consulapi.Client{agent1, agent2, agent3}, anyAgent)
+	assert.NoError(t, err)
+	assert.Contains(t, []*consulapi.Client{agent1, agent2, agent3}, anyAgent.Client)
 }
 
 func TestGetAgent_ShouldResolveAddressToIP(t *testing.T) {
@@ -63,13 +64,37 @@ func TestGetAgent_ShouldResolveAddressToIP(t *testing.T) {
 	assert.Equal(t, agent1, agent2)
 }
 
+func TestGetAgent_ShouldFailOnWrongHostname(t *testing.T) {
+	t.Parallel()
+	// given
+	agents := NewAgents(&ConsulConfig{})
+
+	// when
+	_, err := agents.GetAgent("wrong hostname")
+
+	// then
+	assert.Error(t, err)
+}
+
+func TestGetAgent_ShouldFailOnUnknownHostname(t *testing.T) {
+	t.Parallel()
+	// given
+	agents := NewAgents(&ConsulConfig{})
+
+	// when
+	_, err := agents.GetAgent("unknown.host.name.1")
+
+	// then
+	assert.Error(t, err)
+}
+
 func TestGetAnyAgent_shouldFailOnNoAgentAvailable(t *testing.T) {
 	t.Parallel()
 	// given
 	agents := NewAgents(&ConsulConfig{})
 
 	// when
-	anyAgent, _, err := agents.GetAnyAgent()
+	anyAgent, err := agents.GetAnyAgent()
 
 	// then
 	assert.Nil(t, anyAgent)
@@ -88,9 +113,23 @@ func TestRemoveAgent(t *testing.T) {
 
 	// then
 	for i := 0; i < 10; i++ {
-		agent, address, err := agents.GetAnyAgent()
-		assert.Equal(t, agent, agent2)
-		assert.Equal(t, "127.0.0.2", address)
+		agent, err := agents.GetAnyAgent()
+		assert.Equal(t, agent.Client, agent2)
+		assert.Equal(t, "127.0.0.2", agent.IP)
 		assert.NoError(t, err)
 	}
+}
+
+func TestRemoveAgentTwiceShouldPass(t *testing.T) {
+	t.Parallel()
+	// given
+	agents := NewAgents(&ConsulConfig{})
+	agents.GetAgent("127.0.0.1")
+
+	// when
+	agents.RemoveAgent("127.0.0.1")
+	agents.RemoveAgent("127.0.0.1")
+
+	// then
+	assert.Empty(t, agents.agents)
 }
