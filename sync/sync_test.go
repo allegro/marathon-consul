@@ -352,48 +352,6 @@ func newSyncWithDefaultConfig(marathon marathon.Marathoner, service consul.Consu
 	return New(Config{Enabled: true, Leader: "localhost:8080"}, marathon, service)
 }
 
-type errorMarathon struct {
-}
-
-func (m errorMarathon) Apps() ([]*apps.App, error) {
-	return nil, fmt.Errorf("Error")
-}
-
-func (m errorMarathon) App(id apps.AppId) (*apps.App, error) {
-	return nil, fmt.Errorf("Error")
-}
-
-func (m errorMarathon) Tasks(appId apps.AppId) ([]*apps.Task, error) {
-	return nil, fmt.Errorf("Error")
-}
-
-func (m errorMarathon) Leader() (string, error) {
-	return "", fmt.Errorf("Error")
-}
-
-type errorConsul struct {
-}
-
-func (c errorConsul) GetServices(name string) ([]*consulapi.CatalogService, error) {
-	return nil, fmt.Errorf("Error occured")
-}
-
-func (c errorConsul) GetAllServices() ([]*consulapi.CatalogService, error) {
-	return nil, fmt.Errorf("Error occured")
-}
-
-func (c errorConsul) Register(task *apps.Task, app *apps.App) error {
-	return fmt.Errorf("Error occured")
-}
-
-func (c errorConsul) Deregister(serviceId apps.TaskId, agent string) error {
-	return fmt.Errorf("Error occured")
-}
-
-func (c errorConsul) GetAgent(agent string) (*consulapi.Client, error) {
-	return nil, fmt.Errorf("Error occured")
-}
-
 func TestSync_AddingAgentsFromMarathonTasks(t *testing.T) {
 	t.Parallel()
 

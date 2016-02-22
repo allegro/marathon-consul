@@ -63,7 +63,7 @@ func (s *Sync) syncServices() error {
 	}
 	log.Info("Syncing services started")
 
-	apps, err := s.marathon.Apps()
+	apps, err := s.marathon.ConsulApps()
 	if err != nil {
 		return fmt.Errorf("Can't get Marathon apps: %v", err)
 	}

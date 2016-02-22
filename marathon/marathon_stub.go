@@ -13,7 +13,7 @@ type MarathonerStub struct {
 	leader    string
 }
 
-func (m MarathonerStub) Apps() ([]*apps.App, error) {
+func (m MarathonerStub) ConsulApps() ([]*apps.App, error) {
 	return m.AppsStub, nil
 }
 

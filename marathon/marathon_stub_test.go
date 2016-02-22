@@ -17,7 +17,7 @@ func TestMarathonStub(t *testing.T) {
 	// then
 	assert.Equal(t, "some.host:1234", leader)
 	// when
-	apps, _ := m.Apps()
+	apps, _ := m.ConsulApps()
 	// then
 	assert.Len(t, apps, 1)
 	// when

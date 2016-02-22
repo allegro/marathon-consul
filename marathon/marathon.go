@@ -15,7 +15,7 @@ import (
 )
 
 type Marathoner interface {
-	Apps() ([]*apps.App, error)
+	ConsulApps() ([]*apps.App, error)
 	App(apps.AppId) (*apps.App, error)
 	Tasks(apps.AppId) ([]*apps.Task, error)
 	Leader() (string, error)
@@ -59,7 +59,7 @@ func New(config Config) (*Marathon, error) {
 func (m Marathon) App(appId apps.AppId) (*apps.App, error) {
 	log.WithField("Location", m.Location).Debug("Asking Marathon for " + appId)
 
-	body, err := m.get(m.urlWithQuery(fmt.Sprintf("/v2/apps/%s", appId), "embed=apps.tasks"))
+	body, err := m.get(m.urlWithQuery(fmt.Sprintf("/v2/apps/%s", appId), params{"embed": "apps.tasks"}))
 	if err != nil {
 		return nil, err
 	}
@@ -67,9 +67,9 @@ func (m Marathon) App(appId apps.AppId) (*apps.App, error) {
 	return apps.ParseApp(body)
 }
 
-func (m Marathon) Apps() ([]*apps.App, error) {
+func (m Marathon) ConsulApps() ([]*apps.App, error) {
 	log.WithField("Location", m.Location).Debug("Asking Marathon for apps")
-	body, err := m.get(m.urlWithQuery("/v2/apps", "embed=apps.tasks"))
+	body, err := m.get(m.urlWithQuery("/v2/apps", params{"embed": "apps.tasks", "label": apps.MARATHON_CONSUL_LABEL}))
 	if err != nil {
 		return nil, err
 	}
@@ -153,16 +153,22 @@ func (m Marathon) logHTTPError(resp *http.Response, err error) {
 }
 
 func (m Marathon) url(path string) string {
-	return m.urlWithQuery(path, "")
+	return m.urlWithQuery(path, nil)
 }
 
-func (m Marathon) urlWithQuery(path string, query string) string {
+type params map[string]string
+
+func (m Marathon) urlWithQuery(path string, params params) string {
 	marathon := url.URL{
-		Scheme:   m.Protocol,
-		User:     m.Auth,
-		Host:     m.Location,
-		Path:     path,
-		RawQuery: query,
+		Scheme: m.Protocol,
+		User:   m.Auth,
+		Host:   m.Location,
+		Path:   path,
 	}
+	query := marathon.Query()
+	for key, value := range params {
+		query.Add(key, value)
+	}
+	marathon.RawQuery = query.Encode()
 	return marathon.String()
 }

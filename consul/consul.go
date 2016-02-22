@@ -127,7 +127,7 @@ func (c *Consul) Register(task *apps.Task, app *apps.App) error {
 	if err != nil {
 		return err
 	}
-	if value, ok := app.Labels["consul"]; ok && value == "true" {
+	if value, ok := app.Labels[apps.MARATHON_CONSUL_LABEL]; ok && value == "true" {
 		log.WithField("Id", app.ID).Warn("Warning! Application configuration is deprecated (labeled as `consul:true`). Support for special `true` value will be removed in the future!")
 	}
 	metrics.Time("consul.register", func() { err = c.register(service) })
