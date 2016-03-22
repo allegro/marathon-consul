@@ -1,12 +1,25 @@
 language: go
 
 go:
-  - 1.5
+  - 1.6
   - tip
 before_install:
+  - go get golang.org/x/tools/cmd/cover
   - go get github.com/axw/gocov/gocov
+  - go get github.com/modocache/gover
   - go get github.com/mattn/goveralls
   - if ! go get github.com/golang/tools/cmd/cover; then go get golang.org/x/tools/cmd/cover; fi
 script:
   - make deps
-  - $HOME/gopath/bin/goveralls -package ./... -service=travis-ci
+  - go test -coverprofile=apps.coverprofile ./apps
+  - go test -coverprofile=config.coverprofile ./config
+  - go test -coverprofile=consul.coverprofile ./consul
+  - go test -coverprofile=events.coverprofile ./events
+  - go test -coverprofile=marathon.coverprofile ./marathon
+  - go test -coverprofile=metrics.coverprofile ./metrics
+  - go test -coverprofile=sync.coverprofile ./sync
+  - go test -coverprofile=utils.coverprofile ./utils
+  - go test -coverprofile=web.coverprofile ./web
+  - go test -coverprofile=main.coverprofile
+  - $HOME/gopath/bin/gover
+  - $HOME/gopath/bin/goveralls -coverprofile=gover.coverprofile -service travis-ci

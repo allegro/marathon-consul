@@ -4,8 +4,27 @@
 Register [Marathon](https://mesosphere.github.io/marathon/) Tasks as [Consul](https://www.consul.io/) Services for service discovery.
 
 `marathon-consul` takes information provided by the [Marathon event bus](https://mesosphere.github.io/marathon/docs/event-bus.html) and
-forwards it to Consul agents. It also re-syncs all the information from Marathon 
+forwards it to Consul agents. It also re-syncs all the information from Marathon
 to Consul on startup and repeats it with given interval.
+
+## Code
+
+This project is based on
+
+* [mesos-consul](https://github.com/CiscoCloud/mesos-consul)
+* [marathon-consul](https://github.com/CiscoCloud/marathon-consul)
+
+### Differences
+
+* CiscoCloud/marthon-consul copies application information to Consul KV while
+allegro/marathon-consul registers tasks as Consul services
+(it is more similar to CiscoCloud/mesos-consul)
+* CiscoCloud/mesos-consul uses polling while allegro/marathon-consul uses
+[Marathon's event bus](https://mesosphere.github.io/marathon/docs/event-bus.html)
+to detect changes
+* CiscoCloud/marathon-consul is no longer developed
+(see [comment](https://github.com/CiscoCloud/marathon-consul/issues/17#issuecomment-161678453))
+
 
 ## Installation
 
@@ -69,6 +88,7 @@ curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callback
 
 ## Usage
 
+- marathon-consul should be installed on all Marathon masters, and subscription should be set to `localhost` to reduce network traffic
 - Consul Agents should be available at every Mesos Slave, tasks will be registered at hosts their run on.
 - Only tasks which are labeled as `consul` will be registered in Consul. By default the registered service name is equal to Marathon's application name. 
   A different name can be provided as the label's value, e.g. `consul:customName`. As an exception of the rule, for backward compatibility with the `0.3.x` branch, a value of `true` is resolved to the default name.
@@ -130,16 +150,9 @@ The following section describes known limitations in `marathon-consul`.
 
 * Every marathon application needs to have a unique service name in Consul.
 * In Marathon when a deployment changing the application's service name (by changing its `labels`) is being stopped, it changes app's configuration anyway.
-  This means we loose the link between the app and the services registered with the old name in Consul. 
+  This means we loose the link between the app and the services registered with the old name in Consul.
   Later on, if another deployment takes place, new services are registered with a new name, the old ones are not being deregistered though.
   A scheduled sync is required to wipe them out.
-
-## Code
-
-This project is based on
-
-* [mesos-consul](https://github.com/CiscoCloud/mesos-consul)
-* [marathon-consul](https://github.com/CiscoCloud/marathon-consul)
 
 ## License
 
