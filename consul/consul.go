@@ -3,6 +3,7 @@ package consul
 import (
 	"fmt"
 	"net/url"
+	"strings"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
@@ -203,26 +204,49 @@ func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*c
 		Port:    task.Ports[0],
 		Address: serviceAddress,
 		Tags:    c.marathonLabelsToConsulTags(app.Labels),
-		Check:   c.marathonToConsulCheck(task, app.HealthChecks, serviceAddress),
+		Checks:  c.marathonToConsulChecks(task, app.HealthChecks, serviceAddress),
 	}, nil
 }
 
-func (c *Consul) marathonToConsulCheck(task *apps.Task, healthChecks []apps.HealthCheck, serviceAddress string) *consulapi.AgentServiceCheck {
-	//	TODO: Handle all types of checks
+func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.HealthCheck, serviceAddress string) consulapi.AgentServiceChecks {
+	var checks consulapi.AgentServiceChecks = make(consulapi.AgentServiceChecks, 0, len(healthChecks))
+
 	for _, check := range healthChecks {
-		if check.Protocol == "HTTP" {
-			return &consulapi.AgentServiceCheck{
-				HTTP: (&url.URL{
-					Scheme: "http",
-					Host:   fmt.Sprintf("%s:%d", serviceAddress, task.Ports[check.PortIndex]),
-					Path:   check.Path,
-				}).String(),
+		switch check.Protocol {
+		case "HTTP", "HTTPS":
+			if parsedUrl, err := url.ParseRequestURI(check.Path); err == nil {
+				parsedUrl.Scheme = strings.ToLower(check.Protocol)
+				parsedUrl.Host = fmt.Sprintf("%s:%d", serviceAddress, task.Ports[check.PortIndex])
+
+				checks = append(checks, &consulapi.AgentServiceCheck{
+					HTTP:     parsedUrl.String(),
+					Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
+					Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
+				})
+			} else {
+				log.WithError(err).
+					WithField("Id", task.AppID.String()).
+					WithField("Address", serviceAddress).
+					Warn(fmt.Sprintf("Could not parse provided path: %s", check.Path))
+			}
+		case "TCP":
+			checks = append(checks, &consulapi.AgentServiceCheck{
+				TCP:      fmt.Sprintf("%s:%d", serviceAddress, task.Ports[check.PortIndex]),
 				Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
 				Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
-			}
+			})
+		case "COMMAND":
+			checks = append(checks, &consulapi.AgentServiceCheck{
+				Script:   check.Command.Value,
+				Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
+				Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
+			})
+		default:
+			log.WithField("Id", task.AppID.String()).WithField("Address", serviceAddress).
+				Warn(fmt.Sprintf("Unrecognized check protocol %s", check.Protocol))
 		}
 	}
-	return nil
+	return checks
 }
 
 func (c *Consul) marathonLabelsToConsulTags(labels map[string]string) []string {
