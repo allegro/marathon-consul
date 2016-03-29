@@ -16,6 +16,9 @@ type HealthCheck struct {
 	IntervalSeconds        int    `json:"intervalSeconds"`
 	TimeoutSeconds         int    `json:"timeoutSeconds"`
 	MaxConsecutiveFailures int    `json:"maxConsecutiveFailures"`
+	Command                struct {
+		Value string `json:"value`
+	}
 }
 
 type AppWrapper struct {
