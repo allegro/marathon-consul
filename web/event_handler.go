@@ -10,7 +10,7 @@ import (
 	"github.com/allegro/marathon-consul/apps"
 	service "github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/events"
-	marathon "github.com/allegro/marathon-consul/marathon"
+	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 )
 
@@ -27,7 +27,9 @@ func NewEventHandler(service service.ConsulServices, marathon marathon.Marathone
 }
 
 func (fh *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	metrics.Time("events.response", func() { fh.handle(w, r) })
+	metrics.Time("events.response", func() {
+		fh.handle(w, r)
+	})
 }
 
 func (fh *EventHandler) handle(w http.ResponseWriter, r *http.Request) {
@@ -264,10 +266,13 @@ func (fh *EventHandler) deregisterAllAppServices(app *apps.App) []error {
 	}
 
 	for _, service := range services {
-		err = fh.service.Deregister(apps.TaskId(service.ServiceID), service.Address)
-		if err != nil {
-			log.WithField("Id", service.ServiceID).WithError(err).Error("There was a problem deregistering task")
-			errors = append(errors, err)
+		taskId := apps.TaskId(service.ServiceID)
+		if taskId.AppId() == app.ID {
+			err = fh.service.Deregister(taskId, service.Address)
+			if err != nil {
+				log.WithField("Id", service.ServiceID).WithError(err).Error("There was a problem deregistering task")
+				errors = append(errors, err)
+			}
 		}
 	}
 	return errors
