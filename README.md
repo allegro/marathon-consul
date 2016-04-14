@@ -49,6 +49,14 @@ To build the binary:
 make build
 ```
 
+To build a docker container:
+
+```
+make build_docker
+```
+```
+make build
+```
 ### Installing from binary distribution
 
 Binary distribution of `marathon-consul` can be downloaded directly from [the releases page](https://github.com/allegro/marathon-consul/releases).
