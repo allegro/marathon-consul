@@ -25,6 +25,7 @@ to detect changes
 * CiscoCloud/marathon-consul is no longer developed
 (see [comment](https://github.com/CiscoCloud/marathon-consul/issues/17#issuecomment-161678453))
 
+* Added a Dockerfile: make build_docker
 
 ## Installation
 
