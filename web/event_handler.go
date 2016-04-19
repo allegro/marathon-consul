@@ -156,33 +156,11 @@ func (fh *EventHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
 
 	switch task.TaskStatus {
 	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
-		app, err := fh.marathon.App(task.AppID)
+		err = fh.service.Deregister(task.ID, task.Host)
 		if err != nil {
-			log.WithField("Id", task.AppID).WithError(err).Error("There was a problem obtaining app info")
+			log.WithField("Id", task.ID).WithError(err).Error("There was a problem deregistering task")
 			fh.handleError(err, w)
 			return
-		}
-		serviceName := app.ConsulServiceName()
-		services, err := fh.service.GetServices(serviceName)
-		if err != nil {
-			log.WithField("AppId", app.ID).WithField("ServiceName", serviceName).WithError(err).Error("There was a problem getting Consul services")
-			fh.handleError(err, w)
-			return
-		}
-
-		if len(services) == 0 {
-			log.WithField("AppId", app.ID).WithField("ServiceName", serviceName).Info("No matching Consul services found")
-			fh.okResponse(w)
-			return
-		}
-
-		for _, service := range services {
-			if service.ServiceID == task.ID.String() {
-				err = fh.service.Deregister(apps.TaskId(service.ServiceID), service.Address)
-				if err != nil {
-					log.WithField("Id", service.ServiceID).WithError(err).Error("There was a problem deregistering task")
-				}
-			}
 		}
 	default:
 		log.WithFields(log.Fields{

@@ -551,12 +551,11 @@ func TestForwardHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 
 	// given
 	app := ConsulApp("/test/app", 3)
-	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	for _, task := range app.Tasks {
 		service.Register(&task, app)
 	}
-	handler := NewEventHandler(service, marathon)
+	handler := NewEventHandler(service, nil)
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
 	for _, taskStatus := range taskStatuses {
 		body := `{
@@ -595,9 +594,8 @@ func TestForwardHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testin
 
 	// given
 	app := NonConsulApp("/test/app", 3)
-	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
-	handler := NewEventHandler(service, marathon)
+	handler := NewEventHandler(service, nil)
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
 	for _, taskStatus := range taskStatuses {
 		body := `{
