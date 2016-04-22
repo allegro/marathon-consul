@@ -2,6 +2,7 @@ package apps
 
 import (
 	"encoding/json"
+	"strings"
 )
 
 type Task struct {
@@ -19,6 +20,11 @@ type TaskId string
 
 func (id TaskId) String() string {
 	return string(id)
+}
+
+func (id TaskId) AppId() AppId {
+	index := strings.LastIndex(id.String(), ".")
+	return AppId("/" + strings.Replace(id.String()[0:index], "_", "/", -1))
 }
 
 type HealthCheckResult struct {

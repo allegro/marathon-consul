@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/allegro/marathon-consul/apps"
+	"strings"
 )
 
 func ConsulApp(name string, instances int) *apps.App {
@@ -23,7 +24,7 @@ func app(name string, instances int, consul bool, unhealthyInstances int) *apps.
 	for i := 0; i < instances; i++ {
 		task := apps.Task{
 			AppID: apps.AppId(name),
-			ID:    apps.TaskId(fmt.Sprintf("%s.%d", name, i)),
+			ID:    apps.TaskId(fmt.Sprintf("%s.%d", strings.Replace(strings.Trim(name, "/"), "/", "_", -1), i)),
 			Ports: []int{8080 + i},
 			Host:  "localhost",
 		}

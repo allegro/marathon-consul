@@ -171,6 +171,30 @@ func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForMultiple
 	assert.Len(t, service.RegisteredServicesIds(), 0)
 }
 
+func TestForwardHandler_HandleDeploymentInfoWithStopApplicationForOneApp(t *testing.T) {
+	t.Parallel()
+
+	// given
+	green := ConsulApp("/test/app.green", 3)
+	green.Labels[apps.MARATHON_CONSUL_LABEL] = "app"
+	blue := ConsulApp("/test/app.blue", 2)
+	blue.Labels[apps.MARATHON_CONSUL_LABEL] = "app"
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(green, blue)
+	assert.Len(t, service.RegisteredServicesIds(), 5)
+	handler := NewEventHandler(service, marathon)
+	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(green))
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 200, recorder.Code)
+	assert.Len(t, service.RegisteredServicesIds(), 2)
+}
+
 func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleAppsAndProblemsDeregisteringOne(t *testing.T) {
 	t.Parallel()
 
@@ -179,7 +203,7 @@ func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForMultiple
 	app2 := ConsulApp("/test/otherapp", 2)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
-	service.ErrorServices["/test/app.1"] = fmt.Errorf("Cannot deregister service")
+	service.ErrorServices["test_app.1"] = fmt.Errorf("Cannot deregister service")
 	assert.Len(t, service.RegisteredServicesIds(), 5)
 	handler := NewEventHandler(service, marathon)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app1, app2))
@@ -331,7 +355,7 @@ func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionAndProblems
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
-	service.ErrorServices["/test/app.1"] = fmt.Errorf("Cannot deregister service")
+	service.ErrorServices["test_app.1"] = fmt.Errorf("Cannot deregister service")
 	assert.Len(t, service.RegisteredServicesIds(), 3)
 	handler := NewEventHandler(service, marathon)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
@@ -416,7 +440,7 @@ func TestForwardHandler_HandleDeploymentStepSuccessWithRestartApplicationActionF
 	app2 := ConsulApp("/test/otherapp", 2)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
-	service.ErrorServices["/test/app.1"] = fmt.Errorf("Cannot deregister service")
+	service.ErrorServices["test_app.1"] = fmt.Errorf("Cannot deregister service")
 	assert.Len(t, service.RegisteredServicesIds(), 5)
 	handler := NewEventHandler(service, marathon)
 	body, _ := json.Marshal(deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(app1, app2))
@@ -609,7 +633,7 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *te
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	handler := NewEventHandler(service, marathon)
-	body := healthStatusChangeEventForTask("/test/app.1")
+	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
@@ -630,7 +654,7 @@ func TestForwardHandler_HandleHealthStatusEvent(t *testing.T) {
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	handler := NewEventHandler(service, marathon)
-	body := healthStatusChangeEventForTask("/test/app.1")
+	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
@@ -654,7 +678,7 @@ func TestForwardHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testi
 	service := consul.NewConsulStub()
 	service.ErrorServices[app.Tasks[1].ID] = fmt.Errorf("Cannot register task")
 	handler := NewEventHandler(service, marathon)
-	body := healthStatusChangeEventForTask("/test/app.1")
+	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
@@ -677,7 +701,7 @@ func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNotAllHealthChecksP
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	handler := NewEventHandler(service, marathon)
-	body := healthStatusChangeEventForTask("/test/app.1")
+	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
@@ -699,7 +723,7 @@ func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *te
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	handler := NewEventHandler(service, marathon)
-	body := healthStatusChangeEventForTask("/test/app.0")
+	body := healthStatusChangeEventForTask("test_app.0")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
@@ -720,7 +744,7 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.
 	handler := NewEventHandler(services, nil)
 	body := `{
 	  "appId":"/test/app",
-	  "taskId":"/test/app.1",
+	  "taskId":"test_app.1",
 	  "version":"2015-12-07T09:02:48.981Z",
 	  "alive":false,
 	  "eventType":"health_status_changed_event",
@@ -744,7 +768,7 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T
 	handler := NewEventHandler(nil, nil)
 	body := `{
 	  "appId":"/test/app",
-	  "taskId":"/test/app.1",
+	  "taskId":"test_app.1",
 	  "version":123,
 	  "alive":false,
 	  "eventType":"health_status_changed_event",
@@ -769,7 +793,7 @@ func TestForwardHandler_HandleHealthStatusEventReturn500WhenMarathonReturnedErro
 	marathon := marathon.MarathonerStubForApps(app)
 	handler := NewEventHandler(nil, marathon)
 	body := `{
-	  "appId":"unknown",
+	  "appId":"/unknown",
 	  "taskId":"unknown.1",
 	  "version":"2015-12-07T09:02:48.981Z",
 	  "alive":true,

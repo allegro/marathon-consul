@@ -296,7 +296,7 @@ func TestSync_WithRegisteringProblems(t *testing.T) {
 	// given
 	marathon := marathon.MarathonerStubForApps(ConsulApp("/test/app", 3))
 	consul := consul.NewConsulStub()
-	consul.ErrorServices["/test/app.1"] = fmt.Errorf("Problem on registration")
+	consul.ErrorServices["test_app.1"] = fmt.Errorf("Problem on registration")
 	sync := newSyncWithDefaultConfig(marathon, consul)
 	// when
 	err := sync.SyncServices()
