@@ -92,7 +92,7 @@ curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callback
 - Consul Agents should be available at every Mesos Slave, tasks will be registered at hosts their run on.
 - Only tasks which are labeled as `consul` will be registered in Consul. By default the registered service name is equal to Marathon's application name. 
   A different name can be provided as the label's value, e.g. `consul:customName`. As an exception of the rule, for backward compatibility with the `0.3.x` branch, a value of `true` is resolved to the default name.
-- Only services with tag specified by `consul-tag` property will be maintained. This tag is automatically added during registration. **Important**: it should be unique for every Marathon cluster connected to Consul.
+- Only services with tag specified by `consul-tag` property will be maintained. This tag is automatically added during registration.
 - At least one HTTP healthcheck should be defined for a task. The task is registered when Marathon marks it's as alive.
 - Provided HTTP healtcheck will be transferred to Consul.
 - Labels with `tag` value will be converted to Consul tags, e.g. (note: `consul-tag` is set to `marathon`) `labels: ["public":"tag", "varnish":"tag", "env": "test"]` → `tags: ["public", "varnish", "marathon"]`.
@@ -148,7 +148,6 @@ Endpoint  | Description
 
 The following section describes known limitations in `marathon-consul`.
 
-* Every marathon application needs to have a unique service name in Consul.
 * In Marathon when a deployment changing the application's service name (by changing its `labels`) is being stopped, it changes app's configuration anyway.
   This means we loose the link between the app and the services registered with the old name in Consul.
   Later on, if another deployment takes place, new services are registered with a new name, the old ones are not being deregistered though.
