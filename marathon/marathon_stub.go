@@ -7,17 +7,20 @@ import (
 )
 
 type MarathonerStub struct {
-	AppsStub  []*apps.App
-	AppStub   map[apps.AppId]*apps.App
-	TasksStub map[apps.AppId][]*apps.Task
-	leader    string
+	AppsStub     []*apps.App
+	AppStub      map[apps.AppId]*apps.App
+	TasksStub    map[apps.AppId][]*apps.Task
+	leader       string
+	interactions bool
 }
 
-func (m MarathonerStub) ConsulApps() ([]*apps.App, error) {
+func (m *MarathonerStub) ConsulApps() ([]*apps.App, error) {
+	m.interactions = true
 	return m.AppsStub, nil
 }
 
-func (m MarathonerStub) App(id apps.AppId) (*apps.App, error) {
+func (m *MarathonerStub) App(id apps.AppId) (*apps.App, error) {
+	m.interactions = true
 	if app, ok := m.AppStub[id]; ok {
 		return app, nil
 	} else {
@@ -25,7 +28,8 @@ func (m MarathonerStub) App(id apps.AppId) (*apps.App, error) {
 	}
 }
 
-func (m MarathonerStub) Tasks(appId apps.AppId) ([]*apps.Task, error) {
+func (m *MarathonerStub) Tasks(appId apps.AppId) ([]*apps.Task, error) {
+	m.interactions = true
 	if app, ok := m.TasksStub[appId]; ok {
 		return app, nil
 	} else {
@@ -33,8 +37,13 @@ func (m MarathonerStub) Tasks(appId apps.AppId) ([]*apps.Task, error) {
 	}
 }
 
-func (m MarathonerStub) Leader() (string, error) {
+func (m *MarathonerStub) Leader() (string, error) {
+	m.interactions = true
 	return m.leader, nil
+}
+
+func (m MarathonerStub) Interactions() bool {
+	return m.interactions
 }
 
 func MarathonerStubWithLeaderForApps(leader string, args ...*apps.App) *MarathonerStub {

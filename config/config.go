@@ -12,14 +12,13 @@ import (
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/sync"
+	"github.com/allegro/marathon-consul/web"
 	flag "github.com/ogier/pflag"
 )
 
 type Config struct {
-	Consul consul.ConsulConfig
-	Web    struct {
-		Listen string
-	}
+	Consul   consul.ConsulConfig
+	Web      web.Config
 	Sync     sync.Config
 	Marathon marathon.Config
 	Metrics  metrics.Config
@@ -75,6 +74,8 @@ func (config *Config) parseFlags() {
 
 	// Web
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "accept connections at this address")
+	flag.IntVar(&config.Web.QueueSize, "events-queue-size", 1000, "size of events queue")
+	flag.IntVar(&config.Web.WorkersCount, "workers-pool-size", 10, "number of concurrent workers processing events")
 
 	// Sync
 	flag.BoolVar(&config.Sync.Enabled, "sync-enabled", true, "Enable Marathon-consul scheduled sync")

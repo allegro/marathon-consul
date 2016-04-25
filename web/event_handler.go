@@ -3,8 +3,7 @@ package web
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
-	"net/http"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
@@ -14,68 +13,83 @@ import (
 	"github.com/allegro/marathon-consul/metrics"
 )
 
-type EventHandler struct {
-	service  service.ConsulServices
-	marathon marathon.Marathoner
+type event struct {
+	timestamp time.Time
+	eventType string
+	body      []byte
 }
 
-func NewEventHandler(service service.ConsulServices, marathon marathon.Marathoner) *EventHandler {
-	return &EventHandler{
-		service:  service,
-		marathon: marathon,
+type eventHandler struct {
+	id         int
+	service    service.ConsulServices
+	marathon   marathon.Marathoner
+	eventQueue <-chan event
+}
+
+type stopEvent struct{}
+
+func newEventHandler(id int, service service.ConsulServices, marathon marathon.Marathoner, eventQueue <-chan event) *eventHandler {
+	return &eventHandler{
+		id:         id,
+		service:    service,
+		marathon:   marathon,
+		eventQueue: eventQueue,
 	}
 }
 
-func (fh *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	metrics.Time("events.response", func() {
-		fh.handle(w, r)
-	})
+func (fh *eventHandler) Start() chan<- stopEvent {
+	var event event
+	process := func() {
+		err := fh.handleEvent(event.eventType, event.body)
+		if err != nil {
+			metrics.Mark("events.processing.error")
+		} else {
+			metrics.Mark("events.processing.succes")
+		}
+	}
+
+	quitChan := make(chan stopEvent)
+	log.WithField("Id", fh.id).Println("Starting worker")
+	go func() {
+		for {
+			select {
+			case event = <-fh.eventQueue:
+				metrics.Mark(fmt.Sprintf("events.handler.%d", fh.id))
+				metrics.UpdateGauge("events.queue.len", int64(len(fh.eventQueue)))
+				metrics.UpdateGauge("events.queue.delay_ns", time.Since(event.timestamp).Nanoseconds())
+				metrics.Time("events.processing."+event.eventType, process)
+			case <-quitChan:
+				log.WithField("Id", fh.id).Info("Stopping worker")
+			}
+		}
+	}()
+	return quitChan
 }
 
-func (fh *EventHandler) handle(w http.ResponseWriter, r *http.Request) {
+func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		log.WithError(err).Debug("Malformed request")
-		fh.handleBadRequest(err, w)
-		return
-	}
-	log.WithField("Body", string(body)).Debug("Received request")
-
-	eventType, err := events.EventType(body)
-	if err != nil {
-		fh.handleBadRequest(err, w)
-		return
-	}
-
-	fh.markEventRequest(eventType)
-
-	log.WithField("EventType", eventType).Debug("Received event")
+	body = replaceTaskIdWithId(body)
 
 	switch eventType {
 	case "status_update_event":
-		fh.handleStatusEvent(w, body)
+		return fh.handleStatusEvent(body)
 	case "health_status_changed_event":
-		fh.handleHealthStatusEvent(w, body)
+		return fh.handleHealthStatusEvent(body)
 	case "deployment_info":
-		fh.handleDeploymentInfo(w, body)
+		return fh.handleDeploymentInfo(body)
 	case "deployment_step_success":
-		fh.handleDeploymentStepSuccess(w, body)
+		return fh.handleDeploymentStepSuccess(body)
 	default:
 		log.WithField("EventType", eventType).Debug("Not handled event type")
-		fh.okResponse(w)
+		return nil
 	}
-
-	fh.markSuccess()
 }
 
-func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []byte) {
-	body = replaceTaskIdWithId(body)
+func (fh *eventHandler) handleHealthStatusEvent(body []byte) error {
 	taskHealthChange, err := events.ParseTaskHealthChange(body)
 	if err != nil {
 		log.WithError(err).Error("Body generated error")
-		fh.handleBadRequest(err, w)
-		return
+		return err
 	}
 
 	log.WithFields(
@@ -85,25 +99,21 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 		}).Info("Got HealthStatusEvent")
 
 	if !taskHealthChange.Alive {
-		err := fmt.Errorf("Task %s is not healthy. Not registering", taskHealthChange.ID)
-		log.WithField("Id", taskHealthChange.ID).WithError(err).Debug("Task is not healthy. Not registering")
-		fh.okResponse(w)
-		return
+		log.WithField("Id", taskHealthChange.ID).Debug("Task is not alive. Not registering")
+		return nil
 	}
 
 	appId := taskHealthChange.AppID
 	app, err := fh.marathon.App(appId)
 	if err != nil {
 		log.WithField("Id", taskHealthChange.ID).WithError(err).Error("There was a problem obtaining app info")
-		fh.handleError(err, w)
-		return
+		return err
 	}
 
 	if !app.IsConsulApp() {
 		err = fmt.Errorf("%s is not consul app. Missing consul label", app.ID)
 		log.WithField("Id", taskHealthChange.ID).WithError(err).Debug("Skipping app registration in Consul")
-		fh.okResponse(w)
-		return
+		return nil
 	}
 
 	tasks := app.Tasks
@@ -111,42 +121,29 @@ func (fh *EventHandler) handleHealthStatusEvent(w http.ResponseWriter, body []by
 	task, err := findTaskById(taskHealthChange.ID, tasks)
 	if err != nil {
 		log.WithField("Id", taskHealthChange.ID).WithError(err).Error("Task not found")
-		fh.handleError(err, w)
-		return
+		return err
 	}
 
 	if task.IsHealthy() {
 		err := fh.service.Register(&task, app)
 		if err != nil {
 			log.WithField("Id", task.ID).WithError(err).Error("There was a problem registering task")
-			fh.handleError(err, w)
+			return err
 		} else {
-			fh.okResponse(w)
+			return nil
 		}
 	} else {
-		err := fmt.Errorf("Task %s is not healthy. Not registering", task.ID)
-		log.WithField("Id", task.ID).WithError(err).Debug("Task is not healthy. Not registering")
-		fh.okResponse(w)
+		log.WithField("Id", task.ID).Debug("Task is not healthy. Not registering")
+		return nil
 	}
 }
 
-func findTaskById(id apps.TaskId, tasks_ []apps.Task) (apps.Task, error) {
-	for _, task := range tasks_ {
-		if task.ID == id {
-			return task, nil
-		}
-	}
-	return apps.Task{}, fmt.Errorf("Task %s not found", id)
-}
-
-func (fh *EventHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
-	body = replaceTaskIdWithId(body)
+func (fh *eventHandler) handleStatusEvent(body []byte) error {
 	task, err := apps.ParseTask(body)
 
 	if err != nil {
 		log.WithError(err).WithField("Body", body).Error("Could not parse event body")
-		fh.handleBadRequest(err, w)
-		return
+		return err
 	}
 
 	log.WithFields(log.Fields{
@@ -159,71 +156,64 @@ func (fh *EventHandler) handleStatusEvent(w http.ResponseWriter, body []byte) {
 		err = fh.service.Deregister(task.ID, task.Host)
 		if err != nil {
 			log.WithField("Id", task.ID).WithError(err).Error("There was a problem deregistering task")
-			fh.handleError(err, w)
-			return
+			return err
+		} else {
+			return nil
 		}
 	default:
 		log.WithFields(log.Fields{
 			"Id":         task.ID,
 			"taskStatus": task.TaskStatus,
 		}).Debug("Not handled task status")
+		return nil
 	}
-	fh.okResponse(w)
 }
 
-/*
-	This handler is used when an application is stopped
-*/
-func (fh *EventHandler) handleDeploymentInfo(w http.ResponseWriter, body []byte) {
-	body = replaceTaskIdWithId(body)
+//This handler is used when an application is stopped
+func (fh *eventHandler) handleDeploymentInfo(body []byte) error {
 	deploymentEvent, err := events.ParseDeploymentEvent(body)
 
 	if err != nil {
 		log.WithError(err).WithField("Body", body).Error("Could not parse event body")
-		fh.handleBadRequest(err, w)
-		return
+		return err
 	}
 
 	errors := []error{}
 	for _, app := range deploymentEvent.StoppedConsulApps() {
-		for _, error := range fh.deregisterAllAppServices(app) {
-			errors = append(errors, error)
+		for _, err = range fh.deregisterAllAppServices(app) {
+			errors = append(errors, err)
 		}
 	}
 	if len(errors) > 0 {
-		fh.handleError(fh.mergeDeregistrationErrors(errors), w)
-		return
+		return fh.mergeDeregistrationErrors(errors)
+	} else {
+		return nil
 	}
-	fh.okResponse(w)
 }
 
-/*
-	This handler is used when an application is restarted and renamed
-*/
-func (fh *EventHandler) handleDeploymentStepSuccess(w http.ResponseWriter, body []byte) {
-	body = replaceTaskIdWithId(body)
+//This handler is used when an application is restarted and renamed
+func (fh *eventHandler) handleDeploymentStepSuccess(body []byte) error {
 	deploymentEvent, err := events.ParseDeploymentEvent(body)
 
 	if err != nil {
 		log.WithError(err).WithField("Body", body).Error("Could not parse event body")
-		fh.handleBadRequest(err, w)
-		return
+		return err
 	}
 
 	errors := []error{}
 	for _, app := range deploymentEvent.RenamedConsulApps() {
-		for _, error := range fh.deregisterAllAppServices(app) {
-			errors = append(errors, error)
+		for _, err = range fh.deregisterAllAppServices(app) {
+			errors = append(errors, err)
 		}
 	}
 	if len(errors) > 0 {
-		fh.handleError(fh.mergeDeregistrationErrors(errors), w)
-		return
+		return fh.mergeDeregistrationErrors(errors)
+	} else {
+		return nil
 	}
-	fh.okResponse(w)
 }
 
-func (fh *EventHandler) deregisterAllAppServices(app *apps.App) []error {
+func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 
 	errors := []error{}
 	serviceName := app.ConsulServiceName()
@@ -256,7 +246,16 @@ func (fh *EventHandler) deregisterAllAppServices(app *apps.App) []error {
 	return errors
 }
 
-func (fh *EventHandler) mergeDeregistrationErrors(errors []error) error {
+func findTaskById(id apps.TaskId, tasks_ []apps.Task) (apps.Task, error) {
+	for _, task := range tasks_ {
+		if task.ID == id {
+			return task, nil
+		}
+	}
+	return apps.Task{}, fmt.Errorf("Task %s not found", id)
+}
+
+func (fh *eventHandler) mergeDeregistrationErrors(errors []error) error {
 	errMessage := fmt.Sprintf("%d errors occured handling service deregistration", len(errors))
 	for i, err := range errors {
 		errMessage = fmt.Sprintf("%s\n%d: %s", errMessage, i, err.Error())
@@ -264,37 +263,10 @@ func (fh *EventHandler) mergeDeregistrationErrors(errors []error) error {
 	return fmt.Errorf(errMessage)
 }
 
+// for every other use of Tasks, Marathon uses the "id" field for the task ID.
+// Here, it uses "taskId", with most of the other fields being equal. We'll
+// just swap "taskId" for "id" in the body so that we can successfully parse
+// incoming events.
 func replaceTaskIdWithId(body []byte) []byte {
-	// for every other use of Tasks, Marathon uses the "id" field for the task ID.
-	// Here, it uses "taskId", with most of the other fields being equal. We'll
-	// just swap "taskId" for "id" in the body so that we can successfully parse
-	// incoming events.
 	return bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
-}
-
-func (fh *EventHandler) markEventRequest(event string) {
-	metrics.Mark("events.requests." + event)
-}
-
-func (fh *EventHandler) markSuccess() {
-	metrics.Mark("events.response.success")
-}
-
-func (fh *EventHandler) handleError(err error, w http.ResponseWriter) {
-	metrics.Mark("events.response.error.500")
-	w.WriteHeader(500)
-	log.WithError(err).Debug("Returning 500 due to error")
-	fmt.Fprintln(w, err.Error())
-}
-
-func (fh *EventHandler) handleBadRequest(err error, w http.ResponseWriter) {
-	metrics.Mark("events.response.error.400")
-	w.WriteHeader(400)
-	log.WithError(err).Debug("Returning 400 due to malformed request")
-	fmt.Fprintln(w, err.Error())
-}
-
-func (fh *EventHandler) okResponse(w http.ResponseWriter) {
-	w.WriteHeader(200)
-	fmt.Fprintln(w, "OK")
 }

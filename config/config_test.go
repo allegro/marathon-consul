@@ -10,6 +10,7 @@ import (
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/sync"
+	"github.com/allegro/marathon-consul/web"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -99,7 +100,11 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			RequestRetries:         5,
 			AgentFailuresTolerance: 3,
 		},
-		Web: struct{ Listen string }{Listen: ":4000"},
+		Web: web.Config{
+			Listen:       ":4000",
+			QueueSize:    1000,
+			WorkersCount: 10,
+		},
 		Sync: sync.Config{
 			Interval: 15 * time.Minute,
 			Enabled:  true,
