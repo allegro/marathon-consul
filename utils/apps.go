@@ -2,9 +2,9 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/allegro/marathon-consul/apps"
-	"strings"
 )
 
 func ConsulApp(name string, instances int) *apps.App {

@@ -37,9 +37,12 @@ func main() {
 	sync := sync.New(config.Sync, remote, service)
 	go sync.StartSyncServicesJob()
 
+	handler, stop := web.NewHandler(config.Web, remote, service)
+	defer stop()
+
 	// set up routes
 	http.HandleFunc("/health", web.HealthHandler)
-	http.HandleFunc("/events", web.NewEventHandler(service, remote).Handle)
+	http.HandleFunc("/events", handler)
 
 	log.WithField("Port", config.Web.Listen).Info("Listening")
 	log.Fatal(http.ListenAndServe(config.Web.Listen, nil))

@@ -12,9 +12,12 @@ func TestMarathonStub(t *testing.T) {
 	t.Parallel()
 	// given
 	m := marathon.MarathonerStubWithLeaderForApps("some.host:1234", utils.ConsulApp("/test/app", 3))
+	// then
+	assert.False(t, m.Interactions())
 	// when
 	leader, _ := m.Leader()
 	// then
+	assert.True(t, m.Interactions())
 	assert.Equal(t, "some.host:1234", leader)
 	// when
 	apps, _ := m.ConsulApps()

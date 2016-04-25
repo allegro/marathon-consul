@@ -118,6 +118,7 @@ consul-ssl-verify      | `true`                | Verify certificates when connec
 consul-token           |                       | The Consul ACL token
 consul-tag             | `marathon`            | Common tag name added to every service registered in Consul, should be unique for every Marathon-cluster connected to Consul
 consul-timeout         | `3s`                  | Time limit for requests made by the Consul HTTP client. A Timeout of zero means no timeout
+events-queue-size      | `1000`                | Size of events queue
 listen                 | `:4000`               | Accept connections at this address
 log-level              | `info`                | Log level: panic, fatal, error, warn, info, or debug
 log-format             | `text`                | Log format: JSON, text
@@ -132,9 +133,10 @@ metrics-location       |                       | Graphite URL (used when metrics
 metrics-prefix         | `default`             | Metrics prefix (resolved to `<hostname>.<app_name>` by default)
 metrics-target         | `stdout`              | Metrics destination `stdout` or `graphite` (empty string disables metrics)
 sync-enabled           | `true`                | Enable Marathon-consul scheduled sync
+sync-force             | `false`               | Force leadership-independent Marathon-consul sync (run always)
 sync-interval          | `15m0s`               | Marathon-consul sync [interval](https://golang.org/pkg/time/#Duration) **Note:** While using file configuration intervals should be provided in *nanoseconds*
 sync-leader            | `<hostname>:8080`     | Marathon cluster-wide node name (defaults to `<hostname>:8080`), the sync will run only if the node is the current [Marathon-leader](https://mesosphere.github.io/marathon/docs/rest-api.html#get-v2-leader)
-sync-force             | `false`               | Force leadership-independent Marathon-consul sync (run always)
+workers-pool-size      | `10`                  | Number of concurrent workers processing events
 
 
 ### Endpoints

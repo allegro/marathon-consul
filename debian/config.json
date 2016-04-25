@@ -17,7 +17,9 @@
     "RequestRetries": 5
   },
   "Web": {
-    "Listen": ":4000"
+    "Listen": ":4000",
+    "QueueSize": 1000,
+    "WorkersCount": 10
   },
   "Sync": {
     "Enabled": true,

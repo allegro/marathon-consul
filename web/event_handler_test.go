@@ -16,26 +16,29 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestForwardHandler_NotHandleUnknownEventType(t *testing.T) {
+func TestWebHandler_NotHandleUnknownEventType(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := NewEventHandler(nil, nil)
+	queue := make(chan event)
+	handler := newWebHandler(queue)
+	stopChan := newEventHandler(0, nil, nil, queue).Start()
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":"test_event"}`)))
 
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+	stopChan <- stopEvent{}
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
+	assertAccepted(t, recorder)
 }
 
-func TestForwardHandler_HandleRadderError(t *testing.T) {
+func TestWebHandler_HandleRadderError(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := NewEventHandler(nil, nil)
+	handler := newWebHandler(nil)
 	req, _ := http.NewRequest("POST", "/events", BadReader{})
 
 	// when
@@ -47,11 +50,11 @@ func TestForwardHandler_HandleRadderError(t *testing.T) {
 	assert.Equal(t, "Some error\n", recorder.Body.String())
 }
 
-func TestForwardHandler_HandleEmptyBody(t *testing.T) {
+func TestWebHandler_HandleEmptyBody(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := NewEventHandler(nil, nil)
+	handler := newWebHandler(nil)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte{}))
 
 	// when
@@ -63,11 +66,11 @@ func TestForwardHandler_HandleEmptyBody(t *testing.T) {
 	assert.Equal(t, "unexpected end of JSON input\n", recorder.Body.String())
 }
 
-func TestForwardHandler_NotHandleMalformedEventType(t *testing.T) {
+func TestWebHandler_NotHandleMalformedEventType(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := NewEventHandler(nil, nil)
+	handler := newWebHandler(nil)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{eventType:"test_event"}`)))
 
 	// when
@@ -79,11 +82,11 @@ func TestForwardHandler_NotHandleMalformedEventType(t *testing.T) {
 	assert.Equal(t, "invalid character 'e' looking for beginning of object key string\n", recorder.Body.String())
 }
 
-func TestForwardHandler_HandleMalformedEventType(t *testing.T) {
+func TestWebHandler_HandleMalformedEventType(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := NewEventHandler(nil, nil)
+	handler := newWebHandler(nil)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{eventType:"test_event"}`)))
 
 	// when
@@ -95,11 +98,11 @@ func TestForwardHandler_HandleMalformedEventType(t *testing.T) {
 	assert.Equal(t, "invalid character 'e' looking for beginning of object key string\n", recorder.Body.String())
 }
 
-func TestForwardHandler_NotHandleInvalidEventType(t *testing.T) {
+func TestWebHandler_NotHandleInvalidEventType(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := NewEventHandler(nil, nil)
+	handler := newWebHandler(nil)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":[1,2]}`)))
 
 	// when
@@ -111,24 +114,27 @@ func TestForwardHandler_NotHandleInvalidEventType(t *testing.T) {
 	assert.Equal(t, "json: cannot unmarshal array into Go value of type string\n", recorder.Body.String())
 }
 
-func TestForwardHandler_HandleAppInvalidBody(t *testing.T) {
+func TestWebHandler_HandleAppInvalidBody(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := NewEventHandler(nil, nil)
+	queue := make(chan event)
+	handler := newWebHandler(queue)
+	stopChan := newEventHandler(0, nil, nil, queue).Start()
 	body := `{"type":  "app_terminated_event", "appID": 123}`
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+	stopChan <- stopEvent{}
 
 	// then
 	assert.Equal(t, 400, recorder.Code)
 	assert.Equal(t, "no event\n", recorder.Body.String())
 }
 
-func TestForwardHandler_HandleDeploymentInfoWithStopApplicationAction(t *testing.T) {
+func TestWebHandler_HandleDeploymentInfoWithStopApplicationAction(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -136,42 +142,22 @@ func TestForwardHandler_HandleDeploymentInfoWithStopApplicationAction(t *testing
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
 	assert.Len(t, service.RegisteredServicesIds(), 3)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
-	assert.Len(t, service.RegisteredServicesIds(), 0)
+	assertAccepted(t, recorder)
+	assert.Empty(t, service.RegisteredServicesIds())
+	assert.False(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleApps(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app1 := ConsulApp("/test/app", 3)
-	app2 := ConsulApp("/test/otherapp", 2)
-	marathon := marathon.MarathonerStubForApps()
-	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
-	assert.Len(t, service.RegisteredServicesIds(), 5)
-	handler := NewEventHandler(service, marathon)
-	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app1, app2))
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
-
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-
-	// then
-	assert.Equal(t, 200, recorder.Code)
-	assert.Len(t, service.RegisteredServicesIds(), 0)
-}
-
-func TestForwardHandler_HandleDeploymentInfoWithStopApplicationForOneApp(t *testing.T) {
+func TestWebHandler_handleDeploymentInfoWithStopApplicationForOneApp(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -182,20 +168,46 @@ func TestForwardHandler_HandleDeploymentInfoWithStopApplicationForOneApp(t *test
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(green, blue)
 	assert.Len(t, service.RegisteredServicesIds(), 5)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(green))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
+	assertAccepted(t, recorder)
 	assert.Len(t, service.RegisteredServicesIds(), 2)
+	assert.False(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleAppsAndProblemsDeregisteringOne(t *testing.T) {
+func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleApps(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app1 := ConsulApp("/test/app", 3)
+	app2 := ConsulApp("/test/otherapp", 2)
+	marathon := marathon.MarathonerStubForApps()
+	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
+	assert.Len(t, service.RegisteredServicesIds(), 5)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
+	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app1, app2))
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handle(recorder, req)
+	stop()
+
+	// then
+	assertAccepted(t, recorder)
+	assert.Len(t, service.RegisteredServicesIds(), 0)
+	assert.False(t, marathon.Interactions())
+}
+
+func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleAppsAndProblemsDeregisteringOne(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -205,20 +217,22 @@ func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForMultiple
 	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
 	service.ErrorServices["test_app.1"] = fmt.Errorf("Cannot deregister service")
 	assert.Len(t, service.RegisteredServicesIds(), 5)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app1, app2))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 500, recorder.Code)
+	assertAccepted(t, recorder)
 	assert.Len(t, service.RegisteredServicesIds(), 1)
+	assert.False(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleAppsAndProblemsGettingServicesForOne(t *testing.T) {
+func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleAppsAndProblemsGettingServicesForOne(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -228,20 +242,22 @@ func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForMultiple
 	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
 	service.ErrorGetServices["test.app"] = fmt.Errorf("Something went terribly wrong!")
 	assert.Len(t, service.RegisteredServicesIds(), 5)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app1, app2))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 500, recorder.Code)
+	assertAccepted(t, recorder)
 	assert.Len(t, service.RegisteredServicesIds(), 3)
+	assert.False(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionWithNoServicesRegistered(t *testing.T) {
+func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionWithNoServicesRegistered(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -249,20 +265,22 @@ func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionWithNoServi
 	marathon := marathon.MarathonerStubForApps()
 	service := consul.NewConsulStub()
 	assert.Len(t, service.RegisteredServicesIds(), 0)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
+	assertAccepted(t, recorder)
 	assert.Len(t, service.RegisteredServicesIds(), 0)
+	assert.False(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleDeploymentInfoWithInvalidBody(t *testing.T) {
+func TestWebHandler_HandleDeploymentInfoWithInvalidBody(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -270,19 +288,21 @@ func TestForwardHandler_HandleDeploymentInfoWithInvalidBody(t *testing.T) {
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
 	assert.Len(t, service.RegisteredServicesIds(), 3)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":"deployment_info", "Plan": 123}`)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
+	assertAccepted(t, recorder)
 	assert.Len(t, service.RegisteredServicesIds(), 3)
+	assert.False(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForNonConsulApp(t *testing.T) {
+func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForNonConsulApp(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -290,20 +310,22 @@ func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForNonConsu
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
 	assert.Len(t, service.RegisteredServicesIds(), 3)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
+	assertAccepted(t, recorder)
 	assert.Len(t, service.RegisteredServicesIds(), 3)
+	assert.False(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForCustomServiceName(t *testing.T) {
+func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForCustomServiceName(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -312,20 +334,22 @@ func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionForCustomSe
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
 	assert.Len(t, service.RegisteredServicesIds(), 3)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
+	assertAccepted(t, recorder)
 	assert.Len(t, service.RegisteredServicesIds(), 0)
+	assert.False(t, marathon.Interactions())
 }
 
-func TestForwardHandler_NotHandleDeploymentInfoWithScaleApplicationAction(t *testing.T) {
+func TestWebHandler_NotHandleDeploymentInfoWithScaleApplicationAction(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -333,7 +357,7 @@ func TestForwardHandler_NotHandleDeploymentInfoWithScaleApplicationAction(t *tes
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
 	assert.Len(t, service.RegisteredServicesIds(), 3)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	deploymentInfo := deploymentInfoWithStopApplicationActionForApps(app)
 	deploymentInfo.CurrentStep.Actions[0].Type = "ScaleApplication"
 	body, _ := json.Marshal(deploymentInfo)
@@ -341,14 +365,16 @@ func TestForwardHandler_NotHandleDeploymentInfoWithScaleApplicationAction(t *tes
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
+	assertAccepted(t, recorder)
 	assert.Len(t, service.RegisteredServicesIds(), 3)
+	assert.False(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionAndProblemsDeregistering(t *testing.T) {
+func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionAndProblemsDeregistering(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -357,18 +383,19 @@ func TestForwardHandler_HandleDeploymentInfoWithStopApplicationActionAndProblems
 	service := newConsulStubWithApplicationsTasksRegistered(app)
 	service.ErrorServices["test_app.1"] = fmt.Errorf("Cannot deregister service")
 	assert.Len(t, service.RegisteredServicesIds(), 3)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 500, recorder.Code)
-	assert.Equal(t, "1 errors occured handling service deregistration\n0: Cannot deregister service\n", recorder.Body.String())
+	assertAccepted(t, recorder)
 	assert.Len(t, service.RegisteredServicesIds(), 1)
+	assert.False(t, marathon.Interactions())
 }
 
 func deploymentInfoWithStopApplicationActionForApps(applications ...*apps.App) *events.DeploymentEvent {
@@ -391,7 +418,7 @@ func deploymentInfoWithStopApplicationActionForApps(applications ...*apps.App) *
 	return deploymentInfo
 }
 
-func TestForwardHandler_HandleDeploymentStepSuccessWithRestartAndRenameApplicationAction(t *testing.T) {
+func TestWebHandler_HandleDeploymentStepSuccessWithRestartAndRenameApplicationAction(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -399,20 +426,22 @@ func TestForwardHandler_HandleDeploymentStepSuccessWithRestartAndRenameApplicati
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
 	assert.Len(t, service.RegisteredServicesIds(), 3)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(app))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
+	assertAccepted(t, recorder)
 	assert.Len(t, service.RegisteredServicesIds(), 0)
+	assert.False(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleDeploymentStepSuccessWithInvalidBody(t *testing.T) {
+func TestWebHandler_HandleDeploymentStepSuccessWithInvalidBody(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -420,19 +449,21 @@ func TestForwardHandler_HandleDeploymentStepSuccessWithInvalidBody(t *testing.T)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
 	assert.Len(t, service.RegisteredServicesIds(), 3)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":"deployment_step_success", "Plan": 123}`)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
+	assertAccepted(t, recorder)
 	assert.Len(t, service.RegisteredServicesIds(), 3)
+	assert.False(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleDeploymentStepSuccessWithRestartApplicationActionForMultipleAppsAndProblemsDeregisteringOne(t *testing.T) {
+func TestWebHandler_HandleDeploymentStepSuccessWithRestartApplicationActionForMultipleAppsAndProblemsDeregisteringOne(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -442,18 +473,19 @@ func TestForwardHandler_HandleDeploymentStepSuccessWithRestartApplicationActionF
 	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
 	service.ErrorServices["test_app.1"] = fmt.Errorf("Cannot deregister service")
 	assert.Len(t, service.RegisteredServicesIds(), 5)
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(app1, app2))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 500, recorder.Code)
-	assert.Equal(t, "1 errors occured handling service deregistration\n0: Cannot deregister service\n", recorder.Body.String())
+	assertAccepted(t, recorder)
 	assert.Len(t, service.RegisteredServicesIds(), 1)
+	assert.False(t, marathon.Interactions())
 }
 
 func deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(applications ...*apps.App) *events.DeploymentEvent {
@@ -483,11 +515,13 @@ func deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(applicati
 	return deploymentInfo
 }
 
-func TestForwardHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
+func TestWebHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := NewEventHandler(nil, nil)
+	queue := make(chan event)
+	handler := newWebHandler(queue)
+	stopChan := newEventHandler(0, nil, nil, queue).Start()
 	body := `{
 	  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
 	  "taskId":"python_simple.4a7e99d0-9cc1-11e5-b4d8-0a0027000004",
@@ -505,19 +539,20 @@ func TestForwardHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+	stopChan <- stopEvent{}
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "json: cannot unmarshal number into Go value of type []int\n",
-		recorder.Body.String())
+	assertAccepted(t, recorder)
 }
 
-func TestForwardHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
+func TestWebHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 	t.Parallel()
 
 	// given
 	services := consul.NewConsulStub()
-	handler := NewEventHandler(services, nil)
+	queue := make(chan event)
+	stopChan := newEventHandler(0, services, nil, queue).Start()
+	handler := newWebHandler(queue)
 	ignoredTaskStatuses := []string{"TASK_STAGING", "TASK_STARTING", "TASK_RUNNING", "unknown"}
 	for _, taskStatus := range ignoredTaskStatuses {
 		body := `{
@@ -539,25 +574,28 @@ func TestForwardHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 		// when
 		recorder := httptest.NewRecorder()
 		handler.Handle(recorder, req)
+		stopChan <- stopEvent{}
 
 		// then
-		assert.Equal(t, 200, recorder.Code)
-		assert.Len(t, services.RegisteredServicesIds(), 0)
+		assert.Equal(t, 202, recorder.Code)
+		assert.Equal(t, "OK\n", recorder.Body.String())
+		assert.Empty(t, services.RegisteredServicesIds())
 	}
 }
 
-func TestForwardHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
+func TestWebHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 	t.Parallel()
-
-	// given
-	app := ConsulApp("/test/app", 3)
-	service := consul.NewConsulStub()
-	for _, task := range app.Tasks {
-		service.Register(&task, app)
-	}
-	handler := NewEventHandler(service, nil)
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
 	for _, taskStatus := range taskStatuses {
+		// given
+		app := ConsulApp("/test/app", 3)
+		service := consul.NewConsulStub()
+		for _, task := range app.Tasks {
+			service.Register(&task, app)
+		}
+		queue := make(chan event)
+		stopChan := newEventHandler(0, service, nil, queue).Start()
+		handler := newWebHandler(queue)
 		body := `{
 		  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
 		  "taskId":"` + app.Tasks[1].ID.String() + `",
@@ -577,10 +615,11 @@ func TestForwardHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 		// when
 		recorder := httptest.NewRecorder()
 		handler.Handle(recorder, req)
+		stopChan <- stopEvent{}
 		servicesIds := service.RegisteredServicesIds()
 
 		// then
-		assert.Equal(t, 200, recorder.Code)
+		assert.Equal(t, 202, recorder.Code)
 		assert.Equal(t, "OK\n", recorder.Body.String())
 		assert.Len(t, servicesIds, 2)
 		assert.NotContains(t, servicesIds, app.Tasks[1].ID)
@@ -589,13 +628,50 @@ func TestForwardHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 	}
 }
 
-func TestForwardHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.T) {
+func TestWebHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testing.T) {
+	t.Parallel()
+
+	// given
+	service := consul.NewConsulStub()
+	service.ErrorServices[apps.TaskId("task.1")] = fmt.Errorf("Cannot deregister task")
+	queue := make(chan event)
+	stopChan := newEventHandler(0, service, nil, queue).Start()
+	handler := newWebHandler(queue)
+	body := `{
+	  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
+	  "taskId":"task.1",
+	  "taskStatus":"TASK_KILLED",
+	  "message":"Command terminated with signal Terminated",
+	  "appId":"/test/app",
+	  "host":"localhost",
+	  "ports":[
+		31372
+	  ],
+	  "version":"2015-12-07T09:02:48.981Z",
+	  "eventType":"status_update_event",
+	  "timestamp":"2015-12-07T09:33:40.898Z"
+	}`
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+	stopChan <- stopEvent{}
+
+	// then
+	assertAccepted(t, recorder)
+	assert.Empty(t, service.RegisteredServicesIds())
+}
+
+func TestWebHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := NonConsulApp("/test/app", 3)
 	service := consul.NewConsulStub()
-	handler := NewEventHandler(service, nil)
+	queue := make(chan event)
+	stopChan := newEventHandler(0, service, nil, queue).Start()
+	handler := newWebHandler(queue)
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
 	for _, taskStatus := range taskStatuses {
 		body := `{
@@ -617,57 +693,61 @@ func TestForwardHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testin
 		// when
 		recorder := httptest.NewRecorder()
 		handler.Handle(recorder, req)
+		stopChan <- stopEvent{}
 
 		// then
-		assert.Equal(t, 200, recorder.Code)
+		assert.Equal(t, 202, recorder.Code)
+		assert.Equal(t, "OK\n", recorder.Body.String())
 	}
 }
 
-func TestForwardHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *testing.T) {
+func TestWebHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := NonConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
-	service := consul.NewConsulStub()
-	handler := NewEventHandler(service, marathon)
+	queue := make(chan event)
+	stopChan := newEventHandler(0, nil, marathon, queue).Start()
+	handler := newWebHandler(queue)
 	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
-	servicesIds := service.RegisteredServicesIds()
+	stopChan <- stopEvent{}
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
-	assert.Len(t, servicesIds, 0)
+	assertAccepted(t, recorder)
+	assert.True(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleHealthStatusEvent(t *testing.T) {
+func TestWebHandler_HandleHealthStatusEvent(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
+	handle(recorder, req)
+	stop()
 	servicesIds := service.RegisteredServicesIds()
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
-	assert.Equal(t, "OK\n", recorder.Body.String())
+	assertAccepted(t, recorder)
 	assert.Len(t, servicesIds, 1)
 	assert.Contains(t, servicesIds, app.Tasks[1].ID.String())
+	assert.True(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing.T) {
+func TestWebHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -675,71 +755,74 @@ func TestForwardHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testi
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	service.ErrorServices[app.Tasks[1].ID] = fmt.Errorf("Cannot register task")
-	handler := NewEventHandler(service, marathon)
+	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	servicesIds := service.RegisteredServicesIds()
+	handle(recorder, req)
+	stop()
 
 	// then
-	assert.Equal(t, 500, recorder.Code)
-	assert.Equal(t, "Cannot register task\n", recorder.Body.String())
-	assert.Len(t, servicesIds, 0)
+	assertAccepted(t, recorder)
+	assert.Empty(t, service.RegisteredServicesIds())
+	assert.True(t, marathon.Interactions())
 }
 
-func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNotAllHealthChecksPassed(t *testing.T) {
+func TestWebHandler_NotHandleHealthStatusEventForTaskWithNotAllHealthChecksPassed(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
 	app.Tasks[1].HealthCheckResults = []apps.HealthCheckResult{{Alive: true}, {Alive: false}}
 	marathon := marathon.MarathonerStubForApps(app)
-	service := consul.NewConsulStub()
-	handler := NewEventHandler(service, marathon)
+	queue := make(chan event)
+	stopChan := newEventHandler(0, nil, marathon, queue).Start()
+	handler := newWebHandler(queue)
 	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
-	servicesIds := service.RegisteredServicesIds()
+	stopChan <- stopEvent{}
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
-	assert.Len(t, servicesIds, 0)
+	assertAccepted(t, recorder)
+	assert.True(t, marathon.Interactions())
 }
 
-func TestForwardHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *testing.T) {
+func TestWebHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 1)
 	app.Tasks[0].HealthCheckResults = []apps.HealthCheckResult{}
 	marathon := marathon.MarathonerStubForApps(app)
-	service := consul.NewConsulStub()
-	handler := NewEventHandler(service, marathon)
-	body := healthStatusChangeEventForTask("test_app.0")
+	queue := make(chan event)
+	stopChan := newEventHandler(0, nil, marathon, queue).Start()
+	handler := newWebHandler(queue)
+	body := healthStatusChangeEventForTask("/test/app.0")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
-	servicesIds := service.RegisteredServicesIds()
+	stopChan <- stopEvent{}
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
-	assert.Len(t, servicesIds, 0)
+	assertAccepted(t, recorder)
+	assert.True(t, marathon.Interactions())
 }
 
-func TestForwardHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.T) {
+func TestWebHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.T) {
 	t.Parallel()
 
 	// given
-	services := consul.NewConsulStub()
-	handler := NewEventHandler(services, nil)
+	queue := make(chan event)
+	stopChan := newEventHandler(0, nil, nil, queue).Start()
+	handler := newWebHandler(queue)
 	body := `{
 	  "appId":"/test/app",
 	  "taskId":"test_app.1",
@@ -753,17 +836,19 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+	stopChan <- stopEvent{}
 
 	// then
-	assert.Equal(t, 200, recorder.Code)
-	assert.Len(t, services.RegisteredServicesIds(), 0)
+	assertAccepted(t, recorder)
 }
 
-func TestForwardHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T) {
+func TestWebHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := NewEventHandler(nil, nil)
+	queue := make(chan event)
+	stopChan := newEventHandler(0, nil, nil, queue).Start()
+	handler := newWebHandler(queue)
 	body := `{
 	  "appId":"/test/app",
 	  "taskId":"test_app.1",
@@ -777,21 +862,23 @@ func TestForwardHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+	stopChan <- stopEvent{}
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "json: cannot unmarshal number into Go value of type string\n", recorder.Body.String())
+	assertAccepted(t, recorder)
 }
 
-func TestForwardHandler_HandleHealthStatusEventReturn500WhenMarathonReturnedError(t *testing.T) {
+func TestWebHandler_HandleHealthStatusEventReturn202WhenMarathonReturnedError(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
-	handler := NewEventHandler(nil, marathon)
+	queue := make(chan event)
+	stopChan := newEventHandler(0, nil, marathon, queue).Start()
+	handler := newWebHandler(queue)
 	body := `{
-	  "appId":"/unknown",
+	  "appId":"unknown",
 	  "taskId":"unknown.1",
 	  "version":"2015-12-07T09:02:48.981Z",
 	  "alive":true,
@@ -803,29 +890,33 @@ func TestForwardHandler_HandleHealthStatusEventReturn500WhenMarathonReturnedErro
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+	stopChan <- stopEvent{}
 
 	// then
-	assert.Equal(t, 500, recorder.Code)
-	assert.Equal(t, "app not found\n", recorder.Body.String())
+	assertAccepted(t, recorder)
+	assert.True(t, marathon.Interactions())
 }
 
-func TestForwardHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.T) {
+func TestWebHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
-	handler := NewEventHandler(nil, marathon)
+	queue := make(chan event)
+	stopChan := newEventHandler(0, nil, marathon, queue).Start()
+	handler := newWebHandler(queue)
 	body := healthStatusChangeEventForTask("unknown.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
+	stopChan <- stopEvent{}
 
 	// then
-	assert.Equal(t, 500, recorder.Code)
-	assert.Equal(t, "Task unknown.1 not found\n", recorder.Body.String())
+	assertAccepted(t, recorder)
+	assert.True(t, marathon.Interactions())
 }
 
 func newConsulStubWithApplicationsTasksRegistered(applications ...*apps.App) *consul.ConsulStub {
@@ -853,4 +944,9 @@ func healthStatusChangeEventForTask(taskId string) string {
 	  "eventType":"health_status_changed_event",
 	  "timestamp":"2015-12-07T09:33:50.069Z"
 	}`
+}
+
+func assertAccepted(t *testing.T, recorder *httptest.ResponseRecorder) {
+	assert.Equal(t, 202, recorder.Code)
+	assert.Equal(t, "OK\n", recorder.Body.String())
 }
