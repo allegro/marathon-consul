@@ -133,6 +133,20 @@ func TestAppId_ConsulServiceName(t *testing.T) {
 	assert.Equal(t, "rootGroup.subGroup.subSubGroup.name", serviceName)
 }
 
+func TestAppId_ConsulServiceNameWithCustomSeparator(t *testing.T) {
+	// given
+	oldSeparator := CONSUL_NAME_SEPARATOR
+	defer func() { CONSUL_NAME_SEPARATOR = oldSeparator }()
+	CONSUL_NAME_SEPARATOR = "_"
+	id := AppId("/rootGroup/subGroup/subSubGroup/name")
+
+	// when
+	serviceName := id.ConsulServiceName()
+
+	// then
+	assert.Equal(t, "rootGroup_subGroup_subSubGroup_name", serviceName)
+}
+
 func TestConsulServiceName_BackwardCompatibilityForConsulTrue(t *testing.T) {
 	t.Parallel()
 

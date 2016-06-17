@@ -21,7 +21,7 @@ func NewConsulStubWithTag(tag string) *ConsulStub {
 		services:         make(map[apps.TaskId]*consulapi.AgentServiceRegistration),
 		ErrorServices:    make(map[apps.TaskId]error),
 		ErrorGetServices: make(map[string]error),
-		consul:           New(ConsulConfig{Tag: tag}),
+		consul:           New(ConsulConfig{Tag: tag, ConsulNameSeparator: "."}),
 	}
 }
 

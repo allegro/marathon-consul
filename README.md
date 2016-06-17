@@ -110,6 +110,7 @@ config-file            |                       | Path to a JSON file to read con
 consul-auth            | `false`               | Use Consul with authentication
 consul-auth-password   |                       | The basic authentication password
 consul-auth-username   |                       | The basic authentication username
+consul-name-separator  | `.`                   | Separator used to create default service name for Consul
 consul-port            | `8500`                | Consul port
 consul-ssl             | `false`               | Use HTTPS when talking to Consul
 consul-ssl-ca-cert     |                       | Path to a CA certificate file, containing one or more CA certificates to use to validate the certificate sent by the Consul server to us

@@ -8,6 +8,10 @@ import (
 // Only Marathon apps with this label will be registered in Consul
 const MARATHON_CONSUL_LABEL = "consul"
 
+// Separator used between groups and task id
+// used when creating default service name for Consul
+var CONSUL_NAME_SEPARATOR = "."
+
 type HealthCheck struct {
 	Path                   string `json:"path"`
 	PortIndex              int    `json:"portIndex"`
@@ -46,7 +50,7 @@ func (id AppId) String() string {
 }
 
 func (id AppId) ConsulServiceName() string {
-	return strings.Replace(strings.Trim(strings.TrimSpace(id.String()), "/"), "/", ".", -1)
+	return strings.Replace(strings.Trim(strings.TrimSpace(id.String()), "/"), "/", CONSUL_NAME_SEPARATOR, -1)
 }
 
 func (app *App) IsConsulApp() bool {

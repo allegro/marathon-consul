@@ -28,6 +28,7 @@ type Consul struct {
 type ServicesProvider func(agent *consulapi.Client) ([]*consulapi.CatalogService, error)
 
 func New(config ConsulConfig) *Consul {
+	apps.CONSUL_NAME_SEPARATOR = config.ConsulNameSeparator
 	return &Consul{
 		agents: NewAgents(&config),
 		config: config,
