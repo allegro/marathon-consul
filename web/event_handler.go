@@ -75,6 +75,8 @@ func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 		return fh.handleStatusEvent(body)
 	case "health_status_changed_event":
 		return fh.handleHealthStatusEvent(body)
+	case "unhealthy_task_kill_event":
+		return fh.handleUnhealthyTaskKillEvent(body)
 	case "deployment_info":
 		return fh.handleDeploymentInfo(body)
 	case "deployment_step_success":
@@ -153,13 +155,7 @@ func (fh *eventHandler) handleStatusEvent(body []byte) error {
 
 	switch task.TaskStatus {
 	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
-		err = fh.service.Deregister(task.ID, task.Host)
-		if err != nil {
-			log.WithField("Id", task.ID).WithError(err).Error("There was a problem deregistering task")
-			return err
-		} else {
-			return nil
-		}
+		return fh.deregister(task.ID, task.Host)
 	default:
 		log.WithFields(log.Fields{
 			"Id":         task.ID,
@@ -167,6 +163,21 @@ func (fh *eventHandler) handleStatusEvent(body []byte) error {
 		}).Debug("Not handled task status")
 		return nil
 	}
+}
+
+func (fh *eventHandler) handleUnhealthyTaskKillEvent(body []byte) error {
+	task, err := apps.ParseTask(body)
+
+	if err != nil {
+		log.WithError(err).WithField("Body", body).Error("Could not parse event body")
+		return err
+	}
+
+	log.WithFields(log.Fields{
+		"Id": task.ID,
+	}).Info("Got Unhealthy TaskKilled Event")
+
+	return fh.deregister(task.ID, task.Host)
 }
 
 //This handler is used when an application is stopped
@@ -236,14 +247,21 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 	for _, service := range services {
 		taskId := apps.TaskId(service.ServiceID)
 		if taskId.AppId() == app.ID {
-			err = fh.service.Deregister(taskId, service.Address)
+			err = fh.deregister(taskId, service.Address)
 			if err != nil {
-				log.WithField("Id", service.ServiceID).WithError(err).Error("There was a problem deregistering task")
 				errors = append(errors, err)
 			}
 		}
 	}
 	return errors
+}
+
+func (fh *eventHandler) deregister(serviceId apps.TaskId, agentAddress string) error {
+	err := fh.service.Deregister(serviceId, agentAddress)
+	if err != nil {
+		log.WithField("Id", serviceId).WithError(err).Error("There was a problem deregistering task")
+	}
+	return err
 }
 
 func findTaskById(id apps.TaskId, tasks_ []apps.Task) (apps.Task, error) {
