@@ -5,6 +5,7 @@
       "Username": "",
       "Password": ""
     },
+    "ConsulNameSeparator": ".",
     "Port": "8500",
     "SslEnabled": false,
     "SslVerify": true,

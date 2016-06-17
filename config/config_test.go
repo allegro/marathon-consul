@@ -99,6 +99,7 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			Timeout:                3 * time.Second,
 			RequestRetries:         5,
 			AgentFailuresTolerance: 3,
+			ConsulNameSeparator:    ".",
 		},
 		Web: web.Config{
 			Listen:       ":4000",
