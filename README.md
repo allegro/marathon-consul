@@ -104,40 +104,42 @@ curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callback
 
 ### Options
 
-Argument               | Default               | Description
------------------------|-----------------------|------------------------------------------------------
-config-file            |                       | Path to a JSON file to read configuration from. **Note:** Will override options set earlier on the command line. See [example](debian/config.json).
-consul-auth            | `false`               | Use Consul with authentication
-consul-auth-password   |                       | The basic authentication password
-consul-auth-username   |                       | The basic authentication username
-consul-port            | `8500`                | Consul port
-consul-ssl             | `false`               | Use HTTPS when talking to Consul
-consul-ssl-ca-cert     |                       | Path to a CA certificate file, containing one or more CA certificates to use to validate the certificate sent by the Consul server to us
-consul-ssl-cert        |                       | Path to an SSL client certificate to use to authenticate to the Consul server
-consul-ssl-verify      | `true`                | Verify certificates when connecting via SSL
-consul-token           |                       | The Consul ACL token
-consul-tag             | `marathon`            | Common tag name added to every service registered in Consul, should be unique for every Marathon-cluster connected to Consul
-consul-timeout         | `3s`                  | Time limit for requests made by the Consul HTTP client. A Timeout of zero means no timeout
-events-queue-size      | `1000`                | Size of events queue
-listen                 | `:4000`               | Accept connections at this address
-log-level              | `info`                | Log level: panic, fatal, error, warn, info, or debug
-log-format             | `text`                | Log format: JSON, text
-log-file               |                       | Save logs to file (e.g.: `/var/log/marathon-consul.log`). If empty logs are published to STDERR
-marathon-location      | `localhost:8080`      | Marathon URL
-marathon-password      |                       | Marathon password for basic auth
-marathon-protocol      | `http`                | Marathon protocol (http or https)
-marathon-username      |                       | Marathon username for basic auth
-marathon-timeout       | `30s`                 | Time limit for requests made by the Marathon HTTP client. A Timeout of zero means no timeout
-metrics-interval       | `30s`                 | Metrics reporting [interval](https://golang.org/pkg/time/#Duration) **Note:** While using file configuration intervals should be provided in *nanoseconds*
-metrics-location       |                       | Graphite URL (used when metrics-target is set to graphite)
-metrics-prefix         | `default`             | Metrics prefix (resolved to `<hostname>.<app_name>` by default)
-metrics-target         | `stdout`              | Metrics destination `stdout` or `graphite` (empty string disables metrics)
-sync-enabled           | `true`                | Enable Marathon-consul scheduled sync
-sync-force             | `false`               | Force leadership-independent Marathon-consul sync (run always)
-sync-interval          | `15m0s`               | Marathon-consul sync [interval](https://golang.org/pkg/time/#Duration) **Note:** While using file configuration intervals should be provided in *nanoseconds*
-sync-leader            | `<hostname>:8080`     | Marathon cluster-wide node name (defaults to `<hostname>:8080`), the sync will run only if the node is the current [Marathon-leader](https://mesosphere.github.io/marathon/docs/rest-api.html#get-v2-leader)
-workers-pool-size      | `10`                  | Number of concurrent workers processing events
-
+Argument                    | Default         | Description
+----------------------------|-----------------|------------------------------------------------------
+config-file                 |                 | Path to a JSON file to read configuration from. Note: Will override options set earlier on the command line
+consul-auth                 | `false`         | Use Consul with authentication
+consul-auth-password        |                 | The basic authentication password
+consul-auth-username        |                 | The basic authentication username
+consul-get-services-retry   | `3`             | Number of retries on failure when performing requests to Consul. Each retry uses different cached agent
+consul-max-agent-failures   | `3`             | Max number of consecutive request failures for agent before removal from cache
+consul-port                 | `8500`          | Consul port
+consul-ssl                  | `false`         | Use HTTPS when talking to Consul
+consul-ssl-ca-cert          |                 | Path to a CA certificate file, containing one or more CA certificates to use to validate the certificate sent by the Consul server to us
+consul-ssl-cert             |                 | Path to an SSL client certificate to use to authenticate to the Consul server
+consul-ssl-verify           | `true`          | Verify certificates when connecting via SSL
+consul-tag                  | `marathon`      | Common tag name added to every service registered in Consul, should be unique for every Marathon-cluster connected to Consul
+consul-timeout              | `3s`            | Time limit for requests made by the Consul HTTP client. A Timeout of zero means no timeout
+consul-token                |                 | The Consul ACL token
+events-queue-size           | `1000`          | Size of events queue
+listen                      | `:4000`         | Accept connections at this address
+log-file                    |                 | Save logs to file (e.g.: `/var/log/marathon-consul.log`). If empty logs are published to STDERR
+log-format                  | `text`          |  Log format: JSON, text
+log-level                   | `info`          | Log level: panic, fatal, error, warn, info, or debug
+marathon-location           | `localhost:8080`| Marathon URL
+marathon-password           |                 | Marathon password for basic auth
+marathon-protocol           | `http`          | Marathon protocol (http or https)
+marathon-ssl-verify         | `true`          | Verify certificates when connecting via SSL
+marathon-timeout            | `30s`           | Time limit for requests made by the Marathon HTTP client. A Timeout of zero means no timeout
+marathon-username           |                 | Marathon username for basic auth
+metrics-interval            | `30s`           | Metrics reporting interval
+metrics-location            |                 | Graphite URL (used when metrics-target is set to graphite)
+metrics-prefix              | `default`       | Metrics prefix (default is resolved to <hostname>.<app_name>
+metrics-target              | `stdout`        | Metrics destination stdout or graphite (empty string disables metrics)
+sync-enabled                | `true`          | Enable Marathon-consul scheduled sync
+sync-force                  | `false`         | Force leadership-independent Marathon-consul sync (run always)
+sync-interval               | `15m0s`         | Marathon-consul sync interval
+sync-leader                 |                 | Marathon cluster-wide node name (defaults to <hostname>:8080), the sync will run only if the specified node is the current Marathon-leader
+workers-pool-size           | `10`            | Number of concurrent workers processing events
 
 ### Endpoints
 

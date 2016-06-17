@@ -73,9 +73,9 @@ func (config *Config) parseFlags() {
 	flag.Uint32Var(&config.Consul.RequestRetries, "consul-get-services-retry", 3, "Number of retries on failure when performing requests to Consul. Each retry uses different cached agent")
 
 	// Web
-	flag.StringVar(&config.Web.Listen, "listen", ":4000", "accept connections at this address")
-	flag.IntVar(&config.Web.QueueSize, "events-queue-size", 1000, "size of events queue")
-	flag.IntVar(&config.Web.WorkersCount, "workers-pool-size", 10, "number of concurrent workers processing events")
+	flag.StringVar(&config.Web.Listen, "listen", ":4000", "Accept connections at this address")
+	flag.IntVar(&config.Web.QueueSize, "events-queue-size", 1000, "Size of events queue")
+	flag.IntVar(&config.Web.WorkersCount, "workers-pool-size", 10, "Number of concurrent workers processing events")
 
 	// Sync
 	flag.BoolVar(&config.Sync.Enabled, "sync-enabled", true, "Enable Marathon-consul scheduled sync")
