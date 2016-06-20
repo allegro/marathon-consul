@@ -26,6 +26,10 @@ func (c errorConsul) Deregister(serviceId apps.TaskId, agent string) error {
 	return fmt.Errorf("Error occured")
 }
 
+func (c errorConsul) ServiceName(app *apps.App) string {
+	return ""
+}
+
 func (c errorConsul) GetAgent(agent string) (*consulapi.Client, error) {
 	return nil, fmt.Errorf("Error occured")
 }

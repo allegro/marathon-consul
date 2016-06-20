@@ -2,7 +2,6 @@ package apps
 
 import (
 	"encoding/json"
-	"strings"
 )
 
 // Only Marathon apps with this label will be registered in Consul
@@ -45,23 +44,20 @@ func (id AppId) String() string {
 	return string(id)
 }
 
-func (id AppId) ConsulServiceName() string {
-	return strings.Replace(strings.Trim(strings.TrimSpace(id.String()), "/"), "/", ".", -1)
-}
-
 func (app *App) IsConsulApp() bool {
 	_, ok := app.Labels[MARATHON_CONSUL_LABEL]
 	return ok
 }
 
-func (app *App) ConsulServiceName() string {
-	if value, ok := app.Labels[MARATHON_CONSUL_LABEL]; ok && value != "true" {
-		value = AppId(value).ConsulServiceName()
-		if value != "" {
-			return value
-		}
+func (app *App) ConsulName() string {
+	if value, ok := app.Labels[MARATHON_CONSUL_LABEL]; ok && !isSpecialConsulNameValue(value) {
+		return value
 	}
-	return app.ID.ConsulServiceName()
+	return app.ID.String()
+}
+
+func isSpecialConsulNameValue(name string) bool {
+	return name == "true" || name == ""
 }
 
 func ParseApps(jsonBlob []byte) ([]*App, error) {

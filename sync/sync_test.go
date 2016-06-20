@@ -160,6 +160,10 @@ func (c *ConsulServicesMock) RegistrationsCount(instanceId string) int {
 	return c.registrations[instanceId]
 }
 
+func (c *ConsulServicesMock) ServiceName(app *apps.App) string {
+	return ""
+}
+
 func (c *ConsulServicesMock) Deregister(serviceId apps.TaskId, agent string) error {
 	return nil
 }

@@ -92,7 +92,7 @@ func (d *DeploymentEvent) RenamedConsulApps() []*apps.App {
 		targetMap := d.appsMap(target)
 		for id, originalApp := range originalMap {
 			targetApp, ok := targetMap[id]
-			if !ok || originalApp.ConsulServiceName() != targetApp.ConsulServiceName() {
+			if !ok || originalApp.ConsulName() != targetApp.ConsulName() {
 				renamedApps = append(renamedApps, originalApp)
 			}
 		}

@@ -227,7 +227,7 @@ func (fh *eventHandler) handleDeploymentStepSuccess(body []byte) error {
 func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 
 	errors := []error{}
-	serviceName := app.ConsulServiceName()
+	serviceName := fh.service.ServiceName(app)
 
 	log.WithField("AppId", app.ID).WithField("ServiceName", serviceName).Info("Deregistering all services")
 
