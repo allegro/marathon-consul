@@ -628,6 +628,73 @@ func TestWebHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 	}
 }
 
+func TestWebHandler_HandleEventAboutUnhealthyKilledTask(t *testing.T) {
+	t.Parallel()
+	// given
+	app := ConsulApp("/test/app", 3)
+	service := consul.NewConsulStub()
+	for _, task := range app.Tasks {
+		service.Register(&task, app)
+	}
+	queue := make(chan event)
+	stopChan := newEventHandler(0, service, nil, queue).Start()
+	handler := newWebHandler(queue)
+	body := `{
+	  "appId": "/test/app",
+	  "taskId": "` + app.Tasks[1].ID.String() + `",
+	  "version": "2016-03-16T13:05:00.590Z",
+	  "reason": "500 Internal Server Error",
+	  "host": "localhost",
+	  "slaveId": "4fb620fa-ba8d-4eb0-8ae3-f2912aaf015c-S0",
+	  "eventType": "unhealthy_task_kill_event",
+	  "timestamp": "2016-03-21T09:15:10.764Z"
+	}`
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+	stopChan <- stopEvent{}
+	servicesIds := service.RegisteredServicesIds()
+
+	// then
+	assert.Equal(t, 202, recorder.Code)
+	assert.Equal(t, "OK\n", recorder.Body.String())
+	assert.Len(t, servicesIds, 2)
+	assert.NotContains(t, servicesIds, app.Tasks[1].ID)
+	assert.Contains(t, servicesIds, app.Tasks[0].ID.String())
+	assert.Contains(t, servicesIds, app.Tasks[2].ID.String())
+}
+
+func TestWebHandler_NotHandleEventAboutUnhealthyKilledTaskWithInvalidBody(t *testing.T) {
+	t.Parallel()
+
+	// given
+	queue := make(chan event)
+	handler := newWebHandler(queue)
+	stopChan := newEventHandler(0, nil, nil, queue).Start()
+	body := `{
+	  "appId": "/test/app",
+	  "taskId": "test.app.1",
+	  "version": "2016-03-16T13:05:00.590Z",
+	  "reason": "500 Internal Server Error",
+	  "host": "localhost",
+	  "ports": 31372,
+	  "slaveId": "4fb620fa-ba8d-4eb0-8ae3-f2912aaf015c-S0",
+	  "eventType": "unhealthy_task_kill_event",
+	  "timestamp": "2016-03-21T09:15:10.764Z"
+	}`
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+	stopChan <- stopEvent{}
+
+	// then
+	assertAccepted(t, recorder)
+}
+
 func TestWebHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testing.T) {
 	t.Parallel()
 
