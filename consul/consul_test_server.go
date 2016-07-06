@@ -20,8 +20,9 @@ func ConsulClientAtServer(server *testutil.TestServer) *Consul {
 
 func consulClientAtAddress(host string, port int) *Consul {
 	config := ConsulConfig{
-		Timeout: 10 * time.Millisecond,
-		Port:    fmt.Sprintf("%d", port),
+		Timeout:             10 * time.Millisecond,
+		Port:                fmt.Sprintf("%d", port),
+		ConsulNameSeparator: ".",
 	}
 	consul := New(config)
 	// initialize the agents cache with a single client pointing at provided location

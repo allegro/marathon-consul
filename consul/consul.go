@@ -18,6 +18,7 @@ type ConsulServices interface {
 	Register(task *apps.Task, app *apps.App) error
 	Deregister(serviceId apps.TaskId, agentAddress string) error
 	GetAgent(agentAddress string) (*consulapi.Client, error)
+	ServiceName(app *apps.App) string
 }
 
 type Consul struct {
@@ -191,6 +192,21 @@ func (c *Consul) GetAgent(agentAddress string) (*consulapi.Client, error) {
 	return c.agents.GetAgent(agentAddress)
 }
 
+func (c *Consul) ServiceName(app *apps.App) string {
+	appConsulName := app.ConsulName()
+	serviceName := c.marathonAppNameToConsulServiceName(appConsulName)
+	if serviceName == "" {
+		log.WithField("AppId", app.ID.String()).WithField("ConsulServiceName", appConsulName).
+			Warn("Warning! Invalid Consul service name provided for app. Will use default app name instead.")
+		return c.marathonAppNameToConsulServiceName(app.ID.String())
+	}
+	return serviceName
+}
+
+func (c *Consul) marathonAppNameToConsulServiceName(name string) string {
+	return strings.Replace(strings.Trim(strings.TrimSpace(name), "/"), "/", c.config.ConsulNameSeparator, -1)
+}
+
 func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*consulapi.AgentServiceRegistration, error) {
 	IP, err := utils.HostToIPv4(task.Host)
 	if err != nil {
@@ -200,7 +216,7 @@ func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*c
 
 	return &consulapi.AgentServiceRegistration{
 		ID:      task.ID.String(),
-		Name:    app.ConsulServiceName(),
+		Name:    c.ServiceName(app),
 		Port:    task.Ports[0],
 		Address: serviceAddress,
 		Tags:    c.marathonLabelsToConsulTags(app.Labels),

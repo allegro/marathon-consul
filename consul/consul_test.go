@@ -646,3 +646,87 @@ func TestMarathonTaskToConsulServiceMapping_NotResolvableTaskHost(t *testing.T) 
 	// then
 	assert.Error(t, err)
 }
+
+func TestServiceName_WithSerarator(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &apps.App{
+		ID: "/rootGroup/subGroup/subSubGroup/name",
+	}
+	consul := New(ConsulConfig{ConsulNameSeparator: "."})
+
+	// when
+	serviceName := consul.ServiceName(app)
+
+	// then
+	assert.Equal(t, "rootGroup.subGroup.subSubGroup.name", serviceName)
+}
+
+func TestServiceName_WithEmptyConsulLabel(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &apps.App{
+		ID:     "/rootGroup/subGroup/subSubGroup/name",
+		Labels: map[string]string{"consul": ""},
+	}
+	consul := New(ConsulConfig{ConsulNameSeparator: "-"})
+
+	// when
+	serviceName := consul.ServiceName(app)
+
+	// then
+	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", serviceName)
+}
+
+func TestServiceName_WithConsulLabelSetToTrue(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &apps.App{
+		ID:     "/rootGroup/subGroup/subSubGroup/name",
+		Labels: map[string]string{"consul": "true"},
+	}
+	consul := New(ConsulConfig{ConsulNameSeparator: "-"})
+
+	// when
+	serviceName := consul.ServiceName(app)
+
+	// then
+	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", serviceName)
+}
+
+func TestServiceName_WithCustomConsulLabelEscapingChars(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &apps.App{
+		ID:     "/rootGroup/subGroup/subSubGroup/name",
+		Labels: map[string]string{"consul": "/some-other/name"},
+	}
+	consul := New(ConsulConfig{ConsulNameSeparator: "-"})
+
+	// when
+	serviceName := consul.ServiceName(app)
+
+	// then
+	assert.Equal(t, "some-other-name", serviceName)
+}
+
+func TestServiceName_WithInvalidLabelValue(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &apps.App{
+		ID:     "/rootGroup/subGroup/subSubGroup/name",
+		Labels: map[string]string{"consul": "     ///"},
+	}
+	consul := New(ConsulConfig{ConsulNameSeparator: "-"})
+
+	// when
+	serviceName := consul.ServiceName(app)
+
+	// then
+	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", serviceName)
+}

@@ -14,6 +14,7 @@ type ConsulConfig struct {
 	Timeout                time.Duration
 	RequestRetries         uint32
 	AgentFailuresTolerance uint32
+	ConsulNameSeparator    string
 }
 
 type Auth struct {
