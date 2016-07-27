@@ -16,7 +16,7 @@ This project is based on
 
 ### Differences
 
-* CiscoCloud/marthon-consul copies application information to Consul KV while
+* CiscoCloud/marathon-consul copies application information to Consul KV while
 allegro/marathon-consul registers tasks as Consul services
 (it is more similar to CiscoCloud/mesos-consul)
 * CiscoCloud/mesos-consul uses polling while allegro/marathon-consul uses
@@ -79,23 +79,71 @@ Run it with `service marathon-consul start`. The configuration file is located a
 
 ## Setting up `marathon-consul` after installation
 
-The Marathon [event bus](https://mesosphere.github.io/marathon/docs/event-bus.html) should point to [`/events`](#endpoints). You can
-set up the event subscription with a call similar to this one:
-
+The Marathon [event bus](https://mesosphere.github.io/marathon/docs/event-bus.html) should point to [`/events`](#endpoints). You can set up the event subscription with a call similar to this one:
 ```
 curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callbackUrl=http://marathon-consul.service.consul:4000/events'
 ```
+The event subscription should be set to `localhost` to reduce network traffic.
+
 
 ## Usage
 
-- marathon-consul should be installed on all Marathon masters, and subscription should be set to `localhost` to reduce network traffic
-- Consul Agents should be available at every Mesos Slave, tasks will be registered at hosts their run on.
-- Only tasks which are labeled as `consul` will be registered in Consul. By default the registered service name is equal to Marathon's application name. 
-  A different name can be provided as the label's value, e.g. `consul:customName`. As an exception of the rule, for backward compatibility with the `0.3.x` branch, a value of `true` is resolved to the default name.
-- Only services with tag specified by `consul-tag` property will be maintained. This tag is automatically added during registration.
-- At least one HTTP healthcheck should be defined for a task. The task is registered when Marathon marks it's as alive.
-- Provided HTTP healtcheck will be transferred to Consul.
-- Labels with `tag` value will be converted to Consul tags, e.g. (note: `consul-tag` is set to `marathon`) `labels: ["public":"tag", "varnish":"tag", "env": "test"]` → `tags: ["public", "varnish", "marathon"]`.
+### Marathon masters
+
+- marathon-consul should be installed on all Marathon masters
+
+### Mesos slaves
+
+- Consul Agents should be available on every Mesos slave.
+- Tasks will be registered at the Mesos slave they run on.
+
+### Tagging tasks
+
+- Task labels are used by marathon-consul to register tasks in Consul.
+- Only tasks which are labeled as `consul` will be registered in Consul.
+  If the `consul` label is left blank like `"consul": ""`, the task will be registered with the app name
+by default. A different name can be provided as the label's value, e.g.
+`"consul": "customName"`. As an exception to this rule, for backward compatibility with the `0.3.x` branch, a value of `true` is resolved to the default name.
+```
+  "id": "my-new-app",
+  "labels": {
+    "consul": ""
+  }
+```
+- Only services with tag specified by `consul-tag` property will be maintained. By default, `"consul-tag": "marathon"` is automatically added when the task is registered.
+- Labels with a *value* of `tag` are converted to consul-tags, and appear in Consul as ServiceTags.
+- For example, we can set these tags in an app definition like:
+```
+  "id": "my-new-app",
+  "labels": {
+    "consul": "",
+    "varnish": "tag",
+    "metrics": "tag"
+  }
+```
+- If marathon-consul registers the app with Consul, we can then query Consul and see these tags appear:
+```
+curl -X GET http://localhost:8500/v1/catalog/service/my-new-app
+...
+"ServiceName": "my-new-app",
+"ServiceTags": [
+  "marathon",
+  "varnish",
+  "metrics"
+],
+
+```
+- If there are multiple ports in use for the same app, note that only the first one will be registered by marathon-consul in Consul.
+
+### Task heathchecks
+
+- At least one HTTP healthcheck should be defined for a task. The task is registered when Marathon marks it as alive.
+- The provided HTTP healthcheck will be transferred to Consul.
+- See [this](https://mesosphere.github.io/marathon/docs/health-checks.html)
+for more details.
+
+### Sync
+
 - The scheduled Marathon-consul sync may run in two modes:
     - Only on node that is the current [Marathon-leader](https://mesosphere.github.io/marathon/docs/rest-api.html#get-v2-leader), `sync-leader` parameter should be set to `hostname:port` the current node appears in the Marathon cluster. 
       This mode is **enabled by default** and the `sync-leader` property is set to the hostname resolved by OS.
