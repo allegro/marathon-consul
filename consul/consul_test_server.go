@@ -2,20 +2,28 @@ package consul
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/consul/testutil"
 )
 
-func CreateConsulTestServer(dc string, t *testing.T) *testutil.TestServer {
+var dcOffset uint32 = 1
+var failingClientOffset uint32 = 1
+
+func CreateConsulTestServer(t *testing.T) *testutil.TestServer {
 	return testutil.NewTestServerConfig(t, func(c *testutil.TestServerConfig) {
-		c.Datacenter = dc
+		c.Datacenter = fmt.Sprint("dc-", atomic.AddUint32(&dcOffset, 1))
 	})
 }
 
 func ConsulClientAtServer(server *testutil.TestServer) *Consul {
 	return consulClientAtAddress(server.Config.Bind, server.Config.Ports.HTTP)
+}
+
+func FailingConsulClient() *Consul {
+	return consulClientAtAddress(fmt.Sprint("127.5.5.", atomic.AddUint32(&failingClientOffset, 1)), 5555)
 }
 
 func consulClientAtAddress(host string, port int) *Consul {

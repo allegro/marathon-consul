@@ -359,7 +359,7 @@ func newSyncWithDefaultConfig(marathon marathon.Marathoner, service consul.Consu
 func TestSync_AddingAgentsFromMarathonTasks(t *testing.T) {
 	t.Parallel()
 
-	consulServer := consul.CreateConsulTestServer("dc1", t)
+	consulServer := consul.CreateConsulTestServer(t)
 	defer consulServer.Stop()
 
 	consulServices := consul.New(consul.ConsulConfig{
