@@ -2,19 +2,56 @@ package consul
 
 import (
 	"fmt"
+	"net"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/consul/testutil"
+	"github.com/stretchr/testify/assert"
 )
 
 var dcOffset uint32 = 1
 var failingClientOffset uint32 = 1
 
+// Ask the kernel for free open ports that are ready to use
+func GetPorts(number int) ([]int, error) {
+	ports := make([]int, number)
+	listener := make([]*net.TCPListener, number)
+	defer func() {
+		for _, l := range listener {
+			l.Close()
+		}
+
+	}()
+	for i := 0; i < number; i++ {
+		addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+		if err != nil {
+			return nil, err
+		}
+
+		listener[i], err = net.ListenTCP("tcp", addr)
+		if err != nil {
+			return nil, err
+		}
+		ports[i] = listener[i].Addr().(*net.TCPAddr).Port
+	}
+	return ports, nil
+}
+
 func CreateConsulTestServer(t *testing.T) *testutil.TestServer {
+	ports, err := GetPorts(6)
+	assert.NoError(t, err)
 	return testutil.NewTestServerConfig(t, func(c *testutil.TestServerConfig) {
 		c.Datacenter = fmt.Sprint("dc-", atomic.AddUint32(&dcOffset, 1))
+		c.Ports = &testutil.TestPortConfig{
+			DNS:     ports[0],
+			HTTP:    ports[1],
+			RPC:     ports[2],
+			SerfLan: ports[3],
+			SerfWan: ports[4],
+			Server:  ports[5],
+		}
 	})
 }
 
