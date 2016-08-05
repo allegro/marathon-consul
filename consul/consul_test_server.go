@@ -3,16 +3,12 @@ package consul
 import (
 	"fmt"
 	"net"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/consul/testutil"
 	"github.com/stretchr/testify/assert"
 )
-
-var dcOffset uint32 = 1
-var failingClientOffset uint32 = 1
 
 // Ask the kernel for free open ports that are ready to use
 func GetPorts(number int) ([]int, error) {
@@ -43,7 +39,7 @@ func CreateConsulTestServer(t *testing.T) *testutil.TestServer {
 	ports, err := GetPorts(6)
 	assert.NoError(t, err)
 	return testutil.NewTestServerConfig(t, func(c *testutil.TestServerConfig) {
-		c.Datacenter = fmt.Sprint("dc-", atomic.AddUint32(&dcOffset, 1))
+		c.Datacenter = fmt.Sprint("dc-", time.Now().UnixNano())
 		c.Ports = &testutil.TestPortConfig{
 			DNS:     ports[0],
 			HTTP:    ports[1],
@@ -60,7 +56,7 @@ func ConsulClientAtServer(server *testutil.TestServer) *Consul {
 }
 
 func FailingConsulClient() *Consul {
-	return consulClientAtAddress(fmt.Sprint("127.5.5.", atomic.AddUint32(&failingClientOffset, 1)), 5555)
+	return consulClientAtAddress("127.5.5.5", 5555)
 }
 
 func consulClientAtAddress(host string, port int) *Consul {
