@@ -74,10 +74,10 @@ func TestRegister_ForInvalidHost(t *testing.T) {
 func TestGetServices(t *testing.T) {
 	t.Parallel()
 	// create cluster of 2 consul servers
-	server1 := CreateConsulTestServer("dc1", t)
+	server1 := CreateConsulTestServer(t)
 	defer server1.Stop()
 
-	server2 := CreateConsulTestServer("dc2", t)
+	server2 := CreateConsulTestServer(t)
 	defer server2.Stop()
 
 	server1.JoinWAN(server2.LANAddr)
@@ -112,20 +112,11 @@ func TestGetServices(t *testing.T) {
 
 func TestGetService_FailingAgent_GivingUp(t *testing.T) {
 	t.Parallel()
-	// create cluster of 2 consul servers
-	server1 := CreateConsulTestServer("dc1", t)
+	server1 := CreateConsulTestServer(t)
 	defer server1.Stop()
 
 	// create client
-	consul := ConsulClientAtServer(server1)
-	consul.config.Tag = "marathon"
-
-	// add failing client
-	consul.GetAgent("127.0.0.2")
-
-	// given
-	// register services in both servers
-	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
+	consul := FailingConsulClient()
 
 	// when
 	services, err := consul.GetServices("serviceA")
@@ -138,7 +129,7 @@ func TestGetService_FailingAgent_GivingUp(t *testing.T) {
 func TestGetServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	t.Parallel()
 	// create server
-	server1 := CreateConsulTestServer("dc1", t)
+	server1 := CreateConsulTestServer(t)
 	defer server1.Stop()
 
 	// create client
@@ -166,10 +157,10 @@ func TestGetServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 func TestGetServices_SelectOnlyTaggedServices(t *testing.T) {
 	t.Parallel()
 	// create cluster of 2 consul servers
-	server1 := CreateConsulTestServer("dc1", t)
+	server1 := CreateConsulTestServer(t)
 	defer server1.Stop()
 
-	server2 := CreateConsulTestServer("dc2", t)
+	server2 := CreateConsulTestServer(t)
 	defer server2.Stop()
 
 	server1.JoinWAN(server2.LANAddr)
@@ -206,10 +197,10 @@ func TestGetServices_SelectOnlyTaggedServices(t *testing.T) {
 func TestGetAllServices(t *testing.T) {
 	t.Parallel()
 	// create cluster of 2 consul servers
-	server1 := CreateConsulTestServer("dc1", t)
+	server1 := CreateConsulTestServer(t)
 	defer server1.Stop()
 
-	server2 := CreateConsulTestServer("dc2", t)
+	server2 := CreateConsulTestServer(t)
 	defer server2.Stop()
 
 	server1.JoinWAN(server2.LANAddr)
@@ -245,14 +236,13 @@ func TestGetAllServices(t *testing.T) {
 
 func TestGetServicesUsingProviderWithRetriesOnAgentFailure_ShouldRetryConfiguredNumberOfTimes(t *testing.T) {
 	t.Parallel()
-	// create cluster of 2 consul servers
-	server1 := CreateConsulTestServer("dc1", t)
+	server1 := CreateConsulTestServer(t)
 	defer server1.Stop()
 
 	// create client
 	consul := ConsulClientAtServer(server1)
 	consul.config.AgentFailuresTolerance = 2
-	consul.config.RequestRetries = 3
+	consul.config.RequestRetries = 4
 
 	var called uint32
 	provider := func(agent *consulapi.Client) ([]*consulapi.CatalogService, error) {
@@ -260,8 +250,7 @@ func TestGetServicesUsingProviderWithRetriesOnAgentFailure_ShouldRetryConfigured
 		return nil, fmt.Errorf("error")
 	}
 
-	// add failing clients
-	consul.GetAgent("127.0.0.1")
+	// add failing client
 	consul.GetAgent("127.0.0.2")
 
 	// when
@@ -272,24 +261,13 @@ func TestGetServicesUsingProviderWithRetriesOnAgentFailure_ShouldRetryConfigured
 	assert.Len(t, consul.agents.(*ConcurrentAgents).agents, 1)
 }
 
-func TestGetAllServices_GivingUp(t *testing.T) {
+func TestGetAllServices_FailingAgent_GivingUp(t *testing.T) {
 	t.Parallel()
-	// create cluster of 2 consul servers
-	server1 := CreateConsulTestServer("dc1", t)
+	server1 := CreateConsulTestServer(t)
 	defer server1.Stop()
 
 	// create client
-	consul := ConsulClientAtServer(server1)
-	consul.config.Tag = "marathon"
-
-	// add failing clients
-	consul.GetAgent("127.0.0.2")
-
-	// given
-	// register services in both servers
-	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
-	server1.AddService("serviceB", "passing", []string{"marathon"})
-	server1.AddService("serviceC", "passing", []string{"zookeeper"})
+	consul := FailingConsulClient()
 
 	// when
 	services, err := consul.GetAllServices()
@@ -302,10 +280,10 @@ func TestGetAllServices_GivingUp(t *testing.T) {
 func TestGetAllServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	t.Parallel()
 	// create cluster of 2 consul servers
-	server1 := CreateConsulTestServer("dc1", t)
+	server1 := CreateConsulTestServer(t)
 	defer server1.Stop()
 
-	server2 := CreateConsulTestServer("dc2", t)
+	server2 := CreateConsulTestServer(t)
 	defer server2.Stop()
 
 	server1.JoinWAN(server2.LANAddr)
@@ -347,7 +325,7 @@ func TestGetAllServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 
 func TestRegisterServices(t *testing.T) {
 	t.Parallel()
-	server := CreateConsulTestServer("dc1", t)
+	server := CreateConsulTestServer(t)
 	defer server.Stop()
 
 	consul := ConsulClientAtServer(server)
@@ -375,7 +353,7 @@ func TestRegisterServices(t *testing.T) {
 
 func TestRegisterServices_CustomServiceName(t *testing.T) {
 	t.Parallel()
-	server := CreateConsulTestServer("dc1", t)
+	server := CreateConsulTestServer(t)
 	defer server.Stop()
 
 	consul := ConsulClientAtServer(server)
@@ -404,7 +382,7 @@ func TestRegisterServices_CustomServiceName(t *testing.T) {
 
 func TestRegisterServices_InvalidHostnameShouldFail(t *testing.T) {
 	t.Parallel()
-	server := CreateConsulTestServer("dc1", t)
+	server := CreateConsulTestServer(t)
 	defer server.Stop()
 
 	consul := ConsulClientAtServer(server)
@@ -424,7 +402,7 @@ func TestRegisterServices_InvalidHostnameShouldFail(t *testing.T) {
 
 func TestRegisterServices_InvalidCustomServiceName(t *testing.T) {
 	t.Parallel()
-	server := CreateConsulTestServer("dc1", t)
+	server := CreateConsulTestServer(t)
 	defer server.Stop()
 
 	consul := ConsulClientAtServer(server)
@@ -467,7 +445,7 @@ func TestRegisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 
 func TestDeregisterServices(t *testing.T) {
 	t.Parallel()
-	server := CreateConsulTestServer("dc1", t)
+	server := CreateConsulTestServer(t)
 	defer server.Stop()
 
 	consul := ConsulClientAtServer(server)
@@ -490,8 +468,7 @@ func TestDeregisterServices(t *testing.T) {
 
 func TestDeregisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 	t.Parallel()
-	server := CreateConsulTestServer("dc1", t)
-	defer server.Stop()
+	server := CreateConsulTestServer(t)
 
 	consul := ConsulClientAtServer(server)
 	consul.config.Tag = "marathon"
