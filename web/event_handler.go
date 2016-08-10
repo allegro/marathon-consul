@@ -21,14 +21,14 @@ type event struct {
 
 type eventHandler struct {
 	id         int
-	service    service.ConsulServices
+	service    service.Services
 	marathon   marathon.Marathoner
 	eventQueue <-chan event
 }
 
 type stopEvent struct{}
 
-func newEventHandler(id int, service service.ConsulServices, marathon marathon.Marathoner, eventQueue <-chan event) *eventHandler {
+func newEventHandler(id int, service service.Services, marathon marathon.Marathoner, eventQueue <-chan event) *eventHandler {
 	return &eventHandler{
 		id:         id,
 		service:    service,
@@ -68,7 +68,7 @@ func (fh *eventHandler) Start() chan<- stopEvent {
 
 func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 
-	body = replaceTaskIdWithId(body)
+	body = replaceTaskIDWithID(body)
 
 	switch eventType {
 	case "status_update_event":
@@ -105,8 +105,8 @@ func (fh *eventHandler) handleHealthStatusEvent(body []byte) error {
 		return nil
 	}
 
-	appId := taskHealthChange.AppID
-	app, err := fh.marathon.App(appId)
+	appID := taskHealthChange.AppID
+	app, err := fh.marathon.App(appID)
 	if err != nil {
 		log.WithField("Id", taskHealthChange.ID).WithError(err).Error("There was a problem obtaining app info")
 		return err
@@ -120,7 +120,7 @@ func (fh *eventHandler) handleHealthStatusEvent(body []byte) error {
 
 	tasks := app.Tasks
 
-	task, err := findTaskById(taskHealthChange.ID, tasks)
+	task, err := findTaskByID(taskHealthChange.ID, tasks)
 	if err != nil {
 		log.WithField("Id", taskHealthChange.ID).WithError(err).Error("Task not found")
 		return err
@@ -131,13 +131,11 @@ func (fh *eventHandler) handleHealthStatusEvent(body []byte) error {
 		if err != nil {
 			log.WithField("Id", task.ID).WithError(err).Error("There was a problem registering task")
 			return err
-		} else {
-			return nil
 		}
-	} else {
-		log.WithField("Id", task.ID).Debug("Task is not healthy. Not registering")
 		return nil
 	}
+	log.WithField("Id", task.ID).Debug("Task is not healthy. Not registering")
+	return nil
 }
 
 func (fh *eventHandler) handleStatusEvent(body []byte) error {
@@ -197,9 +195,8 @@ func (fh *eventHandler) handleDeploymentInfo(body []byte) error {
 	}
 	if len(errors) > 0 {
 		return fh.mergeDeregistrationErrors(errors)
-	} else {
-		return nil
 	}
+	return nil
 }
 
 //This handler is used when an application is restarted and renamed
@@ -219,9 +216,8 @@ func (fh *eventHandler) handleDeploymentStepSuccess(body []byte) error {
 	}
 	if len(errors) > 0 {
 		return fh.mergeDeregistrationErrors(errors)
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
@@ -245,9 +241,9 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 	}
 
 	for _, service := range services {
-		taskId := apps.TaskId(service.ServiceID)
-		if taskId.AppId() == app.ID {
-			err = fh.deregister(taskId, service.Address)
+		taskID := apps.TaskID(service.ServiceID)
+		if taskID.AppID() == app.ID {
+			err = fh.deregister(taskID, service.Address)
 			if err != nil {
 				errors = append(errors, err)
 			}
@@ -256,16 +252,16 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 	return errors
 }
 
-func (fh *eventHandler) deregister(serviceId apps.TaskId, agentAddress string) error {
-	err := fh.service.Deregister(serviceId, agentAddress)
+func (fh *eventHandler) deregister(serviceID apps.TaskID, agentAddress string) error {
+	err := fh.service.Deregister(serviceID, agentAddress)
 	if err != nil {
-		log.WithField("Id", serviceId).WithError(err).Error("There was a problem deregistering task")
+		log.WithField("Id", serviceID).WithError(err).Error("There was a problem deregistering task")
 	}
 	return err
 }
 
-func findTaskById(id apps.TaskId, tasks_ []apps.Task) (apps.Task, error) {
-	for _, task := range tasks_ {
+func findTaskByID(id apps.TaskID, tasks []apps.Task) (apps.Task, error) {
+	for _, task := range tasks {
 		if task.ID == id {
 			return task, nil
 		}
@@ -285,6 +281,6 @@ func (fh *eventHandler) mergeDeregistrationErrors(errors []error) error {
 // Here, it uses "taskId", with most of the other fields being equal. We'll
 // just swap "taskId" for "id" in the body so that we can successfully parse
 // incoming events.
-func replaceTaskIdWithId(body []byte) []byte {
+func replaceTaskIDWithID(body []byte) []byte {
 	return bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
 }

@@ -117,5 +117,5 @@ func TestConsulApp(t *testing.T) {
 
 func TestAppId_String(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "appId", AppId("appId").String())
+	assert.Equal(t, "appId", AppID("appId").String())
 }

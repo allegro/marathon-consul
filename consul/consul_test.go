@@ -14,7 +14,7 @@ import (
 func TestGetAgent_WithEmptyHost(t *testing.T) {
 	t.Parallel()
 	// given
-	agents := NewAgents(&ConsulConfig{})
+	agents := NewAgents(&Config{})
 	// when
 	agent, err := agents.GetAgent("")
 	// then
@@ -26,7 +26,7 @@ func TestGetAgent_FullConfig(t *testing.T) {
 	t.Parallel()
 
 	// given
-	agents := NewAgents(&ConsulConfig{Token: "token", SslEnabled: true,
+	agents := NewAgents(&Config{Token: "token", SslEnabled: true,
 		Auth: Auth{Enabled: true, Username: "", Password: ""}, Timeout: time.Second})
 
 	// when
@@ -41,7 +41,7 @@ func TestGetAllServices_ForEmptyAgents(t *testing.T) {
 	t.Parallel()
 
 	// given
-	consul := New(ConsulConfig{})
+	consul := New(Config{})
 
 	// when
 	services, err := consul.GetAllServices()
@@ -55,7 +55,7 @@ func TestRegister_ForInvalidHost(t *testing.T) {
 	t.Parallel()
 
 	// given
-	consul := New(ConsulConfig{})
+	consul := New(Config{})
 	app := utils.ConsulApp("serviceA", 1)
 
 	// when
@@ -83,7 +83,7 @@ func TestGetServices(t *testing.T) {
 	server1.JoinWAN(server2.LANAddr)
 
 	// create client
-	consul := ConsulClientAtServer(server1)
+	consul := ClientAtServer(server1)
 	consul.config.Tag = "marathon"
 
 	// given
@@ -133,7 +133,7 @@ func TestGetServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	defer server1.Stop()
 
 	// create client
-	consul := ConsulClientAtServer(server1)
+	consul := ClientAtServer(server1)
 	consul.config.Tag = "marathon"
 	consul.config.RequestRetries = 100
 
@@ -166,7 +166,7 @@ func TestGetServices_SelectOnlyTaggedServices(t *testing.T) {
 	server1.JoinWAN(server2.LANAddr)
 
 	// create client
-	consul := ConsulClientAtServer(server1)
+	consul := ClientAtServer(server1)
 	consul.config.Tag = "marathon-mycluster"
 
 	// given
@@ -206,7 +206,7 @@ func TestGetAllServices(t *testing.T) {
 	server1.JoinWAN(server2.LANAddr)
 
 	// create client
-	consul := ConsulClientAtServer(server1)
+	consul := ClientAtServer(server1)
 	consul.config.Tag = "marathon"
 
 	// given
@@ -240,7 +240,7 @@ func TestGetServicesUsingProviderWithRetriesOnAgentFailure_ShouldRetryConfigured
 	defer server1.Stop()
 
 	// create client
-	consul := ConsulClientAtServer(server1)
+	consul := ClientAtServer(server1)
 	consul.config.AgentFailuresTolerance = 2
 	consul.config.RequestRetries = 4
 
@@ -289,7 +289,7 @@ func TestGetAllServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	server1.JoinWAN(server2.LANAddr)
 
 	// create client
-	consul := ConsulClientAtServer(server1)
+	consul := ClientAtServer(server1)
 	consul.config.Tag = "marathon"
 	consul.config.RequestRetries = 100
 
@@ -328,7 +328,7 @@ func TestRegisterServices(t *testing.T) {
 	server := CreateConsulTestServer(t)
 	defer server.Stop()
 
-	consul := ConsulClientAtServer(server)
+	consul := ClientAtServer(server)
 	consul.config.Tag = "marathon"
 
 	// given
@@ -356,7 +356,7 @@ func TestRegisterServices_CustomServiceName(t *testing.T) {
 	server := CreateConsulTestServer(t)
 	defer server.Stop()
 
-	consul := ConsulClientAtServer(server)
+	consul := ClientAtServer(server)
 	consul.config.Tag = "marathon"
 
 	// given
@@ -385,7 +385,7 @@ func TestRegisterServices_InvalidHostnameShouldFail(t *testing.T) {
 	server := CreateConsulTestServer(t)
 	defer server.Stop()
 
-	consul := ConsulClientAtServer(server)
+	consul := ClientAtServer(server)
 	consul.config.Tag = "marathon"
 
 	// given
@@ -405,7 +405,7 @@ func TestRegisterServices_InvalidCustomServiceName(t *testing.T) {
 	server := CreateConsulTestServer(t)
 	defer server.Stop()
 
-	consul := ConsulClientAtServer(server)
+	consul := ClientAtServer(server)
 	consul.config.Tag = "marathon"
 
 	// given
@@ -433,7 +433,7 @@ func TestRegisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 	t.Parallel()
 
 	// given
-	consul := New(ConsulConfig{Port: "1234"})
+	consul := New(Config{Port: "1234"})
 	app := utils.ConsulApp("serviceA", 1)
 
 	// when
@@ -448,7 +448,7 @@ func TestDeregisterServices(t *testing.T) {
 	server := CreateConsulTestServer(t)
 	defer server.Stop()
 
-	consul := ConsulClientAtServer(server)
+	consul := ClientAtServer(server)
 	consul.config.Tag = "marathon"
 
 	// given
@@ -470,7 +470,7 @@ func TestDeregisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 	t.Parallel()
 	server := CreateConsulTestServer(t)
 
-	consul := ConsulClientAtServer(server)
+	consul := ClientAtServer(server)
 	consul.config.Tag = "marathon"
 
 	// given
@@ -488,7 +488,7 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 	t.Parallel()
 
 	// given
-	consul := New(ConsulConfig{Tag: "marathon"})
+	consul := New(Config{Tag: "marathon"})
 	app := &apps.App{
 		ID: "someApp",
 		HealthChecks: []apps.HealthCheck{
@@ -592,7 +592,7 @@ func TestMarathonTaskToConsulServiceMapping_NotResolvableTaskHost(t *testing.T) 
 	t.Parallel()
 
 	// given
-	consul := New(ConsulConfig{Tag: "marathon"})
+	consul := New(Config{Tag: "marathon"})
 	app := &apps.App{
 		ID: "someApp",
 		HealthChecks: []apps.HealthCheck{
@@ -631,7 +631,7 @@ func TestServiceName_WithSerarator(t *testing.T) {
 	app := &apps.App{
 		ID: "/rootGroup/subGroup/subSubGroup/name",
 	}
-	consul := New(ConsulConfig{ConsulNameSeparator: "."})
+	consul := New(Config{ConsulNameSeparator: "."})
 
 	// when
 	serviceName := consul.ServiceName(app)
@@ -648,7 +648,7 @@ func TestServiceName_WithEmptyConsulLabel(t *testing.T) {
 		ID:     "/rootGroup/subGroup/subSubGroup/name",
 		Labels: map[string]string{"consul": ""},
 	}
-	consul := New(ConsulConfig{ConsulNameSeparator: "-"})
+	consul := New(Config{ConsulNameSeparator: "-"})
 
 	// when
 	serviceName := consul.ServiceName(app)
@@ -665,7 +665,7 @@ func TestServiceName_WithConsulLabelSetToTrue(t *testing.T) {
 		ID:     "/rootGroup/subGroup/subSubGroup/name",
 		Labels: map[string]string{"consul": "true"},
 	}
-	consul := New(ConsulConfig{ConsulNameSeparator: "-"})
+	consul := New(Config{ConsulNameSeparator: "-"})
 
 	// when
 	serviceName := consul.ServiceName(app)
@@ -682,7 +682,7 @@ func TestServiceName_WithCustomConsulLabelEscapingChars(t *testing.T) {
 		ID:     "/rootGroup/subGroup/subSubGroup/name",
 		Labels: map[string]string{"consul": "/some-other/name"},
 	}
-	consul := New(ConsulConfig{ConsulNameSeparator: "-"})
+	consul := New(Config{ConsulNameSeparator: "-"})
 
 	// when
 	serviceName := consul.ServiceName(app)
@@ -699,7 +699,7 @@ func TestServiceName_WithInvalidLabelValue(t *testing.T) {
 		ID:     "/rootGroup/subGroup/subSubGroup/name",
 		Labels: map[string]string{"consul": "     ///"},
 	}
-	consul := New(ConsulConfig{ConsulNameSeparator: "-"})
+	consul := New(Config{ConsulNameSeparator: "-"})
 
 	// when
 	serviceName := consul.ServiceName(app)

@@ -162,9 +162,9 @@ func TestWebHandler_handleDeploymentInfoWithStopApplicationForOneApp(t *testing.
 
 	// given
 	green := ConsulApp("/test/app.green", 3)
-	green.Labels[apps.MARATHON_CONSUL_LABEL] = "app"
+	green.Labels[apps.MarathonConsulLabel] = "app"
 	blue := ConsulApp("/test/app.blue", 2)
-	blue.Labels[apps.MARATHON_CONSUL_LABEL] = "app"
+	blue.Labels[apps.MarathonConsulLabel] = "app"
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(green, blue)
 	assert.Len(t, service.RegisteredServicesIds(), 5)
@@ -413,7 +413,7 @@ func deploymentInfoWithStopApplicationActionForApps(applications ...*apps.App) *
 	}
 	for _, app := range applications {
 		deploymentInfo.Plan.Original.Apps = append(deploymentInfo.Plan.Original.Apps, app)
-		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppId: app.ID, Type: "StopApplication"})
+		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppID: app.ID, Type: "StopApplication"})
 	}
 	return deploymentInfo
 }
@@ -510,7 +510,7 @@ func deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(applicati
 			targetApp.Labels["consul"] = fmt.Sprintf("New%s", name)
 		}
 		deploymentInfo.Plan.Target.Apps = append(deploymentInfo.Plan.Target.Apps, targetApp)
-		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppId: app.ID, Type: "RestartApplication"})
+		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppID: app.ID, Type: "RestartApplication"})
 	}
 	return deploymentInfo
 }
@@ -700,7 +700,7 @@ func TestWebHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testing
 
 	// given
 	service := consul.NewConsulStub()
-	service.ErrorServices[apps.TaskId("task.1")] = fmt.Errorf("Cannot deregister task")
+	service.ErrorServices[apps.TaskID("task.1")] = fmt.Errorf("Cannot deregister task")
 	queue := make(chan event)
 	stopChan := newEventHandler(0, service, nil, queue).Start()
 	handler := newWebHandler(queue)
@@ -986,7 +986,7 @@ func TestWebHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.T)
 	assert.True(t, marathon.Interactions())
 }
 
-func newConsulStubWithApplicationsTasksRegistered(applications ...*apps.App) *consul.ConsulStub {
+func newConsulStubWithApplicationsTasksRegistered(applications ...*apps.App) *consul.Stub {
 	service := consul.NewConsulStub()
 	for _, app := range applications {
 		for _, task := range app.Tasks {
@@ -1002,10 +1002,10 @@ func (r BadReader) Read(p []byte) (n int, err error) {
 	return 0, fmt.Errorf("Some error")
 }
 
-func healthStatusChangeEventForTask(taskId string) string {
+func healthStatusChangeEventForTask(taskID string) string {
 	return `{
 	  "appId":"/test/app",
-	  "taskId":"` + taskId + `",
+	  "taskId":"` + taskID + `",
 	  "version":"2015-12-07T09:02:48.981Z",
 	  "alive":true,
 	  "eventType":"health_status_changed_event",

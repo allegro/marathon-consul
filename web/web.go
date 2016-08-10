@@ -10,7 +10,7 @@ import (
 type Stop func()
 type Handler func(w http.ResponseWriter, r *http.Request)
 
-func NewHandler(config Config, marathon marathon.Marathoner, service service.ConsulServices) (Handler, Stop) {
+func NewHandler(config Config, marathon marathon.Marathoner, service service.Services) (Handler, Stop) {
 
 	stopChannels := make([]chan<- stopEvent, config.WorkersCount, config.WorkersCount)
 	eventQueue := make(chan event, config.QueueSize)

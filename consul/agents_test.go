@@ -10,7 +10,7 @@ import (
 func TestGetAgent(t *testing.T) {
 	t.Parallel()
 	// given
-	agents := NewAgents(&ConsulConfig{})
+	agents := NewAgents(&Config{})
 
 	// when
 	agent, err := agents.GetAgent("127.0.0.1")
@@ -23,7 +23,7 @@ func TestGetAgent(t *testing.T) {
 func TestGetAnyAgent_SingleAgentAvailable(t *testing.T) {
 	t.Parallel()
 	// given
-	agents := NewAgents(&ConsulConfig{})
+	agents := NewAgents(&Config{})
 
 	// when
 	agents.GetAgent("127.0.0.1") // create
@@ -38,7 +38,7 @@ func TestGetAnyAgent_SingleAgentAvailable(t *testing.T) {
 func TestGetAnyAgent(t *testing.T) {
 	t.Parallel()
 	// given
-	agents := NewAgents(&ConsulConfig{})
+	agents := NewAgents(&Config{})
 	agent1, _ := agents.GetAgent("127.0.0.1")
 	agent2, _ := agents.GetAgent("127.0.0.2")
 	agent3, _ := agents.GetAgent("127.0.0.3")
@@ -54,7 +54,7 @@ func TestGetAnyAgent(t *testing.T) {
 func TestGetAgent_ShouldResolveAddressToIP(t *testing.T) {
 	t.Parallel()
 	// given
-	agents := NewAgents(&ConsulConfig{})
+	agents := NewAgents(&Config{})
 
 	// when
 	agent1, _ := agents.GetAgent("127.0.0.1")
@@ -67,7 +67,7 @@ func TestGetAgent_ShouldResolveAddressToIP(t *testing.T) {
 func TestGetAgent_ShouldFailOnWrongHostname(t *testing.T) {
 	t.Parallel()
 	// given
-	agents := NewAgents(&ConsulConfig{})
+	agents := NewAgents(&Config{})
 
 	// when
 	_, err := agents.GetAgent("wrong hostname")
@@ -79,7 +79,7 @@ func TestGetAgent_ShouldFailOnWrongHostname(t *testing.T) {
 func TestGetAgent_ShouldFailOnUnknownHostname(t *testing.T) {
 	t.Parallel()
 	// given
-	agents := NewAgents(&ConsulConfig{})
+	agents := NewAgents(&Config{})
 
 	// when
 	_, err := agents.GetAgent("unknown.host.name.1")
@@ -91,7 +91,7 @@ func TestGetAgent_ShouldFailOnUnknownHostname(t *testing.T) {
 func TestGetAnyAgent_shouldFailOnNoAgentAvailable(t *testing.T) {
 	t.Parallel()
 	// given
-	agents := NewAgents(&ConsulConfig{})
+	agents := NewAgents(&Config{})
 
 	// when
 	anyAgent, err := agents.GetAnyAgent()
@@ -104,7 +104,7 @@ func TestGetAnyAgent_shouldFailOnNoAgentAvailable(t *testing.T) {
 func TestRemoveAgent(t *testing.T) {
 	t.Parallel()
 	// given
-	agents := NewAgents(&ConsulConfig{})
+	agents := NewAgents(&Config{})
 	agents.GetAgent("127.0.0.1")
 	agent2, _ := agents.GetAgent("127.0.0.2")
 
@@ -123,7 +123,7 @@ func TestRemoveAgent(t *testing.T) {
 func TestRemoveAgentTwiceShouldPass(t *testing.T) {
 	t.Parallel()
 	// given
-	agents := NewAgents(&ConsulConfig{})
+	agents := NewAgents(&Config{})
 	agents.GetAgent("127.0.0.1")
 
 	// when

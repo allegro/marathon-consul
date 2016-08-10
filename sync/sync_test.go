@@ -156,15 +156,15 @@ func (c *ConsulServicesMock) Register(task *apps.Task, app *apps.App) error {
 	return nil
 }
 
-func (c *ConsulServicesMock) RegistrationsCount(instanceId string) int {
-	return c.registrations[instanceId]
+func (c *ConsulServicesMock) RegistrationsCount(instanceID string) int {
+	return c.registrations[instanceID]
 }
 
 func (c *ConsulServicesMock) ServiceName(app *apps.App) string {
 	return ""
 }
 
-func (c *ConsulServicesMock) Deregister(serviceId apps.TaskId, agent string) error {
+func (c *ConsulServicesMock) Deregister(serviceID apps.TaskID, agent string) error {
 	return nil
 }
 
@@ -352,7 +352,7 @@ func TestSync_WithConsulProblems(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func newSyncWithDefaultConfig(marathon marathon.Marathoner, service consul.ConsulServices) *Sync {
+func newSyncWithDefaultConfig(marathon marathon.Marathoner, service consul.Services) *Sync {
 	return New(Config{Enabled: true, Leader: "localhost:8080"}, marathon, service)
 }
 
@@ -362,7 +362,7 @@ func TestSync_AddingAgentsFromMarathonTasks(t *testing.T) {
 	consulServer := consul.CreateConsulTestServer(t)
 	defer consulServer.Stop()
 
-	consulServices := consul.New(consul.ConsulConfig{
+	consulServices := consul.New(consul.Config{
 		Port: fmt.Sprintf("%d", consulServer.Config.Ports.HTTP),
 		Tag:  "marathon",
 	})

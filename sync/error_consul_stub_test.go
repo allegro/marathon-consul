@@ -1,8 +1,8 @@
 package sync
 
-import "fmt"
-
 import (
+	"errors"
+
 	"github.com/allegro/marathon-consul/apps"
 	consulapi "github.com/hashicorp/consul/api"
 )
@@ -11,19 +11,19 @@ type errorConsul struct {
 }
 
 func (c errorConsul) GetServices(name string) ([]*consulapi.CatalogService, error) {
-	return nil, fmt.Errorf("Error occured")
+	return nil, errors.New("Error occured")
 }
 
 func (c errorConsul) GetAllServices() ([]*consulapi.CatalogService, error) {
-	return nil, fmt.Errorf("Error occured")
+	return nil, errors.New("Error occured")
 }
 
 func (c errorConsul) Register(task *apps.Task, app *apps.App) error {
-	return fmt.Errorf("Error occured")
+	return errors.New("Error occured")
 }
 
-func (c errorConsul) Deregister(serviceId apps.TaskId, agent string) error {
-	return fmt.Errorf("Error occured")
+func (c errorConsul) Deregister(serviceID apps.TaskID, agent string) error {
+	return errors.New("Error occured")
 }
 
 func (c errorConsul) ServiceName(app *apps.App) string {
@@ -31,5 +31,5 @@ func (c errorConsul) ServiceName(app *apps.App) string {
 }
 
 func (c errorConsul) GetAgent(agent string) (*consulapi.Client, error) {
-	return nil, fmt.Errorf("Error occured")
+	return nil, errors.New("Error occured")
 }

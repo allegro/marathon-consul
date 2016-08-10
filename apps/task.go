@@ -6,9 +6,9 @@ import (
 )
 
 type Task struct {
-	ID                 TaskId              `json:"id"`
+	ID                 TaskID              `json:"id"`
 	TaskStatus         string              `json:"taskStatus"`
-	AppID              AppId               `json:"appId"`
+	AppID              AppID               `json:"appId"`
 	Host               string              `json:"host"`
 	Ports              []int               `json:"ports"`
 	HealthCheckResults []HealthCheckResult `json:"healthCheckResults"`
@@ -16,15 +16,15 @@ type Task struct {
 
 // Marathon Task Id
 // Usually in the form of AppId.uuid with '/' replaced with '_'
-type TaskId string
+type TaskID string
 
-func (id TaskId) String() string {
+func (id TaskID) String() string {
 	return string(id)
 }
 
-func (id TaskId) AppId() AppId {
+func (id TaskID) AppID() AppID {
 	index := strings.LastIndex(id.String(), ".")
-	return AppId("/" + strings.Replace(id.String()[0:index], "_", "/", -1))
+	return AppID("/" + strings.Replace(id.String()[0:index], "_", "/", -1))
 }
 
 type HealthCheckResult struct {
