@@ -534,7 +534,7 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 			{
 				Protocol: "COMMAND",
 				Command: struct {
-					Value string `json:"value`
+					Value string `json:"value"`
 				}{Value: "echo 1"},
 				IntervalSeconds:        30,
 				TimeoutSeconds:         20,
