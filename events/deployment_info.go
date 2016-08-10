@@ -19,7 +19,7 @@ type Plan struct {
 }
 
 type Deployments struct {
-	Id     string         `json:"id"`
+	ID     string         `json:"id"`
 	Apps   []*apps.App    `json:"apps"`
 	Groups []*Deployments `json:"groups"`
 }
@@ -30,7 +30,7 @@ type CurrentStep struct {
 
 type Action struct {
 	Type  string     `json:"type"`
-	AppId apps.AppId `json:"app"`
+	AppID apps.AppID `json:"app"`
 }
 
 func (d *Deployments) groups() []*Deployments {
@@ -100,8 +100,8 @@ func (d *DeploymentEvent) RenamedConsulApps() []*apps.App {
 	return renamedApps
 }
 
-func (d *DeploymentEvent) appsMap(applications []*apps.App) map[apps.AppId]*apps.App {
-	result := make(map[apps.AppId]*apps.App)
+func (d *DeploymentEvent) appsMap(applications []*apps.App) map[apps.AppID]*apps.App {
+	result := make(map[apps.AppID]*apps.App)
 	for _, app := range applications {
 		result[app.ID] = app
 	}
@@ -109,12 +109,12 @@ func (d *DeploymentEvent) appsMap(applications []*apps.App) map[apps.AppId]*apps
 }
 
 func (d *DeploymentEvent) consulAppsWithActionPerformed(deployments *Deployments, actionType string) []*apps.App {
-	appIds := make(map[apps.AppId]struct{})
+	appIds := make(map[apps.AppID]struct{})
 	var exists struct{}
 
 	for _, action := range d.actions() {
 		if action.Type == actionType {
-			appIds[action.AppId] = exists
+			appIds[action.AppID] = exists
 		}
 	}
 	return d.filterConsulApps(d.findAppsInDeploymentsGroup(appIds, deployments))
@@ -130,7 +130,7 @@ func (d *DeploymentEvent) filterConsulApps(allApps []*apps.App) []*apps.App {
 	return filtered
 }
 
-func (d *DeploymentEvent) findAppsInDeploymentsGroup(appIds map[apps.AppId]struct{}, deployment *Deployments) []*apps.App {
+func (d *DeploymentEvent) findAppsInDeploymentsGroup(appIds map[apps.AppID]struct{}, deployment *Deployments) []*apps.App {
 	foundApps := []*apps.App{}
 	filteredAppIds := deployment.filterCurrentGroupAppIds(appIds)
 
@@ -146,7 +146,7 @@ func (d *DeploymentEvent) findAppsInDeploymentsGroup(appIds map[apps.AppId]struc
 	return foundApps
 }
 
-func (d *DeploymentEvent) findAppsInCurrentDeploymentGroupApps(appIds map[apps.AppId]struct{}, deployment *Deployments) []*apps.App {
+func (d *DeploymentEvent) findAppsInCurrentDeploymentGroupApps(appIds map[apps.AppID]struct{}, deployment *Deployments) []*apps.App {
 	foundApps := []*apps.App{}
 	searchForCount := len(appIds)
 
@@ -162,7 +162,7 @@ func (d *DeploymentEvent) findAppsInCurrentDeploymentGroupApps(appIds map[apps.A
 	return foundApps
 }
 
-func (d *DeploymentEvent) findAppsInDeploymentChildGroups(appIds map[apps.AppId]struct{}, deployment *Deployments) []*apps.App {
+func (d *DeploymentEvent) findAppsInDeploymentChildGroups(appIds map[apps.AppID]struct{}, deployment *Deployments) []*apps.App {
 	foundApps := []*apps.App{}
 	searchForCount := len(appIds)
 
@@ -179,13 +179,13 @@ func (d *DeploymentEvent) findAppsInDeploymentChildGroups(appIds map[apps.AppId]
 	return foundApps
 }
 
-func (d *Deployments) filterCurrentGroupAppIds(appIds map[apps.AppId]struct{}) map[apps.AppId]struct{} {
-	filteredAppIds := make(map[apps.AppId]struct{})
+func (d *Deployments) filterCurrentGroupAppIds(appIds map[apps.AppID]struct{}) map[apps.AppID]struct{} {
+	filteredAppIds := make(map[apps.AppID]struct{})
 	var exists struct{}
 
-	for appId := range appIds {
-		if strings.HasPrefix(appId.String(), d.Id) {
-			filteredAppIds[appId] = exists
+	for appID := range appIds {
+		if strings.HasPrefix(appID.String(), d.ID) {
+			filteredAppIds[appID] = exists
 		}
 	}
 	return filteredAppIds

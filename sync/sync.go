@@ -16,10 +16,10 @@ import (
 type Sync struct {
 	config   Config
 	marathon marathon.Marathoner
-	service  service.ConsulServices
+	service  service.Services
 }
 
-func New(config Config, marathon marathon.Marathoner, service service.ConsulServices) *Sync {
+func New(config Config, marathon marathon.Marathoner, service service.Services) *Sync {
 	return &Sync{config, marathon, service}
 }
 
@@ -136,9 +136,9 @@ func (s *Sync) addAgentNodes(apps []*apps.App) {
 func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.App, consulServices []*consul.CatalogService) {
 	marathonTaskIdsSet := s.marathonTaskIdsSet(marathonApps)
 	for _, service := range consulServices {
-		serviceId := apps.TaskId(service.ServiceID)
-		if _, ok := marathonTaskIdsSet[serviceId]; !ok {
-			err := s.service.Deregister(serviceId, service.Address)
+		serviceID := apps.TaskID(service.ServiceID)
+		if _, ok := marathonTaskIdsSet[serviceID]; !ok {
+			err := s.service.Deregister(serviceID, service.Address)
 			if err != nil {
 				log.WithError(err).WithFields(log.Fields{
 					"Id":      service.ServiceID,
@@ -175,17 +175,17 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, consul
 	}
 }
 
-func (s *Sync) consulServiceIdsSet(services []*consul.CatalogService) map[apps.TaskId]struct{} {
-	servicesSet := make(map[apps.TaskId]struct{})
+func (s *Sync) consulServiceIdsSet(services []*consul.CatalogService) map[apps.TaskID]struct{} {
+	servicesSet := make(map[apps.TaskID]struct{})
 	var exists struct{}
 	for _, service := range services {
-		servicesSet[apps.TaskId(service.ServiceID)] = exists
+		servicesSet[apps.TaskID(service.ServiceID)] = exists
 	}
 	return servicesSet
 }
 
-func (s *Sync) marathonTaskIdsSet(marathonApps []*apps.App) map[apps.TaskId]struct{} {
-	tasksSet := make(map[apps.TaskId]struct{})
+func (s *Sync) marathonTaskIdsSet(marathonApps []*apps.App) map[apps.TaskID]struct{} {
+	tasksSet := make(map[apps.TaskID]struct{})
 	var exists struct{}
 	for _, app := range marathonApps {
 		for _, task := range app.Tasks {

@@ -51,16 +51,16 @@ func CreateConsulTestServer(t *testing.T) *testutil.TestServer {
 	})
 }
 
-func ConsulClientAtServer(server *testutil.TestServer) *Consul {
-	return consulClientAtAddress(server.Config.Bind, server.Config.Ports.HTTP)
+func ClientAtServer(server *testutil.TestServer) *Consul {
+	return clientAtAddress(server.Config.Bind, server.Config.Ports.HTTP)
 }
 
 func FailingConsulClient() *Consul {
-	return consulClientAtAddress("127.5.5.5", 5555)
+	return clientAtAddress("127.5.5.5", 5555)
 }
 
-func consulClientAtAddress(host string, port int) *Consul {
-	config := ConsulConfig{
+func clientAtAddress(host string, port int) *Consul {
+	config := Config{
 		Timeout:             10 * time.Millisecond,
 		Port:                fmt.Sprintf("%d", port),
 		ConsulNameSeparator: ".",

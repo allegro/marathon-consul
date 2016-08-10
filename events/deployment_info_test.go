@@ -21,7 +21,7 @@ func TestParseDeploymentInfo(t *testing.T) {
 	// then
 	assert.NoError(t, err)
 	assert.Equal(t, "StopApplication", action.Type)
-	assert.Equal(t, "/internalName", action.AppId.String())
+	assert.Equal(t, "/internalName", action.AppID.String())
 	assert.Equal(t, "/internalName", app.ID.String())
 	assert.Equal(t, "consulName", app.Labels["consul"])
 }
@@ -39,7 +39,7 @@ func TestParseDeploymentStepSuccess(t *testing.T) {
 	// then
 	assert.NoError(t, err)
 	assert.Equal(t, "RestartApplication", action.Type)
-	assert.Equal(t, "/a", action.AppId.String())
+	assert.Equal(t, "/a", action.AppID.String())
 	assert.Equal(t, "/a", app.ID.String())
 	assert.Equal(t, "b", app.Labels["consul"])
 }
@@ -57,7 +57,7 @@ func TestParseDeploymentStepSuccessWithGroups(t *testing.T) {
 	// then
 	assert.NoError(t, err)
 	assert.Equal(t, "RestartApplication", action.Type)
-	assert.Equal(t, "/com.example/things/something", action.AppId.String())
+	assert.Equal(t, "/com.example/things/something", action.AppID.String())
 	assert.Equal(t, "/com.example/things/something", app.ID.String())
 	assert.Equal(t, "something", app.Labels["consul"])
 }
@@ -114,10 +114,10 @@ func TestStoppedConsulApps(t *testing.T) {
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				{Type: "StartApplication", AppId: "app1"},
-				{Type: "StopApplication", AppId: "app2"},
-				{Type: "StopApplication", AppId: "app3"},
-				{Type: "StopApplication", AppId: "app4"},
+				{Type: "StartApplication", AppID: "app1"},
+				{Type: "StopApplication", AppID: "app2"},
+				{Type: "StopApplication", AppID: "app3"},
+				{Type: "StopApplication", AppID: "app4"},
 			},
 		},
 	}
@@ -147,10 +147,10 @@ func TestRestartedConsulApps(t *testing.T) {
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				{Type: "StartApplication", AppId: "app1"},
-				{Type: "RestartApplication", AppId: "app2"},
-				{Type: "RestartApplication", AppId: "app3"},
-				{Type: "RestartApplication", AppId: "app4"},
+				{Type: "StartApplication", AppID: "app1"},
+				{Type: "RestartApplication", AppID: "app2"},
+				{Type: "RestartApplication", AppID: "app3"},
+				{Type: "RestartApplication", AppID: "app4"},
 			},
 		},
 	}
@@ -177,7 +177,7 @@ func TestStoppedConsulApps_NoStoppedApps(t *testing.T) {
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				{Type: "StartApplication", AppId: "app1"},
+				{Type: "StartApplication", AppID: "app1"},
 			},
 		},
 	}
@@ -223,9 +223,9 @@ func TestRenamedConsulApps(t *testing.T) {
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				{Type: "RestartApplication", AppId: "app1"},
-				{Type: "StartApplication", AppId: "app2"},
-				{Type: "RestartApplication", AppId: "app3"},
+				{Type: "RestartApplication", AppID: "app1"},
+				{Type: "StartApplication", AppID: "app2"},
+				{Type: "RestartApplication", AppID: "app3"},
 			},
 		},
 	}
@@ -244,9 +244,9 @@ func TestRenamedConsulApps_OnEmptyPlan(t *testing.T) {
 	deploymentInfo := &DeploymentEvent{
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				{Type: "RestartApplication", AppId: "app2"},
-				{Type: "StartApplication", AppId: "app1"},
-				{Type: "RestartApplication", AppId: "app3"},
+				{Type: "RestartApplication", AppID: "app2"},
+				{Type: "StartApplication", AppID: "app1"},
+				{Type: "RestartApplication", AppID: "app3"},
 			},
 		},
 	}
@@ -278,8 +278,8 @@ func TestRenamedConsulApps_OnConsulTrueCase(t *testing.T) {
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				{Type: "RestartApplication", AppId: "app1"},
-				{Type: "RestartApplication", AppId: "app2"},
+				{Type: "RestartApplication", AppID: "app1"},
+				{Type: "RestartApplication", AppID: "app2"},
 			},
 		},
 	}
@@ -311,8 +311,8 @@ func TestRenamedConsulApps_OnCustomNameAdded(t *testing.T) {
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				{Type: "RestartApplication", AppId: "app1"},
-				{Type: "StartApplication", AppId: "app2"},
+				{Type: "RestartApplication", AppID: "app1"},
+				{Type: "StartApplication", AppID: "app2"},
 			},
 		},
 	}
@@ -345,8 +345,8 @@ func TestRenamedConsulApps_OnCustomNameAddedToNonConsulApp(t *testing.T) {
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				{Type: "RestartApplication", AppId: "app1"},
-				{Type: "StartApplication", AppId: "app2"},
+				{Type: "RestartApplication", AppID: "app1"},
+				{Type: "StartApplication", AppID: "app2"},
 			},
 		},
 	}
@@ -378,8 +378,8 @@ func TestRenamedConsulApps_OnConsulLabelRemoved(t *testing.T) {
 		},
 		CurrentStep: &CurrentStep{
 			Actions: []*Action{
-				{Type: "RestartApplication", AppId: "app1"},
-				{Type: "StartApplication", AppId: "app2"},
+				{Type: "RestartApplication", AppID: "app1"},
+				{Type: "StartApplication", AppID: "app2"},
 			},
 		},
 	}

@@ -2,7 +2,7 @@ package consul
 
 import (
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -21,12 +21,12 @@ type Agents interface {
 
 type ConcurrentAgents struct {
 	agents map[string]*Agent
-	config *ConsulConfig
+	config *Config
 	lock   sync.Mutex
 	client *http.Client
 }
 
-func NewAgents(config *ConsulConfig) *ConcurrentAgents {
+func NewAgents(config *Config) *ConcurrentAgents {
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
@@ -48,13 +48,13 @@ func (a *ConcurrentAgents) GetAnyAgent() (*Agent, error) {
 	defer a.lock.Unlock()
 
 	if len(a.agents) > 0 {
-		ipAddress := a.getRandomAgentIpAddress()
+		ipAddress := a.getRandomAgentIP()
 		return a.agents[ipAddress], nil
 	}
-	return nil, fmt.Errorf("No Consul client available in agents cache")
+	return nil, errors.New("No Consul client available in agents cache")
 }
 
-func (a *ConcurrentAgents) getRandomAgentIpAddress() string {
+func (a *ConcurrentAgents) getRandomAgentIP() string {
 	ipAddresses := []string{}
 	for ipAddress := range a.agents {
 		ipAddresses = append(ipAddresses, ipAddress)

@@ -5,7 +5,7 @@ import (
 )
 
 // Only Marathon apps with this label will be registered in Consul
-const MARATHON_CONSUL_LABEL = "consul"
+const MarathonConsulLabel = "consul"
 
 type HealthCheck struct {
 	Path                   string `json:"path"`
@@ -24,33 +24,33 @@ type AppWrapper struct {
 	App App `json:"app"`
 }
 
-type AppsResponse struct {
+type Apps struct {
 	Apps []*App `json:"apps"`
 }
 
 type App struct {
 	Labels       map[string]string `json:"labels"`
 	HealthChecks []HealthCheck     `json:"healthChecks"`
-	ID           AppId             `json:"id"`
+	ID           AppID             `json:"id"`
 	Tasks        []Task            `json:"tasks"`
 }
 
 // Marathon Application Id (aka PathId)
 // Usually in the form of /rootGroup/subGroup/subSubGroup/name
 // allowed characters: lowercase letters, digits, hyphens, slash
-type AppId string
+type AppID string
 
-func (id AppId) String() string {
+func (id AppID) String() string {
 	return string(id)
 }
 
 func (app *App) IsConsulApp() bool {
-	_, ok := app.Labels[MARATHON_CONSUL_LABEL]
+	_, ok := app.Labels[MarathonConsulLabel]
 	return ok
 }
 
 func (app *App) ConsulName() string {
-	if value, ok := app.Labels[MARATHON_CONSUL_LABEL]; ok && !isSpecialConsulNameValue(value) {
+	if value, ok := app.Labels[MarathonConsulLabel]; ok && !isSpecialConsulNameValue(value) {
 		return value
 	}
 	return app.ID.String()
@@ -61,7 +61,7 @@ func isSpecialConsulNameValue(name string) bool {
 }
 
 func ParseApps(jsonBlob []byte) ([]*App, error) {
-	apps := &AppsResponse{}
+	apps := &Apps{}
 	err := json.Unmarshal(jsonBlob, apps)
 
 	return apps.Apps, err

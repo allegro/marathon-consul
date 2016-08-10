@@ -12,23 +12,23 @@ import (
 	consulapi "github.com/hashicorp/consul/api"
 )
 
-type ConsulServices interface {
+type Services interface {
 	GetAllServices() ([]*consulapi.CatalogService, error)
 	GetServices(name string) ([]*consulapi.CatalogService, error)
 	Register(task *apps.Task, app *apps.App) error
-	Deregister(serviceId apps.TaskId, agentAddress string) error
+	Deregister(serviceID apps.TaskID, agentAddress string) error
 	GetAgent(agentAddress string) (*consulapi.Client, error)
 	ServiceName(app *apps.App) string
 }
 
 type Consul struct {
 	agents Agents
-	config ConsulConfig
+	config Config
 }
 
 type ServicesProvider func(agent *consulapi.Client) ([]*consulapi.CatalogService, error)
 
-func New(config ConsulConfig) *Consul {
+func New(config Config) *Consul {
 	return &Consul{
 		agents: NewAgents(&config),
 		config: config,
@@ -129,7 +129,7 @@ func (c *Consul) Register(task *apps.Task, app *apps.App) error {
 	if err != nil {
 		return err
 	}
-	if value, ok := app.Labels[apps.MARATHON_CONSUL_LABEL]; ok && value == "true" {
+	if value, ok := app.Labels[apps.MarathonConsulLabel]; ok && value == "true" {
 		log.WithField("Id", app.ID).Warn("Warning! Application configuration is deprecated (labeled as `consul:true`). Support for special `true` value will be removed in the future!")
 	}
 	metrics.Time("consul.register", func() { err = c.register(service) })
@@ -162,9 +162,9 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 	return err
 }
 
-func (c *Consul) Deregister(serviceId apps.TaskId, agentAddress string) error {
+func (c *Consul) Deregister(serviceID apps.TaskID, agentAddress string) error {
 	var err error
-	metrics.Time("consul.deregister", func() { err = c.deregister(serviceId, agentAddress) })
+	metrics.Time("consul.deregister", func() { err = c.deregister(serviceID, agentAddress) })
 	if err != nil {
 		metrics.Mark("consul.deregister.error")
 	} else {
@@ -173,17 +173,17 @@ func (c *Consul) Deregister(serviceId apps.TaskId, agentAddress string) error {
 	return err
 }
 
-func (c *Consul) deregister(serviceId apps.TaskId, agentAddress string) error {
+func (c *Consul) deregister(serviceID apps.TaskID, agentAddress string) error {
 	agent, err := c.agents.GetAgent(agentAddress)
 	if err != nil {
 		return err
 	}
 
-	log.WithField("Id", serviceId).WithField("Address", agentAddress).Info("Deregistering")
+	log.WithField("Id", serviceID).WithField("Address", agentAddress).Info("Deregistering")
 
-	err = agent.Agent().ServiceDeregister(serviceId.String())
+	err = agent.Agent().ServiceDeregister(serviceID.String())
 	if err != nil {
-		log.WithError(err).WithField("Id", serviceId).WithField("Address", agentAddress).Error("Unable to deregister")
+		log.WithError(err).WithField("Id", serviceID).WithField("Address", agentAddress).Error("Unable to deregister")
 	}
 	return err
 }
@@ -225,17 +225,17 @@ func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*c
 }
 
 func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.HealthCheck, serviceAddress string) consulapi.AgentServiceChecks {
-	var checks consulapi.AgentServiceChecks = make(consulapi.AgentServiceChecks, 0, len(healthChecks))
+	checks := make(consulapi.AgentServiceChecks, 0, len(healthChecks))
 
 	for _, check := range healthChecks {
 		switch check.Protocol {
 		case "HTTP", "HTTPS":
-			if parsedUrl, err := url.ParseRequestURI(check.Path); err == nil {
-				parsedUrl.Scheme = strings.ToLower(check.Protocol)
-				parsedUrl.Host = fmt.Sprintf("%s:%d", serviceAddress, task.Ports[check.PortIndex])
+			if parsedURL, err := url.ParseRequestURI(check.Path); err == nil {
+				parsedURL.Scheme = strings.ToLower(check.Protocol)
+				parsedURL.Host = fmt.Sprintf("%s:%d", serviceAddress, task.Ports[check.PortIndex])
 
 				checks = append(checks, &consulapi.AgentServiceCheck{
-					HTTP:     parsedUrl.String(),
+					HTTP:     parsedURL.String(),
 					Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
 					Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
 				})

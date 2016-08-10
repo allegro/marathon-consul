@@ -23,8 +23,8 @@ func app(name string, instances int, consul bool, unhealthyInstances int) *apps.
 	var appTasks []apps.Task
 	for i := 0; i < instances; i++ {
 		task := apps.Task{
-			AppID: apps.AppId(name),
-			ID:    apps.TaskId(fmt.Sprintf("%s.%d", strings.Replace(strings.Trim(name, "/"), "/", "_", -1), i)),
+			AppID: apps.AppID(name),
+			ID:    apps.TaskID(fmt.Sprintf("%s.%d", strings.Replace(strings.Trim(name, "/"), "/", "_", -1), i)),
 			Ports: []int{8080 + i},
 			Host:  "localhost",
 		}
@@ -42,11 +42,11 @@ func app(name string, instances int, consul bool, unhealthyInstances int) *apps.
 
 	labels := make(map[string]string)
 	if consul {
-		labels[apps.MARATHON_CONSUL_LABEL] = "true"
+		labels[apps.MarathonConsulLabel] = "true"
 	}
 
 	return &apps.App{
-		ID:     apps.AppId(name),
+		ID:     apps.AppID(name),
 		Tasks:  appTasks,
 		Labels: labels,
 	}

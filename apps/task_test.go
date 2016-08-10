@@ -106,16 +106,16 @@ func TestIsHealthy(t *testing.T) {
 
 func TestId_String(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "id", TaskId("id").String())
+	assert.Equal(t, "id", TaskID("id").String())
 }
 
 func TestId_AppId(t *testing.T) {
 	t.Parallel()
 	id := "pl.allegro_test_app.a7cde60e-0093-11e6-ab55-02aab772a161"
-	assert.Equal(t, AppId("/pl.allegro/test/app"), TaskId(id).AppId())
+	assert.Equal(t, AppID("/pl.allegro/test/app"), TaskID(id).AppID())
 }
 
 func TestId_AppIdForInvalid(t *testing.T) {
 	t.Parallel()
-	assert.Panics(t, func() { TaskId("id").AppId() })
+	assert.Panics(t, func() { TaskID("id").AppID() })
 }
