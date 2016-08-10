@@ -1,19 +1,18 @@
 package sync
 
 import (
+	"fmt"
+	"os"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	. "github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
-
-	"fmt"
-	"os"
-	"time"
-
-	"github.com/allegro/marathon-consul/apps"
 )
 
 func TestSyncJob_ShouldSyncOnLeadership(t *testing.T) {
@@ -32,10 +31,10 @@ func TestSyncJob_ShouldSyncOnLeadership(t *testing.T) {
 	ticker := sync.StartSyncServicesJob()
 
 	// then
+	ticker.Stop()
 	select {
 	case <-time.After(15 * time.Millisecond):
-		ticker.Stop()
-		assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID.String()))
+		assert.Equal(t, 1, services.RegistrationsCount(app.Tasks[0].ID.String()))
 	}
 }
 
@@ -56,10 +55,7 @@ func TestSyncJob_ShouldNotSyncWhenDisabled(t *testing.T) {
 
 	// then
 	assert.Nil(t, ticker)
-	select {
-	case <-time.After(15 * time.Millisecond):
-		assert.Equal(t, 0, services.RegistrationsCount(app.Tasks[0].ID.String()))
-	}
+	assert.Equal(t, 0, services.RegistrationsCount(app.Tasks[0].ID.String()))
 }
 
 func TestSyncJob_ShouldDefaultLeaderConfigurationToResolvedHostname(t *testing.T) {
@@ -78,10 +74,10 @@ func TestSyncJob_ShouldDefaultLeaderConfigurationToResolvedHostname(t *testing.T
 	ticker := sync.StartSyncServicesJob()
 
 	// then
+	ticker.Stop()
 	select {
 	case <-time.After(15 * time.Millisecond):
-		ticker.Stop()
-		assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID.String()))
+		assert.Equal(t, 1, services.RegistrationsCount(app.Tasks[0].ID.String()))
 	}
 }
 
@@ -134,6 +130,7 @@ func TestSyncServices_ShouldSyncOnForceWithoutLeadership(t *testing.T) {
 }
 
 type ConsulServicesMock struct {
+	sync.RWMutex
 	registrations map[string]int
 }
 
@@ -152,11 +149,15 @@ func (c *ConsulServicesMock) GetAllServices() ([]*consulapi.CatalogService, erro
 }
 
 func (c *ConsulServicesMock) Register(task *apps.Task, app *apps.App) error {
+	c.Lock()
+	defer c.Unlock()
 	c.registrations[task.ID.String()]++
 	return nil
 }
 
 func (c *ConsulServicesMock) RegistrationsCount(instanceId string) int {
+	c.RLock()
+	defer c.RUnlock()
 	return c.registrations[instanceId]
 }
 

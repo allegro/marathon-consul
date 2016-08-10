@@ -1,11 +1,14 @@
 package consul
 
 import (
+	"sync"
+
 	"github.com/allegro/marathon-consul/apps"
 	consulapi "github.com/hashicorp/consul/api"
 )
 
 type ConsulStub struct {
+	sync.RWMutex
 	services         map[apps.TaskId]*consulapi.AgentServiceRegistration
 	ErrorServices    map[apps.TaskId]error
 	ErrorGetServices map[string]error
@@ -25,7 +28,9 @@ func NewConsulStubWithTag(tag string) *ConsulStub {
 	}
 }
 
-func (c ConsulStub) GetAllServices() ([]*consulapi.CatalogService, error) {
+func (c *ConsulStub) GetAllServices() ([]*consulapi.CatalogService, error) {
+	c.RLock()
+	defer c.RUnlock()
 	var catalog []*consulapi.CatalogService
 	for _, s := range c.services {
 		catalog = append(catalog, &consulapi.CatalogService{
@@ -40,9 +45,11 @@ func (c ConsulStub) GetAllServices() ([]*consulapi.CatalogService, error) {
 	return catalog, nil
 }
 
-func (c ConsulStub) GetServices(name string) ([]*consulapi.CatalogService, error) {
-	if error, ok := c.ErrorGetServices[name]; ok {
-		return nil, error
+func (c *ConsulStub) GetServices(name string) ([]*consulapi.CatalogService, error) {
+	c.RLock()
+	defer c.RUnlock()
+	if err, ok := c.ErrorGetServices[name]; ok {
+		return nil, err
 	}
 	var catalog []*consulapi.CatalogService
 	for _, s := range c.services {
@@ -61,6 +68,8 @@ func (c ConsulStub) GetServices(name string) ([]*consulapi.CatalogService, error
 }
 
 func (c *ConsulStub) Register(task *apps.Task, app *apps.App) error {
+	c.Lock()
+	defer c.Unlock()
 	if err, ok := c.ErrorServices[task.ID]; ok {
 		return err
 	} else {
@@ -78,6 +87,8 @@ func (c *ConsulStub) ServiceName(app *apps.App) string {
 }
 
 func (c *ConsulStub) Deregister(serviceId apps.TaskId, agent string) error {
+	c.Lock()
+	defer c.Unlock()
 	if err, ok := c.ErrorServices[serviceId]; ok {
 		return err
 	} else {
@@ -87,6 +98,8 @@ func (c *ConsulStub) Deregister(serviceId apps.TaskId, agent string) error {
 }
 
 func (c *ConsulStub) RegisteredServicesIds() []string {
+	c.RLock()
+	defer c.RUnlock()
 	services, _ := c.GetAllServices()
 	servicesIds := []string{}
 	for _, consulService := range services {
