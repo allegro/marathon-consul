@@ -16,7 +16,7 @@ type HealthCheck struct {
 	TimeoutSeconds         int    `json:"timeoutSeconds"`
 	MaxConsecutiveFailures int    `json:"maxConsecutiveFailures"`
 	Command                struct {
-		Value string `json:"value`
+		Value string `json:"value"`
 	}
 }
 

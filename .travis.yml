@@ -10,7 +10,7 @@ before_install:
   - go get github.com/mattn/goveralls
   - if ! go get github.com/golang/tools/cmd/cover; then go get golang.org/x/tools/cmd/cover; fi
 script:
-  - make deps
+  - make build
   - go test -coverprofile=apps.coverprofile ./apps
   - go test -coverprofile=config.coverprofile ./config
   - go test -coverprofile=consul.coverprofile ./consul
