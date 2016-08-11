@@ -245,7 +245,11 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 	}
 
 	for _, service := range services {
-		taskId := apps.TaskId(service.ServiceID)
+		taskId, err := fh.service.ServiceTaskId(service)
+		if err != nil {
+			errors = append(errors, err)
+			continue
+		}
 		if taskId.AppId() == app.ID {
 			err = fh.deregister(taskId, service.Address)
 			if err != nil {
@@ -256,10 +260,10 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 	return errors
 }
 
-func (fh *eventHandler) deregister(serviceId apps.TaskId, agentAddress string) error {
-	err := fh.service.Deregister(serviceId, agentAddress)
+func (fh *eventHandler) deregister(taskId apps.TaskId, agentAddress string) error {
+	err := fh.service.DeregisterByTask(taskId, agentAddress)
 	if err != nil {
-		log.WithField("Id", serviceId).WithError(err).Error("There was a problem deregistering task")
+		log.WithField("Id", taskId).WithError(err).Error("There was a problem deregistering task")
 	}
 	return err
 }

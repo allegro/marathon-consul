@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -10,15 +11,18 @@ import (
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
+	"github.com/satori/go.uuid"
 )
 
 type ConsulServices interface {
 	GetAllServices() ([]*consulapi.CatalogService, error)
 	GetServices(name string) ([]*consulapi.CatalogService, error)
 	Register(task *apps.Task, app *apps.App) error
-	Deregister(serviceId apps.TaskId, agentAddress string) error
+	DeregisterByTask(taskId apps.TaskId, agentAddress string) error
+	Deregister(serviceId string, agentAddress string) error
 	GetAgent(agentAddress string) (*consulapi.Client, error)
 	ServiceName(app *apps.App) string
+	ServiceTaskId(*consulapi.CatalogService) (apps.TaskId, error)
 }
 
 type Consul struct {
@@ -162,7 +166,30 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 	return err
 }
 
-func (c *Consul) Deregister(serviceId apps.TaskId, agentAddress string) error {
+func (c *Consul) DeregisterByTask(taskToDeregister apps.TaskId, agentAddress string) error {
+	service, err := c.findServiceByTaskId(taskToDeregister)
+	if err != nil {
+		return err
+	}
+	c.Deregister(service.ServiceID, agentAddress)
+	return err
+}
+
+func (c *Consul) findServiceByTaskId(searchedTaskId apps.TaskId) (*consulapi.CatalogService, error) {
+	services, err := c.GetAllServices()
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range services {
+		taskId, err := c.ServiceTaskId(s)
+		if err != nil && taskId == searchedTaskId {
+			return s, nil
+		}
+	}
+	return nil, errors.New(fmt.Sprintf("Couldn't find service matching task id %s", searchedTaskId.String()))
+}
+
+func (c *Consul) Deregister(serviceId string, agentAddress string) error {
 	var err error
 	metrics.Time("consul.deregister", func() { err = c.deregister(serviceId, agentAddress) })
 	if err != nil {
@@ -173,7 +200,7 @@ func (c *Consul) Deregister(serviceId apps.TaskId, agentAddress string) error {
 	return err
 }
 
-func (c *Consul) deregister(serviceId apps.TaskId, agentAddress string) error {
+func (c *Consul) deregister(serviceId string, agentAddress string) error {
 	agent, err := c.agents.GetAgent(agentAddress)
 	if err != nil {
 		return err
@@ -181,7 +208,7 @@ func (c *Consul) deregister(serviceId apps.TaskId, agentAddress string) error {
 
 	log.WithField("Id", serviceId).WithField("Address", agentAddress).Info("Deregistering")
 
-	err = agent.Agent().ServiceDeregister(serviceId.String())
+	err = agent.Agent().ServiceDeregister(serviceId)
 	if err != nil {
 		log.WithError(err).WithField("Id", serviceId).WithField("Address", agentAddress).Error("Unable to deregister")
 	}
@@ -214,12 +241,16 @@ func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*c
 	}
 	serviceAddress := IP.String()
 
+	serviceID := uuid.NewV4().String()
+	tags := c.marathonLabelsToConsulTags(app.Labels)
+	tags = append(tags, fmt.Sprintf("marathon-task:%s", task.ID.String()))
+
 	return &consulapi.AgentServiceRegistration{
-		ID:      task.ID.String(),
+		ID:      serviceID,
 		Name:    c.ServiceName(app),
 		Port:    task.Ports[0],
 		Address: serviceAddress,
-		Tags:    c.marathonLabelsToConsulTags(app.Labels),
+		Tags:    tags,
 		Checks:  c.marathonToConsulChecks(task, app.HealthChecks, serviceAddress),
 	}, nil
 }
@@ -273,4 +304,13 @@ func (c *Consul) marathonLabelsToConsulTags(labels map[string]string) []string {
 		}
 	}
 	return tags
+}
+
+func (s *Consul) ServiceTaskId(service *consulapi.CatalogService) (apps.TaskId, error) {
+	for _, tag := range service.ServiceTags {
+		if strings.HasPrefix(tag, "marathon-task:") {
+			return apps.TaskId(strings.TrimPrefix(tag, "marathon-task:")), nil
+		}
+	}
+	return apps.TaskId(""), errors.New("marathon-task tag missing")
 }

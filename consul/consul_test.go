@@ -348,7 +348,7 @@ func TestRegisterServices(t *testing.T) {
 	// then
 	assert.Len(t, services, 1)
 	assert.Equal(t, "serviceA", services[0].ServiceName)
-	assert.Equal(t, []string{"marathon", "test"}, services[0].ServiceTags)
+	assert.Equal(t, []string{"marathon", "test", "marathon-task:serviceA.0"}, services[0].ServiceTags)
 }
 
 func TestRegisterServices_CustomServiceName(t *testing.T) {
@@ -377,7 +377,6 @@ func TestRegisterServices_CustomServiceName(t *testing.T) {
 	// then
 	assert.Len(t, services, 1)
 	assert.Equal(t, "myCustomServiceName", services[0].ServiceName)
-	assert.Equal(t, []string{"marathon", "test"}, services[0].ServiceTags)
 }
 
 func TestRegisterServices_InvalidHostnameShouldFail(t *testing.T) {
@@ -426,7 +425,6 @@ func TestRegisterServices_InvalidCustomServiceName(t *testing.T) {
 	// then
 	assert.Len(t, services, 1)
 	assert.Equal(t, "serviceA", services[0].ServiceName)
-	assert.Equal(t, []string{"marathon", "test"}, services[0].ServiceTags)
 }
 
 func TestRegisterServices_shouldReturnErrorOnFailure(t *testing.T) {
@@ -559,7 +557,7 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 	// then
 	assert.NoError(t, err)
 	assert.Equal(t, "127.0.0.6", service.Address)
-	assert.Equal(t, []string{"marathon", "public"}, service.Tags)
+	assert.Equal(t, []string{"marathon", "public", "marathon-task:someTask"}, service.Tags)
 	assert.Equal(t, 8090, service.Port)
 	assert.Nil(t, service.Check)
 	assert.Equal(t, 4, len(service.Checks))

@@ -22,12 +22,20 @@ func (c errorConsul) Register(task *apps.Task, app *apps.App) error {
 	return fmt.Errorf("Error occured")
 }
 
-func (c errorConsul) Deregister(serviceId apps.TaskId, agent string) error {
+func (c errorConsul) DeregisterByTask(taskId apps.TaskId, agent string) error {
+	return fmt.Errorf("Error occured")
+}
+
+func (c errorConsul) Deregister(serviceId string, agent string) error {
 	return fmt.Errorf("Error occured")
 }
 
 func (c errorConsul) ServiceName(app *apps.App) string {
 	return ""
+}
+
+func (s errorConsul) ServiceTaskId(service *consulapi.CatalogService) (apps.TaskId, error) {
+	return apps.TaskId(""), fmt.Errorf("Error occured")
 }
 
 func (c errorConsul) GetAgent(agent string) (*consulapi.Client, error) {

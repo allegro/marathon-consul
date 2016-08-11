@@ -164,12 +164,20 @@ func (c *ConsulServicesMock) ServiceName(app *apps.App) string {
 	return ""
 }
 
-func (c *ConsulServicesMock) Deregister(serviceId apps.TaskId, agent string) error {
+func (c *ConsulServicesMock) DeregisterByTask(taskId apps.TaskId, agent string) error {
+	return nil
+}
+
+func (c *ConsulServicesMock) Deregister(serviceId string, agent string) error {
 	return nil
 }
 
 func (c *ConsulServicesMock) GetAgent(agentAddress string) (*consulapi.Client, error) {
 	return nil, nil
+}
+
+func (s *ConsulServicesMock) ServiceTaskId(service *consulapi.CatalogService) (apps.TaskId, error) {
+	return apps.TaskId(""), nil
 }
 
 func TestSyncAppsFromMarathonToConsul(t *testing.T) {
@@ -300,7 +308,7 @@ func TestSync_WithRegisteringProblems(t *testing.T) {
 	// given
 	marathon := marathon.MarathonerStubForApps(ConsulApp("/test/app", 3))
 	consul := consul.NewConsulStub()
-	consul.ErrorServices["test_app.1"] = fmt.Errorf("Problem on registration")
+	consul.FailRegisterForId("test_app.1")
 	sync := newSyncWithDefaultConfig(marathon, consul)
 	// when
 	err := sync.SyncServices()
@@ -318,8 +326,12 @@ func TestSync_WithDeregisteringProblems(t *testing.T) {
 	notMarathonApp := ConsulApp("/not/marathon", 1)
 	for _, task := range notMarathonApp.Tasks {
 		consulStub.Register(&task, notMarathonApp)
-		consulStub.ErrorServices[task.ID] = fmt.Errorf("Problem on deregistration")
 	}
+	allServices, _ := consulStub.GetAllServices()
+	for _, s := range allServices {
+		consulStub.FailDeregisterForId(s.ServiceID)
+	}
+
 	sync := newSyncWithDefaultConfig(marathon, consulStub)
 	// when
 	err := sync.SyncServices()
