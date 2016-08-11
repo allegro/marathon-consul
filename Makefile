@@ -5,6 +5,8 @@ CURRENT_DIR = $(shell pwd)
 SOURCEDIR = $(CURRENT_DIR)
 SOURCES := $(shell find $(SOURCEDIR) -name '*.go')
 
+NAME   = marathon-consul
+
 all: deps build
 
 deps:
@@ -15,6 +17,13 @@ deps:
 updatedeps:
 	go get -u -v ./...
 	echo $(DEPS) | xargs -n1 go get -d
+
+build_docker:
+	docker build -t marathon-consul .
+
+build_no_test: deps
+	@mkdir -p bin/
+	go build -o bin/marathon-consul
 
 build: deps test
 	@mkdir -p bin/
