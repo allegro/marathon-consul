@@ -6,8 +6,8 @@ import (
 
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/consul"
+	"github.com/allegro/marathon-consul/service"
 	. "github.com/allegro/marathon-consul/utils"
-	consulapi "github.com/hashicorp/consul/api"
 )
 
 func BenchmarkDeregisterConsulServicesThatAreNotInMarathonApps10x2(b *testing.B) {
@@ -39,8 +39,8 @@ func BenchmarkDeregisterConsulServicesThatAreNotInMarathonApps100x100(b *testing
 
 func bench(b *testing.B, appsCount, instancesCount int) {
 	apps := marathonApps(appsCount, instancesCount)
-	instances := consulInstances(appsCount, instancesCount)
-	sync := New(Config{}, nil, consul.NewConsulStub())
+	instances := instances(appsCount, instancesCount)
+	sync := New(Config{}, nil, consul.NewConsulStub(), noopSyncStartedListener)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -56,20 +56,18 @@ func marathonApps(appsCount, instancesCount int) []*apps.App {
 	return marathonApps
 }
 
-func consulInstances(appsCount, instancesCount int) []*consulapi.CatalogService {
-	consulServices := make([]*consulapi.CatalogService, appsCount*instancesCount)
-	for i := 0; i < appsCount*instancesCount; i++ {
+func instances(appsCount, instancesCount int) []*service.Service {
+	createdInstances := make([]*service.Service, appsCount * instancesCount)
+	for i := 0; i < appsCount * instancesCount; i++ {
 		app := ConsulApp(fmt.Sprintf("consul/service/no_%d", i), instancesCount)
 		for _, task := range app.Tasks {
-			consulServices[i] = &consulapi.CatalogService{
-				Address:        task.Host,
-				ServiceAddress: task.Host,
-				ServicePort:    task.Ports[0],
-				ServiceTags:    []string{"marathon"},
-				ServiceID:      task.ID.String(),
-				ServiceName:    app.ID.String(),
+			createdInstances[i] = &service.Service{
+				ID:                      service.ServiceId(task.ID.String()),
+				Name:                    app.ID.String(),
+				Tags:                    []string{"marathon"},
+				RegisteringAgentAddress: task.Host,
 			}
 		}
 	}
-	return consulServices
+	return createdInstances
 }

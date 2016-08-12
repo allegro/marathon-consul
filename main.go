@@ -5,7 +5,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/config"
-	service "github.com/allegro/marathon-consul/consul"
+	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/sync"
@@ -28,16 +28,16 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	service := service.New(config.Consul)
+	consulInstance := consul.New(config.Consul)
 	remote, err := marathon.New(config.Marathon)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	sync := sync.New(config.Sync, remote, service)
+	sync := sync.New(config.Sync, remote, consulInstance, consulInstance.AddAgentsFromApps)
 	go sync.StartSyncServicesJob()
 
-	handler, stop := web.NewHandler(config.Web, remote, service)
+	handler, stop := web.NewHandler(config.Web, remote, consulInstance)
 	defer stop()
 
 	// set up routes
