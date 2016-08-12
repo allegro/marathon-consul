@@ -3,8 +3,9 @@ package service
 import (
 	"errors"
 	"strings"
-	
+
 	"github.com/allegro/marathon-consul/apps"
+	"fmt"
 )
 
 type ServiceId string
@@ -27,6 +28,10 @@ func (s *Service) TaskId() (apps.TaskId, error) {
 		}
 	}
 	return apps.TaskId(""), errors.New("marathon-task tag missing")
+}
+
+func MarathonTaskTag(taskId apps.TaskId) string {
+	return fmt.Sprintf("marathon-task:%s", taskId)
 }
 
 type ServiceRegistry interface {

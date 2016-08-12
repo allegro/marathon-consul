@@ -12,7 +12,6 @@ import (
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
-	"github.com/satori/go.uuid"
 )
 
 type Consul struct {
@@ -240,18 +239,24 @@ func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*c
 	}
 	serviceAddress := IP.String()
 
-	serviceID := uuid.NewV4().String()
+	name := c.ServiceName(app)
+	port := task.Ports[0]
+	serviceID := c.serviceId(task, name, port)
 	tags := c.marathonLabelsToConsulTags(app.Labels)
-	tags = append(tags, fmt.Sprintf("marathon-task:%s", task.ID.String()))
+	tags = append(tags, service.MarathonTaskTag(task.ID))
 
 	return &consulapi.AgentServiceRegistration{
 		ID:      serviceID,
-		Name:    c.ServiceName(app),
-		Port:    task.Ports[0],
+		Name:    name,
+		Port:    port,
 		Address: serviceAddress,
 		Tags:    tags,
 		Checks:  c.marathonToConsulChecks(task, app.HealthChecks, serviceAddress),
 	}, nil
+}
+
+func (c *Consul) serviceId(task *apps.Task, name string, port int) string {
+	return fmt.Sprintf("%s_%s_%d", task.ID, name, port)
 }
 
 func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.HealthCheck, serviceAddress string) consulapi.AgentServiceChecks {
