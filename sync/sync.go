@@ -7,9 +7,9 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
-	"github.com/allegro/marathon-consul/service"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/service"
 )
 
 type Sync struct {
@@ -122,7 +122,7 @@ func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.A
 	runningTasks := s.marathonTaskIdsSet(marathonApps)
 	for _, service := range services {
 		taskIdInTag, err := service.TaskId()
-		if (err != nil) {
+		if err != nil {
 			log.WithField("Id", service.ID).WithError(err).Warn("Couldn't extract marathon task id, skipping sync for this service")
 			continue
 		}

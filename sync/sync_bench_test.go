@@ -57,14 +57,14 @@ func marathonApps(appsCount, instancesCount int) []*apps.App {
 }
 
 func instances(appsCount, instancesCount int) []*service.Service {
-	createdInstances := make([]*service.Service, appsCount * instancesCount)
-	for i := 0; i < appsCount * instancesCount; i++ {
+	createdInstances := make([]*service.Service, appsCount*instancesCount)
+	for i := 0; i < appsCount*instancesCount; i++ {
 		app := ConsulApp(fmt.Sprintf("consul/service/no_%d", i), instancesCount)
 		for _, task := range app.Tasks {
 			createdInstances[i] = &service.Service{
-				ID:                      service.ServiceId(task.ID.String()),
-				Name:                    app.ID.String(),
-				Tags:                    []string{"marathon"},
+				ID:   service.ServiceId(task.ID.String()),
+				Name: app.ID.String(),
+				Tags: []string{"marathon"},
 				RegisteringAgentAddress: task.Host,
 			}
 		}

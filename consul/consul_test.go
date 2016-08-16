@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/allegro/marathon-consul/apps"
+	"github.com/allegro/marathon-consul/service"
 	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
-	"github.com/allegro/marathon-consul/service"
 )
 
 func TestGetAgent_WithEmptyHost(t *testing.T) {
@@ -67,9 +67,9 @@ func TestRegister_ForInvalidHost(t *testing.T) {
 
 	// when
 	err = consul.Deregister(&service.Service{
-		ID:                      service.ServiceId("someId"),
-		Name:                    "service",
-		Tags: 					 []string{},
+		ID:   service.ServiceId("someId"),
+		Name: "service",
+		Tags: []string{},
 		RegisteringAgentAddress: "",
 	})
 
@@ -263,7 +263,7 @@ func TestGetServicesUsingProviderWithRetriesOnAgentFailure_ShouldRetryConfigured
 	consul.getServicesUsingProviderWithRetriesOnAgentFailure(provider)
 
 	//then
-	assert.Equal(t, consul.config.RequestRetries + 1, called)
+	assert.Equal(t, consul.config.RequestRetries+1, called)
 	assert.Len(t, consul.agents.(*ConcurrentAgents).agents, 1)
 }
 

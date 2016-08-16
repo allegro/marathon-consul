@@ -3,9 +3,9 @@ package consul
 import (
 	"testing"
 
+	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/utils"
 	"github.com/stretchr/testify/assert"
-	"github.com/allegro/marathon-consul/apps"
 )
 
 func TestConsulStub(t *testing.T) {

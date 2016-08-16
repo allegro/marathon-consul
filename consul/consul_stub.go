@@ -2,9 +2,10 @@ package consul
 
 import (
 	"fmt"
+
 	"github.com/allegro/marathon-consul/apps"
-	consulapi "github.com/hashicorp/consul/api"
 	"github.com/allegro/marathon-consul/service"
+	consulapi "github.com/hashicorp/consul/api"
 )
 
 // TODO this should be a service registry stub in the service package, requires abstracting from AgentServiceRegistration
@@ -36,10 +37,10 @@ func (c ConsulStub) GetAllServices() ([]*service.Service, error) {
 	var allServices []*service.Service
 	for _, s := range c.services {
 		allServices = append(allServices, &service.Service{
-			ID:                      service.ServiceId(s.ID),
-			Name:                    s.Name,
+			ID:   service.ServiceId(s.ID),
+			Name: s.Name,
 			RegisteringAgentAddress: s.Address,
-			Tags:                    s.Tags,
+			Tags: s.Tags,
 		})
 	}
 	return allServices, nil
@@ -69,10 +70,10 @@ func (c ConsulStub) GetServices(name string) ([]*service.Service, error) {
 	for _, s := range c.services {
 		if s.Name == name && contains(s.Tags, c.consul.config.Tag) {
 			services = append(services, &service.Service{
-				ID:                      service.ServiceId(s.ID),
-				Name:                    s.Name,
+				ID:   service.ServiceId(s.ID),
+				Name: s.Name,
 				RegisteringAgentAddress: s.Address,
-				Tags:                    s.Tags,
+				Tags: s.Tags,
 			})
 		}
 	}
@@ -118,7 +119,7 @@ func (c *ConsulStub) Deregister(toDeregister *service.Service) error {
 func (c *ConsulStub) servicesMatchingTask(services map[service.ServiceId]*consulapi.AgentServiceRegistration, taskId apps.TaskId) []*consulapi.AgentServiceRegistration {
 	matching := []*consulapi.AgentServiceRegistration{}
 	for _, s := range services {
-		if (s.ID == taskId.String() || contains(s.Tags, fmt.Sprintf("marathon-task:%s", taskId.String()))) {
+		if s.ID == taskId.String() || contains(s.Tags, fmt.Sprintf("marathon-task:%s", taskId.String())) {
 			matching = append(matching, s)
 		}
 	}

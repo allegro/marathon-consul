@@ -30,10 +30,10 @@ type stopEvent struct{}
 
 func newEventHandler(id int, serviceRegistry service.ServiceRegistry, marathon marathon.Marathoner, eventQueue <-chan event) *eventHandler {
 	return &eventHandler{
-		id:                id,
-		serviceRegistry:   serviceRegistry,
-		marathon:          marathon,
-		eventQueue:        eventQueue,
+		id:              id,
+		serviceRegistry: serviceRegistry,
+		marathon:        marathon,
+		eventQueue:      eventQueue,
 	}
 }
 

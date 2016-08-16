@@ -8,8 +8,8 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
-	"github.com/allegro/marathon-consul/service"
 	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/service"
 	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 )
@@ -42,10 +42,10 @@ func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide Servi
 		}
 		if services, err := provide(agent.Client); err != nil {
 			log.WithError(err).WithField("Address", agent.IP).
-			Error("An error occurred getting services from Consul, retrying with another agent")
+				Error("An error occurred getting services from Consul, retrying with another agent")
 			if failures := agent.IncFailures(); failures > c.config.AgentFailuresTolerance {
 				log.WithField("Address", agent.IP).WithField("Failures", failures).
-				Warn("Removing agent due to too many failures")
+					Warn("Removing agent due to too many failures")
 				c.agents.RemoveAgent(agent.IP)
 			}
 		} else {
@@ -114,7 +114,7 @@ func (c *Consul) getAllServices(agent *consulapi.Client) ([]*service.Service, er
 
 func (c *Consul) consulServiceToService(consulService *consulapi.CatalogService) *service.Service {
 	return &service.Service{
-		ID: service.ServiceId(consulService.ServiceID),
+		ID:   service.ServiceId(consulService.ServiceID),
 		Name: consulService.ServiceName,
 		Tags: consulService.ServiceTags,
 		RegisteringAgentAddress: consulService.Address,
@@ -222,7 +222,7 @@ func (c *Consul) ServiceName(app *apps.App) string {
 	serviceName := c.marathonAppNameToConsulServiceName(appConsulName)
 	if serviceName == "" {
 		log.WithField("AppId", app.ID.String()).WithField("ConsulServiceName", appConsulName).
-		Warn("Warning! Invalid Consul service name provided for app. Will use default app name instead.")
+			Warn("Warning! Invalid Consul service name provided for app. Will use default app name instead.")
 		return c.marathonAppNameToConsulServiceName(app.ID.String())
 	}
 	return serviceName
@@ -276,9 +276,9 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 				})
 			} else {
 				log.WithError(err).
-				WithField("Id", task.AppID.String()).
-				WithField("Address", serviceAddress).
-				Warn(fmt.Sprintf("Could not parse provided path: %s", check.Path))
+					WithField("Id", task.AppID.String()).
+					WithField("Address", serviceAddress).
+					Warn(fmt.Sprintf("Could not parse provided path: %s", check.Path))
 			}
 		case "TCP":
 			checks = append(checks, &consulapi.AgentServiceCheck{
@@ -294,7 +294,7 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 			})
 		default:
 			log.WithField("Id", task.AppID.String()).WithField("Address", serviceAddress).
-			Warn(fmt.Sprintf("Unrecognized check protocol %s", check.Protocol))
+				Warn(fmt.Sprintf("Unrecognized check protocol %s", check.Protocol))
 		}
 	}
 	return checks

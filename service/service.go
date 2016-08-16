@@ -2,10 +2,10 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/allegro/marathon-consul/apps"
-	"fmt"
 )
 
 type ServiceId string
