@@ -183,7 +183,7 @@ func (c *Consul) findServiceByTaskId(searchedTaskId apps.TaskId) (*service.Servi
 	}
 	for _, s := range services {
 		taskId, err := s.TaskId()
-		if err != nil && taskId == searchedTaskId {
+		if err == nil && taskId == searchedTaskId {
 			return s, nil
 		}
 	}
