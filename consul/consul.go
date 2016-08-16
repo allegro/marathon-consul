@@ -72,7 +72,7 @@ func (c *Consul) getServicesUsingAgent(name string, agent *consulapi.Client) ([]
 			return nil, err
 		}
 		for _, consulService := range allConsulServices {
-			allServices = append(allServices, c.consulServiceToService(consulService))
+			allServices = append(allServices, consulServiceToService(consulService))
 		}
 	}
 	return allServices, nil
@@ -104,7 +104,7 @@ func (c *Consul) getAllServices(agent *consulapi.Client) ([]*service.Service, er
 					return nil, err
 				}
 				for _, consulServiceInstance := range consulServiceInstances {
-					allInstances = append(allInstances, c.consulServiceToService(consulServiceInstance))
+					allInstances = append(allInstances, consulServiceToService(consulServiceInstance))
 				}
 			}
 		}
@@ -112,7 +112,7 @@ func (c *Consul) getAllServices(agent *consulapi.Client) ([]*service.Service, er
 	return allInstances, nil
 }
 
-func (c *Consul) consulServiceToService(consulService *consulapi.CatalogService) *service.Service {
+func consulServiceToService(consulService *consulapi.CatalogService) *service.Service {
 	return &service.Service{
 		ID:   service.ServiceId(consulService.ServiceID),
 		Name: consulService.ServiceName,
@@ -168,13 +168,12 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 	return err
 }
 
-func (c *Consul) DeregisterByTask(taskToDeregister apps.TaskId, agentAddress string) error {
-	service, err := c.findServiceByTaskId(taskToDeregister)
+func (c *Consul) DeregisterByTask(taskId apps.TaskId, agentAddress string) error {
+	service, err := c.findServiceByTaskId(taskId)
 	if err != nil {
 		return err
 	}
-	c.Deregister(service)
-	return err
+	return c.Deregister(service)
 }
 
 func (c *Consul) findServiceByTaskId(searchedTaskId apps.TaskId) (*service.Service, error) {
@@ -188,7 +187,7 @@ func (c *Consul) findServiceByTaskId(searchedTaskId apps.TaskId) (*service.Servi
 			return s, nil
 		}
 	}
-	return nil, errors.New(fmt.Sprintf("Couldn't find service matching task id %s", searchedTaskId.String()))
+	return nil, errors.New(fmt.Sprintf("Couldn't find service matching task id %s", searchedTaskId))
 }
 
 func (c *Consul) Deregister(toDeregister *service.Service) error {
