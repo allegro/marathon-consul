@@ -7,10 +7,10 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
-	service "github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/events"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/service"
 )
 
 type event struct {
@@ -20,20 +20,20 @@ type event struct {
 }
 
 type eventHandler struct {
-	id         int
-	service    service.ConsulServices
-	marathon   marathon.Marathoner
-	eventQueue <-chan event
+	id              int
+	serviceRegistry service.ServiceRegistry
+	marathon        marathon.Marathoner
+	eventQueue      <-chan event
 }
 
 type stopEvent struct{}
 
-func newEventHandler(id int, service service.ConsulServices, marathon marathon.Marathoner, eventQueue <-chan event) *eventHandler {
+func newEventHandler(id int, serviceRegistry service.ServiceRegistry, marathon marathon.Marathoner, eventQueue <-chan event) *eventHandler {
 	return &eventHandler{
-		id:         id,
-		service:    service,
-		marathon:   marathon,
-		eventQueue: eventQueue,
+		id:              id,
+		serviceRegistry: serviceRegistry,
+		marathon:        marathon,
+		eventQueue:      eventQueue,
 	}
 }
 
@@ -127,7 +127,7 @@ func (fh *eventHandler) handleHealthStatusEvent(body []byte) error {
 	}
 
 	if task.IsHealthy() {
-		err := fh.service.Register(&task, app)
+		err := fh.serviceRegistry.Register(&task, app)
 		if err != nil {
 			log.WithField("Id", task.ID).WithError(err).Error("There was a problem registering task")
 			return err
@@ -227,11 +227,11 @@ func (fh *eventHandler) handleDeploymentStepSuccess(body []byte) error {
 func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 
 	errors := []error{}
-	serviceName := fh.service.ServiceName(app)
+	serviceName := fh.serviceRegistry.ServiceName(app)
 
 	log.WithField("AppId", app.ID).WithField("ServiceName", serviceName).Info("Deregistering all services")
 
-	services, err := fh.service.GetServices(serviceName)
+	services, err := fh.serviceRegistry.GetServices(serviceName)
 
 	if err != nil {
 		log.WithField("Id", app.ID).WithError(err).Error("There was a problem getting Consul services")
@@ -245,9 +245,13 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 	}
 
 	for _, service := range services {
-		taskId := apps.TaskId(service.ServiceID)
+		taskId, err := service.TaskId()
+		if err != nil {
+			errors = append(errors, err)
+			continue
+		}
 		if taskId.AppId() == app.ID {
-			err = fh.deregister(taskId, service.Address)
+			err = fh.deregister(taskId, service.RegisteringAgentAddress)
 			if err != nil {
 				errors = append(errors, err)
 			}
@@ -256,10 +260,10 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 	return errors
 }
 
-func (fh *eventHandler) deregister(serviceId apps.TaskId, agentAddress string) error {
-	err := fh.service.Deregister(serviceId, agentAddress)
+func (fh *eventHandler) deregister(taskId apps.TaskId, agentAddress string) error {
+	err := fh.serviceRegistry.DeregisterByTask(taskId, agentAddress)
 	if err != nil {
-		log.WithField("Id", serviceId).WithError(err).Error("There was a problem deregistering task")
+		log.WithField("Id", taskId).WithError(err).Error("There was a problem deregistering task")
 	}
 	return err
 }

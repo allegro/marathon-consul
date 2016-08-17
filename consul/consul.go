@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -8,25 +9,17 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/service"
 	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 )
-
-type ConsulServices interface {
-	GetAllServices() ([]*consulapi.CatalogService, error)
-	GetServices(name string) ([]*consulapi.CatalogService, error)
-	Register(task *apps.Task, app *apps.App) error
-	Deregister(serviceId apps.TaskId, agentAddress string) error
-	GetAgent(agentAddress string) (*consulapi.Client, error)
-	ServiceName(app *apps.App) string
-}
 
 type Consul struct {
 	agents Agents
 	config ConsulConfig
 }
 
-type ServicesProvider func(agent *consulapi.Client) ([]*consulapi.CatalogService, error)
+type ServicesProvider func(agent *consulapi.Client) ([]*service.Service, error)
 
 func New(config ConsulConfig) *Consul {
 	return &Consul{
@@ -35,13 +28,13 @@ func New(config ConsulConfig) *Consul {
 	}
 }
 
-func (c *Consul) GetServices(name string) ([]*consulapi.CatalogService, error) {
-	return c.getServicesUsingProviderWithRetriesOnAgentFailure(func(agent *consulapi.Client) ([]*consulapi.CatalogService, error) {
+func (c *Consul) GetServices(name string) ([]*service.Service, error) {
+	return c.getServicesUsingProviderWithRetriesOnAgentFailure(func(agent *consulapi.Client) ([]*service.Service, error) {
 		return c.getServicesUsingAgent(name, agent)
 	})
 }
 
-func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide ServicesProvider) ([]*consulapi.CatalogService, error) {
+func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide ServicesProvider) ([]*service.Service, error) {
 	for retry := uint32(0); retry <= c.config.RequestRetries; retry++ {
 		agent, err := c.agents.GetAnyAgent()
 		if err != nil {
@@ -63,56 +56,69 @@ func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide Servi
 	return nil, fmt.Errorf("An error occurred getting services from Consul. Giving up")
 }
 
-func (c *Consul) getServicesUsingAgent(name string, agent *consulapi.Client) ([]*consulapi.CatalogService, error) {
+func (c *Consul) getServicesUsingAgent(name string, agent *consulapi.Client) ([]*service.Service, error) {
 	datacenters, err := agent.Catalog().Datacenters()
 	if err != nil {
 		return nil, err
 	}
-	var allServices []*consulapi.CatalogService
+	var allServices []*service.Service
 
 	for _, dc := range datacenters {
 		dcAwareQuery := &consulapi.QueryOptions{
 			Datacenter: dc,
 		}
-		services, _, err := agent.Catalog().Service(name, c.config.Tag, dcAwareQuery)
+		allConsulServices, _, err := agent.Catalog().Service(name, c.config.Tag, dcAwareQuery)
 		if err != nil {
 			return nil, err
 		}
-		allServices = append(allServices, services...)
+		for _, consulService := range allConsulServices {
+			allServices = append(allServices, consulServiceToService(consulService))
+		}
 	}
 	return allServices, nil
 }
 
-func (c *Consul) GetAllServices() ([]*consulapi.CatalogService, error) {
+func (c *Consul) GetAllServices() ([]*service.Service, error) {
 	return c.getServicesUsingProviderWithRetriesOnAgentFailure(c.getAllServices)
 }
 
-func (c *Consul) getAllServices(agent *consulapi.Client) ([]*consulapi.CatalogService, error) {
+func (c *Consul) getAllServices(agent *consulapi.Client) ([]*service.Service, error) {
 	datacenters, err := agent.Catalog().Datacenters()
 	if err != nil {
 		return nil, err
 	}
-	var allInstances []*consulapi.CatalogService
+	var allInstances []*service.Service
 
 	for _, dc := range datacenters {
 		dcAwareQuery := &consulapi.QueryOptions{
 			Datacenter: dc,
 		}
-		services, _, err := agent.Catalog().Services(dcAwareQuery)
+		consulServices, _, err := agent.Catalog().Services(dcAwareQuery)
 		if err != nil {
 			return nil, err
 		}
-		for service, tags := range services {
+		for consulService, tags := range consulServices {
 			if contains(tags, c.config.Tag) {
-				serviceInstances, _, err := agent.Catalog().Service(service, c.config.Tag, dcAwareQuery)
+				consulServiceInstances, _, err := agent.Catalog().Service(consulService, c.config.Tag, dcAwareQuery)
 				if err != nil {
 					return nil, err
 				}
-				allInstances = append(allInstances, serviceInstances...)
+				for _, consulServiceInstance := range consulServiceInstances {
+					allInstances = append(allInstances, consulServiceToService(consulServiceInstance))
+				}
 			}
 		}
 	}
 	return allInstances, nil
+}
+
+func consulServiceToService(consulService *consulapi.CatalogService) *service.Service {
+	return &service.Service{
+		ID:   service.ServiceId(consulService.ServiceID),
+		Name: consulService.ServiceName,
+		Tags: consulService.ServiceTags,
+		RegisteringAgentAddress: consulService.Address,
+	}
 }
 
 func contains(slice []string, search string) bool {
@@ -162,9 +168,31 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 	return err
 }
 
-func (c *Consul) Deregister(serviceId apps.TaskId, agentAddress string) error {
+func (c *Consul) DeregisterByTask(taskId apps.TaskId, agentAddress string) error {
+	service, err := c.findServiceByTaskId(taskId)
+	if err != nil {
+		return err
+	}
+	return c.Deregister(service)
+}
+
+func (c *Consul) findServiceByTaskId(searchedTaskId apps.TaskId) (*service.Service, error) {
+	services, err := c.GetAllServices()
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range services {
+		taskId, err := s.TaskId()
+		if err == nil && taskId == searchedTaskId {
+			return s, nil
+		}
+	}
+	return nil, errors.New(fmt.Sprintf("Couldn't find service matching task id %s", searchedTaskId))
+}
+
+func (c *Consul) Deregister(toDeregister *service.Service) error {
 	var err error
-	metrics.Time("consul.deregister", func() { err = c.deregister(serviceId, agentAddress) })
+	metrics.Time("consul.deregister", func() { err = c.deregister(toDeregister) })
 	if err != nil {
 		metrics.Mark("consul.deregister.error")
 	} else {
@@ -173,23 +201,19 @@ func (c *Consul) Deregister(serviceId apps.TaskId, agentAddress string) error {
 	return err
 }
 
-func (c *Consul) deregister(serviceId apps.TaskId, agentAddress string) error {
-	agent, err := c.agents.GetAgent(agentAddress)
+func (c *Consul) deregister(toDeregister *service.Service) error {
+	agent, err := c.agents.GetAgent(toDeregister.RegisteringAgentAddress)
 	if err != nil {
 		return err
 	}
 
-	log.WithField("Id", serviceId).WithField("Address", agentAddress).Info("Deregistering")
+	log.WithField("Id", toDeregister.ID).WithField("Address", toDeregister.RegisteringAgentAddress).Info("Deregistering")
 
-	err = agent.Agent().ServiceDeregister(serviceId.String())
+	err = agent.Agent().ServiceDeregister(toDeregister.ID.String())
 	if err != nil {
-		log.WithError(err).WithField("Id", serviceId).WithField("Address", agentAddress).Error("Unable to deregister")
+		log.WithError(err).WithField("Id", toDeregister.ID).WithField("Address", toDeregister.RegisteringAgentAddress).Error("Unable to deregister")
 	}
 	return err
-}
-
-func (c *Consul) GetAgent(agentAddress string) (*consulapi.Client, error) {
-	return c.agents.GetAgent(agentAddress)
 }
 
 func (c *Consul) ServiceName(app *apps.App) string {
@@ -214,14 +238,24 @@ func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*c
 	}
 	serviceAddress := IP.String()
 
+	name := c.ServiceName(app)
+	port := task.Ports[0]
+	serviceID := c.serviceId(task, name, port)
+	tags := c.marathonLabelsToConsulTags(app.Labels)
+	tags = append(tags, service.MarathonTaskTag(task.ID))
+
 	return &consulapi.AgentServiceRegistration{
-		ID:      task.ID.String(),
-		Name:    c.ServiceName(app),
-		Port:    task.Ports[0],
+		ID:      serviceID,
+		Name:    name,
+		Port:    port,
 		Address: serviceAddress,
-		Tags:    c.marathonLabelsToConsulTags(app.Labels),
+		Tags:    tags,
 		Checks:  c.marathonToConsulChecks(task, app.HealthChecks, serviceAddress),
 	}, nil
+}
+
+func (c *Consul) serviceId(task *apps.Task, name string, port int) string {
+	return fmt.Sprintf("%s_%s_%d", task.ID, name, port)
 }
 
 func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.HealthCheck, serviceAddress string) consulapi.AgentServiceChecks {
@@ -273,4 +307,23 @@ func (c *Consul) marathonLabelsToConsulTags(labels map[string]string) []string {
 		}
 	}
 	return tags
+}
+
+func (c *Consul) AddAgentsFromApps(apps []*apps.App) {
+	for _, app := range apps {
+		if !app.IsConsulApp() {
+			continue
+		}
+		for _, task := range app.Tasks {
+			err := c.AddAgent(task.Host)
+			if err != nil {
+				log.WithError(err).WithField("Node", task.Host).Error("Can't add agent node")
+			}
+		}
+	}
+}
+
+func (c *Consul) AddAgent(agentAddress string) error {
+	_, err := c.agents.GetAgent(agentAddress)
+	return err
 }

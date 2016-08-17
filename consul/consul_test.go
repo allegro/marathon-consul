@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/allegro/marathon-consul/apps"
+	"github.com/allegro/marathon-consul/service"
 	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
@@ -65,7 +66,12 @@ func TestRegister_ForInvalidHost(t *testing.T) {
 	assert.Error(t, err)
 
 	// when
-	err = consul.Deregister("service", "")
+	err = consul.Deregister(&service.Service{
+		ID:   service.ServiceId("someId"),
+		Name: "service",
+		Tags: []string{},
+		RegisteringAgentAddress: "",
+	})
 
 	// then
 	assert.Error(t, err)
@@ -104,7 +110,7 @@ func TestGetServices(t *testing.T) {
 
 	serviceNames := make(map[string]struct{})
 	for _, s := range services {
-		serviceNames[s.ServiceName] = struct{}{}
+		serviceNames[s.Name] = struct{}{}
 	}
 	assert.Len(t, serviceNames, 1)
 	assert.Contains(t, serviceNames, "serviceA")
@@ -143,7 +149,7 @@ func TestGetServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 
 	// add failing clients
 	for i := uint32(2); i < consul.config.RequestRetries; i++ {
-		consul.GetAgent(fmt.Sprintf("127.0.0.%d", i))
+		consul.AddAgent(fmt.Sprintf("127.0.0.%d", i))
 	}
 
 	// when
@@ -184,11 +190,11 @@ func TestGetServices_SelectOnlyTaggedServices(t *testing.T) {
 	// then
 	assert.NoError(t, err)
 	assert.Len(t, services, 1)
-	assert.Contains(t, services[0].ServiceTags, "marathon-mycluster")
+	assert.Contains(t, services[0].Tags, "marathon-mycluster")
 
 	serviceNames := make(map[string]struct{})
 	for _, s := range services {
-		serviceNames[s.ServiceName] = struct{}{}
+		serviceNames[s.Name] = struct{}{}
 	}
 	assert.Len(t, serviceNames, 1)
 	assert.Contains(t, serviceNames, "serviceA")
@@ -227,7 +233,7 @@ func TestGetAllServices(t *testing.T) {
 
 	serviceNames := make(map[string]struct{})
 	for _, s := range services {
-		serviceNames[s.ServiceName] = struct{}{}
+		serviceNames[s.Name] = struct{}{}
 	}
 	assert.Len(t, serviceNames, 2)
 	assert.Contains(t, serviceNames, "serviceA")
@@ -245,13 +251,13 @@ func TestGetServicesUsingProviderWithRetriesOnAgentFailure_ShouldRetryConfigured
 	consul.config.RequestRetries = 4
 
 	var called uint32
-	provider := func(agent *consulapi.Client) ([]*consulapi.CatalogService, error) {
+	provider := func(agent *consulapi.Client) ([]*service.Service, error) {
 		called++
 		return nil, fmt.Errorf("error")
 	}
 
 	// add failing client
-	consul.GetAgent("127.0.0.2")
+	consul.AddAgent("127.0.0.2")
 
 	// when
 	consul.getServicesUsingProviderWithRetriesOnAgentFailure(provider)
@@ -295,7 +301,7 @@ func TestGetAllServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 
 	// add failing clients
 	for i := uint32(2); i < consul.config.RequestRetries; i++ {
-		consul.GetAgent(fmt.Sprintf("127.0.0.%d", i))
+		consul.AddAgent(fmt.Sprintf("127.0.0.%d", i))
 	}
 
 	// given
@@ -316,7 +322,7 @@ func TestGetAllServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 
 	serviceNames := make(map[string]struct{})
 	for _, s := range services {
-		serviceNames[s.ServiceName] = struct{}{}
+		serviceNames[s.Name] = struct{}{}
 	}
 	assert.Len(t, serviceNames, 2)
 	assert.Contains(t, serviceNames, "serviceA")
@@ -347,8 +353,8 @@ func TestRegisterServices(t *testing.T) {
 
 	// then
 	assert.Len(t, services, 1)
-	assert.Equal(t, "serviceA", services[0].ServiceName)
-	assert.Equal(t, []string{"marathon", "test"}, services[0].ServiceTags)
+	assert.Equal(t, "serviceA", services[0].Name)
+	assert.Equal(t, []string{"marathon", "test", "marathon-task:serviceA.0"}, services[0].Tags)
 }
 
 func TestRegisterServices_CustomServiceName(t *testing.T) {
@@ -376,8 +382,7 @@ func TestRegisterServices_CustomServiceName(t *testing.T) {
 
 	// then
 	assert.Len(t, services, 1)
-	assert.Equal(t, "myCustomServiceName", services[0].ServiceName)
-	assert.Equal(t, []string{"marathon", "test"}, services[0].ServiceTags)
+	assert.Equal(t, "myCustomServiceName", services[0].Name)
 }
 
 func TestRegisterServices_InvalidHostnameShouldFail(t *testing.T) {
@@ -425,8 +430,7 @@ func TestRegisterServices_InvalidCustomServiceName(t *testing.T) {
 
 	// then
 	assert.Len(t, services, 1)
-	assert.Equal(t, "serviceA", services[0].ServiceName)
-	assert.Equal(t, []string{"marathon", "test"}, services[0].ServiceTags)
+	assert.Equal(t, "serviceA", services[0].Name)
 }
 
 func TestRegisterServices_shouldReturnErrorOnFailure(t *testing.T) {
@@ -458,12 +462,13 @@ func TestDeregisterServices(t *testing.T) {
 	assert.Len(t, services, 2)
 
 	// when
-	consul.Deregister("serviceA", server.Config.Bind)
+	servicesA, _ := consul.GetServices("serviceA")
+	consul.Deregister(servicesA[0])
 
 	// then
 	services, _ = consul.GetAllServices()
 	assert.Len(t, services, 1)
-	assert.Equal(t, "serviceB", services[0].ServiceName)
+	assert.Equal(t, "serviceB", services[0].Name)
 }
 
 func TestDeregisterServices_shouldReturnErrorOnFailure(t *testing.T) {
@@ -477,8 +482,9 @@ func TestDeregisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 	server.AddService("serviceA", "passing", []string{"marathon"})
 
 	// when
+	servicesA, _ := consul.GetServices("serviceA")
 	server.Stop()
-	err := consul.Deregister("serviceA", server.Config.Bind)
+	err := consul.Deregister(servicesA[0])
 
 	// then
 	assert.Error(t, err)
@@ -559,7 +565,7 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 	// then
 	assert.NoError(t, err)
 	assert.Equal(t, "127.0.0.6", service.Address)
-	assert.Equal(t, []string{"marathon", "public"}, service.Tags)
+	assert.Equal(t, []string{"marathon", "public", "marathon-task:someTask"}, service.Tags)
 	assert.Equal(t, 8090, service.Port)
 	assert.Nil(t, service.Check)
 	assert.Equal(t, 4, len(service.Checks))
