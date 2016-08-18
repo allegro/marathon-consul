@@ -20,6 +20,13 @@ build: deps test
 	@mkdir -p bin/
 	go build -o bin/marathon-consul
 
+build-linux: deps test
+	@mkdir -p bin/
+	CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w' -o bin/marathon-consul
+
+docker: build-linux
+	docker build -t allegro/marathon-consul .
+
 test: deps $(SOURCES)
 	PATH=$(CURRENT_DIR)/bin:$(PATH) go test $(TEST) $(TESTARGS)
 	go vet $(TEST)
