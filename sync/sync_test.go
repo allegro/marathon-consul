@@ -304,6 +304,23 @@ func TestSyncOnlyHealthyServices(t *testing.T) {
 	}
 }
 
+func TestSync_SkipServicesWithoutMarathonTaskTag(t *testing.T) {
+	t.Parallel()
+	// given
+	app := ConsulApp("app1", 1)
+	consul := consul.NewConsulStub()
+	consul.RegisterWithoutMarathonTaskTag(&app.Tasks[0], app)
+	marathonSync := newSyncWithDefaultConfig(marathon.MarathonerStubForApps(), consul)
+
+	// when
+	marathonSync.SyncServices()
+
+	// then
+	services, _ := consul.GetAllServices()
+	assert.Equal(t, 1, len(services))
+	assert.NotContains(t, services[0].Tags, service.MarathonTaskTag(app.Tasks[0].ID))
+}
+
 func TestSync_WithRegisteringProblems(t *testing.T) {
 	t.Parallel()
 	// given
