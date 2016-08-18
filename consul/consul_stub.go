@@ -93,6 +93,18 @@ func (c *ConsulStub) Register(task *apps.Task, app *apps.App) error {
 	}
 }
 
+func (c *ConsulStub) RegisterWithoutMarathonTaskTag(task *apps.Task, app *apps.App) {
+	serviceRegistration := consulapi.AgentServiceRegistration{
+		ID:      task.ID.String(),
+		Name:    app.ConsulName(),
+		Port:    task.Ports[0],
+		Address: "127.0.0.1",
+		Tags:    []string{c.consul.config.Tag},
+		Checks:  consulapi.AgentServiceChecks{},
+	}
+	c.services[service.ServiceId(serviceRegistration.ID)] = &serviceRegistration
+}
+
 func (c *ConsulStub) ServiceName(app *apps.App) string {
 	return c.consul.ServiceName(app)
 }

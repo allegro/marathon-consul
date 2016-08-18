@@ -17,6 +17,7 @@ script:
   - go test -coverprofile=events.coverprofile ./events
   - go test -coverprofile=marathon.coverprofile ./marathon
   - go test -coverprofile=metrics.coverprofile ./metrics
+  - go test -coverprofile=service.coverprofile ./service
   - go test -coverprofile=sync.coverprofile ./sync
   - go test -coverprofile=utils.coverprofile ./utils
   - go test -coverprofile=web.coverprofile ./web

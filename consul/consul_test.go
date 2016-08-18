@@ -490,6 +490,80 @@ func TestDeregisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestDeregisterServicesByTask(t *testing.T) {
+	t.Parallel()
+	server := CreateConsulTestServer(t)
+	defer server.Stop()
+
+	consul := ConsulClientAtServer(server)
+	consul.config.Tag = "marathon"
+
+	// given
+	app := utils.ConsulApp("serviceA", 1)
+	task := app.Tasks[0]
+
+	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
+	server.AddService("serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskId("other"))})
+	services, _ := consul.GetAllServices()
+	assert.Len(t, services, 2)
+
+	// when
+	consul.DeregisterByTask(task.ID, "")
+
+	// then
+	services, _ = consul.GetAllServices()
+	assert.Len(t, services, 1)
+	assert.Equal(t, "serviceB", services[0].Name)
+}
+
+func TestDeregisterServicesByTask_shouldReturnErrorOnFailure(t *testing.T) {
+	t.Parallel()
+	server := CreateConsulTestServer(t)
+
+	consul := ConsulClientAtServer(server)
+	consul.config.Tag = "marathon"
+
+	// given
+	app := utils.ConsulApp("serviceA", 1)
+	task := app.Tasks[0]
+
+	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
+
+	// when
+	server.Stop()
+	err := consul.DeregisterByTask(task.ID, "")
+
+	// then
+	assert.Error(t, err)
+}
+
+func TestAddAgentsFromApp(t *testing.T) {
+	t.Parallel()
+	server := CreateConsulTestServer(t)
+	defer server.Stop()
+
+	// create consul without any agents in cache
+	consul := New(ConsulConfig{
+		Timeout:             10 * time.Millisecond,
+		Port:                fmt.Sprintf("%d", server.Config.Ports.HTTP),
+		ConsulNameSeparator: ".",
+		Tag:                 "marathon",
+	})
+
+	// given
+	app := utils.ConsulApp("serviceA", 1)
+	app.Tasks[0].Host = server.Config.Bind
+	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(app.Tasks[0].ID)})
+
+	// when
+	consul.AddAgentsFromApps([]*apps.App{app, utils.NonConsulApp("nonConsulApp", 1)})
+
+	// then
+	services, err := consul.GetAllServices()
+	assert.Len(t, services, 1)
+	assert.NoError(t, err)
+}
+
 func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 	t.Parallel()
 
@@ -630,7 +704,7 @@ func TestMarathonTaskToConsulServiceMapping_NotResolvableTaskHost(t *testing.T) 
 	assert.Error(t, err)
 }
 
-func TestServiceName_WithSerarator(t *testing.T) {
+func TestServiceName_WithSeparator(t *testing.T) {
 	t.Parallel()
 
 	// given
