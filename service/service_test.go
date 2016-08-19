@@ -3,8 +3,8 @@ package service
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/allegro/marathon-consul/apps"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMarathonTaskTAg(t *testing.T) {
@@ -16,7 +16,7 @@ func TestServiceTaskId(t *testing.T) {
 	t.Parallel()
 	// given
 	service := Service{
-		ID: "123",
+		ID:   "123",
 		Name: "abc",
 		RegisteringAgentAddress: "localhost",
 		Tags: []string{MarathonTaskTag("my-task")},
@@ -34,7 +34,7 @@ func TestServiceTaskId_NoMarathonTaskTag(t *testing.T) {
 	t.Parallel()
 	// given
 	service := Service{
-		ID: "123",
+		ID:   "123",
 		Name: "abc",
 		RegisteringAgentAddress: "localhost",
 		Tags: []string{},

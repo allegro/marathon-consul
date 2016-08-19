@@ -57,25 +57,36 @@ func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide Servi
 }
 
 func (c *Consul) getServicesUsingAgent(name string, agent *consulapi.Client) ([]*service.Service, error) {
-	datacenters, err := agent.Catalog().Datacenters()
+	dcAwareQueries, err := dcAwareQueriesForAllDcs(agent)
 	if err != nil {
 		return nil, err
 	}
 	var allServices []*service.Service
 
-	for _, dc := range datacenters {
-		dcAwareQuery := &consulapi.QueryOptions{
-			Datacenter: dc,
-		}
+	for _, dcAwareQuery := range dcAwareQueries {
 		allConsulServices, _, err := agent.Catalog().Service(name, c.config.Tag, dcAwareQuery)
 		if err != nil {
 			return nil, err
 		}
-		for _, consulService := range allConsulServices {
-			allServices = append(allServices, consulServiceToService(consulService))
-		}
+		allServices = append(allServices, consulServicesToServices(allConsulServices)...)
 	}
 	return allServices, nil
+}
+
+func dcAwareQueriesForAllDcs(agent *consulapi.Client) ([]*consulapi.QueryOptions, error) {
+	datacenters, err := agent.Catalog().Datacenters()
+	if err != nil {
+		return nil, err
+	}
+
+	var queries []*consulapi.QueryOptions
+	for _, dc := range datacenters {
+		queries = append(queries, &consulapi.QueryOptions{
+			Datacenter: dc,
+		})
+	}
+
+	return queries, nil
 }
 
 func (c *Consul) GetAllServices() ([]*service.Service, error) {
@@ -83,16 +94,13 @@ func (c *Consul) GetAllServices() ([]*service.Service, error) {
 }
 
 func (c *Consul) getAllServices(agent *consulapi.Client) ([]*service.Service, error) {
-	datacenters, err := agent.Catalog().Datacenters()
+	dcAwareQueries, err := dcAwareQueriesForAllDcs(agent)
 	if err != nil {
 		return nil, err
 	}
 	var allInstances []*service.Service
 
-	for _, dc := range datacenters {
-		dcAwareQuery := &consulapi.QueryOptions{
-			Datacenter: dc,
-		}
+	for _, dcAwareQuery := range dcAwareQueries {
 		consulServices, _, err := agent.Catalog().Services(dcAwareQuery)
 		if err != nil {
 			return nil, err
@@ -103,9 +111,7 @@ func (c *Consul) getAllServices(agent *consulapi.Client) ([]*service.Service, er
 				if err != nil {
 					return nil, err
 				}
-				for _, consulServiceInstance := range consulServiceInstances {
-					allInstances = append(allInstances, consulServiceToService(consulServiceInstance))
-				}
+				allInstances = append(allInstances, consulServicesToServices(consulServiceInstances)...)
 			}
 		}
 	}
@@ -119,6 +125,14 @@ func consulServiceToService(consulService *consulapi.CatalogService) *service.Se
 		Tags: consulService.ServiceTags,
 		RegisteringAgentAddress: consulService.Address,
 	}
+}
+
+func consulServicesToServices(consulServices []*consulapi.CatalogService) []*service.Service {
+	var allServices []*service.Service
+	for _, c := range consulServices {
+		allServices = append(allServices, consulServiceToService(c))
+	}
+	return allServices
 }
 
 func contains(slice []string, search string) bool {
@@ -169,25 +183,53 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 }
 
 func (c *Consul) DeregisterByTask(taskId apps.TaskId, agentAddress string) error {
-	service, err := c.findServiceByTaskId(taskId)
+	services, err := c.findServicesByTaskId(taskId)
 	if err != nil {
 		return err
+	} else if len(services) == 0 {
+		return errors.New(fmt.Sprintf("Couldn't find any service matching task id %s", taskId))
 	}
-	return c.Deregister(service)
+	return c.deregisterMultipleServices(services, taskId)
 }
 
-func (c *Consul) findServiceByTaskId(searchedTaskId apps.TaskId) (*service.Service, error) {
-	services, err := c.GetAllServices()
-	if err != nil {
-		return nil, err
-	}
+func (c *Consul) deregisterMultipleServices(services []*service.Service, taskId apps.TaskId) error {
+	var deregisterErrors []error
 	for _, s := range services {
-		taskId, err := s.TaskId()
-		if err == nil && taskId == searchedTaskId {
-			return s, nil
+		deregisterErr := c.Deregister(s)
+		if deregisterErr != nil {
+			deregisterErrors = append(deregisterErrors, deregisterErr)
 		}
 	}
-	return nil, errors.New(fmt.Sprintf("Couldn't find service matching task id %s", searchedTaskId))
+
+	return utils.MergeErrorsOrNil(deregisterErrors, fmt.Sprintf("deregistering by task %s", taskId))
+}
+
+func (c *Consul) findServicesByTaskId(searchedTaskId apps.TaskId) ([]*service.Service, error) {
+	return c.getServicesUsingProviderWithRetriesOnAgentFailure(func(agent *consulapi.Client) ([]*service.Service, error) {
+		dcAwareQueries, err := dcAwareQueriesForAllDcs(agent)
+		if err != nil {
+			return nil, err
+		}
+
+		var allFound []*service.Service
+		searchedTag := service.MarathonTaskTag(searchedTaskId)
+		for _, dcAwareQuery := range dcAwareQueries {
+			consulServices, _, err := agent.Catalog().Services(dcAwareQuery)
+			if err != nil {
+				return nil, err
+			}
+			for consulService, tags := range consulServices {
+				if contains(tags, searchedTag) {
+					instancesForTask, _, err := agent.Catalog().Service(consulService, searchedTag, dcAwareQuery)
+					if err != nil {
+						return nil, err
+					}
+					allFound = append(allFound, consulServicesToServices(instancesForTask)...)
+				}
+			}
+		}
+		return allFound, nil
+	})
 }
 
 func (c *Consul) Deregister(toDeregister *service.Service) error {
