@@ -508,7 +508,7 @@ func TestDeregisterServicesByTask(t *testing.T) {
 	assert.Len(t, services, 2)
 
 	// when
-	consul.DeregisterByTask(task.ID, "")
+	consul.DeregisterByTask(task.ID)
 
 	// then
 	services, _ = consul.GetAllServices()
@@ -531,7 +531,7 @@ func TestDeregisterServicesByTask_shouldReturnErrorOnFailure(t *testing.T) {
 
 	// when
 	server.Stop()
-	err := consul.DeregisterByTask(task.ID, "")
+	err := consul.DeregisterByTask(task.ID)
 
 	// then
 	assert.Error(t, err)
@@ -555,7 +555,7 @@ func TestDeregisterServicesByTask_shouldReturnErrorOnServiceMatchingTaskNotFound
 	assert.Len(t, services, 2)
 
 	// when
-	err := consul.DeregisterByTask("non-existing", "")
+	err := consul.DeregisterByTask("non-existing")
 
 	// then
 	assert.Error(t, err)
@@ -582,7 +582,7 @@ func TestDeregisterServicesByTask_shouldDeregisterAllMatchingServicesWhenMultipl
 	assert.Len(t, services, 3)
 
 	// when
-	err := consul.DeregisterByTask(task.ID, "")
+	err := consul.DeregisterByTask(task.ID)
 
 	// then
 	assert.NoError(t, err)

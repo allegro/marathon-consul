@@ -22,7 +22,7 @@ func (c errorServiceRegistry) Register(task *apps.Task, app *apps.App) error {
 	return fmt.Errorf("Error occured")
 }
 
-func (c errorServiceRegistry) DeregisterByTask(taskId apps.TaskId, agent string) error {
+func (c errorServiceRegistry) DeregisterByTask(taskId apps.TaskId) error {
 	return fmt.Errorf("Error occured")
 }
 
