@@ -1,7 +1,6 @@
 package consul
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -57,7 +56,7 @@ func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide Servi
 }
 
 func (c *Consul) getServicesUsingAgent(name string, agent *consulapi.Client) ([]*service.Service, error) {
-	dcAwareQueries, err := dcAwareQueriesForAllDcs(agent)
+	dcAwareQueries, err := dcAwareQueriesForAllDCs(agent)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +72,7 @@ func (c *Consul) getServicesUsingAgent(name string, agent *consulapi.Client) ([]
 	return allServices, nil
 }
 
-func dcAwareQueriesForAllDcs(agent *consulapi.Client) ([]*consulapi.QueryOptions, error) {
+func dcAwareQueriesForAllDCs(agent *consulapi.Client) ([]*consulapi.QueryOptions, error) {
 	datacenters, err := agent.Catalog().Datacenters()
 	if err != nil {
 		return nil, err
@@ -94,7 +93,7 @@ func (c *Consul) GetAllServices() ([]*service.Service, error) {
 }
 
 func (c *Consul) getAllServices(agent *consulapi.Client) ([]*service.Service, error) {
-	dcAwareQueries, err := dcAwareQueriesForAllDcs(agent)
+	dcAwareQueries, err := dcAwareQueriesForAllDCs(agent)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +186,7 @@ func (c *Consul) DeregisterByTask(taskId apps.TaskId, agentAddress string) error
 	if err != nil {
 		return err
 	} else if len(services) == 0 {
-		return errors.New(fmt.Sprintf("Couldn't find any service matching task id %s", taskId))
+		return fmt.Errorf("Couldn't find any service matching task id %s", taskId)
 	}
 	return c.deregisterMultipleServices(services, taskId)
 }
@@ -206,7 +205,7 @@ func (c *Consul) deregisterMultipleServices(services []*service.Service, taskId 
 
 func (c *Consul) findServicesByTaskId(searchedTaskId apps.TaskId) ([]*service.Service, error) {
 	return c.getServicesUsingProviderWithRetriesOnAgentFailure(func(agent *consulapi.Client) ([]*service.Service, error) {
-		dcAwareQueries, err := dcAwareQueriesForAllDcs(agent)
+		dcAwareQueries, err := dcAwareQueriesForAllDCs(agent)
 		if err != nil {
 			return nil, err
 		}
