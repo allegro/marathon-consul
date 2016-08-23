@@ -537,6 +537,59 @@ func TestDeregisterServicesByTask_shouldReturnErrorOnFailure(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestDeregisterServicesByTask_shouldReturnErrorOnServiceMatchingTaskNotFound(t *testing.T) {
+	t.Parallel()
+	server := CreateConsulTestServer(t)
+	defer server.Stop()
+
+	consul := ConsulClientAtServer(server)
+	consul.config.Tag = "marathon"
+
+	// given
+	app := utils.ConsulApp("serviceA", 1)
+	task := app.Tasks[0]
+
+	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
+	server.AddService("serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskId("other"))})
+	services, _ := consul.GetAllServices()
+	assert.Len(t, services, 2)
+
+	// when
+	err := consul.DeregisterByTask("non-existing", "")
+
+	// then
+	assert.Error(t, err)
+	services, _ = consul.GetAllServices()
+	assert.Len(t, services, 2)
+}
+
+func TestDeregisterServicesByTask_shouldDeregisterAllMatchingServicesWhenMultipleMatchGivenTaskId(t *testing.T) {
+	t.Parallel()
+	server := CreateConsulTestServer(t)
+	defer server.Stop()
+
+	consul := ConsulClientAtServer(server)
+	consul.config.Tag = "marathon"
+
+	// given
+	app := utils.ConsulApp("serviceA", 1)
+	task := app.Tasks[0]
+
+	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
+	server.AddService("serviceA-bis", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
+	server.AddService("serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskId("other"))})
+	services, _ := consul.GetAllServices()
+	assert.Len(t, services, 3)
+
+	// when
+	err := consul.DeregisterByTask(task.ID, "")
+
+	// then
+	assert.NoError(t, err)
+	services, _ = consul.GetAllServices()
+	assert.Len(t, services, 1)
+}
+
 func TestAddAgentsFromApp(t *testing.T) {
 	t.Parallel()
 	server := CreateConsulTestServer(t)

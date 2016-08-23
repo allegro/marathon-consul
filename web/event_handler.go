@@ -11,6 +11,7 @@ import (
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/service"
+	"github.com/allegro/marathon-consul/utils"
 )
 
 type event struct {
@@ -195,11 +196,7 @@ func (fh *eventHandler) handleDeploymentInfo(body []byte) error {
 			errors = append(errors, err)
 		}
 	}
-	if len(errors) > 0 {
-		return fh.mergeDeregistrationErrors(errors)
-	} else {
-		return nil
-	}
+	return utils.MergeErrorsOrNil(errors, "handling deregistration")
 }
 
 //This handler is used when an application is restarted and renamed
@@ -217,11 +214,7 @@ func (fh *eventHandler) handleDeploymentStepSuccess(body []byte) error {
 			errors = append(errors, err)
 		}
 	}
-	if len(errors) > 0 {
-		return fh.mergeDeregistrationErrors(errors)
-	} else {
-		return nil
-	}
+	return utils.MergeErrorsOrNil(errors, "handling deregistration")
 }
 
 func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
@@ -275,14 +268,6 @@ func findTaskById(id apps.TaskId, tasks_ []apps.Task) (apps.Task, error) {
 		}
 	}
 	return apps.Task{}, fmt.Errorf("Task %s not found", id)
-}
-
-func (fh *eventHandler) mergeDeregistrationErrors(errors []error) error {
-	errMessage := fmt.Sprintf("%d errors occured handling service deregistration", len(errors))
-	for i, err := range errors {
-		errMessage = fmt.Sprintf("%s\n%d: %s", errMessage, i, err.Error())
-	}
-	return fmt.Errorf(errMessage)
 }
 
 // for every other use of Tasks, Marathon uses the "id" field for the task ID.
