@@ -38,7 +38,7 @@ type ServiceRegistry interface {
 	GetAllServices() ([]*Service, error)
 	GetServices(name string) ([]*Service, error)
 	Register(task *apps.Task, app *apps.App) error
-	DeregisterByTask(taskId apps.TaskId, agentAddress string) error
+	DeregisterByTask(taskId apps.TaskId) error
 	Deregister(toDeregister *Service) error
 	ServiceName(app *apps.App) string
 }

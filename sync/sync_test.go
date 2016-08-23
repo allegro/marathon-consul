@@ -6,7 +6,6 @@ import (
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	. "github.com/allegro/marathon-consul/utils"
-	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 
 	"fmt"
@@ -165,20 +164,12 @@ func (c *ConsulServicesMock) ServiceName(app *apps.App) string {
 	return ""
 }
 
-func (c *ConsulServicesMock) DeregisterByTask(taskId apps.TaskId, agent string) error {
+func (c *ConsulServicesMock) DeregisterByTask(taskId apps.TaskId) error {
 	return nil
 }
 
 func (c *ConsulServicesMock) Deregister(toDeregister *service.Service) error {
 	return nil
-}
-
-func (c *ConsulServicesMock) GetAgent(agentAddress string) (*consulapi.Client, error) {
-	return nil, nil
-}
-
-func (s *ConsulServicesMock) ServiceTaskId(service *service.Service) (apps.TaskId, error) {
-	return apps.TaskId(""), nil
 }
 
 func TestSyncAppsFromMarathonToConsul(t *testing.T) {

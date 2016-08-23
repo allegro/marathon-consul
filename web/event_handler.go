@@ -156,7 +156,7 @@ func (fh *eventHandler) handleStatusEvent(body []byte) error {
 
 	switch task.TaskStatus {
 	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
-		return fh.deregister(task.ID, task.Host)
+		return fh.deregister(task.ID)
 	default:
 		log.WithFields(log.Fields{
 			"Id":         task.ID,
@@ -178,7 +178,7 @@ func (fh *eventHandler) handleUnhealthyTaskKillEvent(body []byte) error {
 		"Id": task.ID,
 	}).Info("Got Unhealthy TaskKilled Event")
 
-	return fh.deregister(task.ID, task.Host)
+	return fh.deregister(task.ID)
 }
 
 //This handler is used when an application is stopped
@@ -244,7 +244,7 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 			continue
 		}
 		if taskId.AppId() == app.ID {
-			err = fh.deregister(taskId, service.RegisteringAgentAddress)
+			err = fh.deregister(taskId)
 			if err != nil {
 				errors = append(errors, err)
 			}
@@ -253,8 +253,8 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 	return errors
 }
 
-func (fh *eventHandler) deregister(taskId apps.TaskId, agentAddress string) error {
-	err := fh.serviceRegistry.DeregisterByTask(taskId, agentAddress)
+func (fh *eventHandler) deregister(taskId apps.TaskId) error {
+	err := fh.serviceRegistry.DeregisterByTask(taskId)
 	if err != nil {
 		log.WithField("Id", taskId).WithError(err).Error("There was a problem deregistering task")
 	}

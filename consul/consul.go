@@ -181,7 +181,7 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 	return err
 }
 
-func (c *Consul) DeregisterByTask(taskId apps.TaskId, agentAddress string) error {
+func (c *Consul) DeregisterByTask(taskId apps.TaskId) error {
 	services, err := c.findServicesByTaskId(taskId)
 	if err != nil {
 		return err

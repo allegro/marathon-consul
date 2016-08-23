@@ -109,7 +109,7 @@ func (c *ConsulStub) ServiceName(app *apps.App) string {
 	return c.consul.ServiceName(app)
 }
 
-func (c *ConsulStub) DeregisterByTask(taskId apps.TaskId, agent string) error {
+func (c *ConsulStub) DeregisterByTask(taskId apps.TaskId) error {
 	if _, ok := c.failDeregisterByTaskForIds[taskId]; ok {
 		return fmt.Errorf("Consul stub programmed to fail when deregistering task of id %s", taskId.String())
 	} else {
