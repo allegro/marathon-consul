@@ -22,7 +22,7 @@ func TestMigrateToMarathonTaskTag_shouldMigrateOnlyServicesWithMarathonTagAndWit
 	server.AddService("serviceD-without-marathon-tag", "passing", []string{})
 
 	// when
-	migrateSingleDC(server.HTTPAddr, server.Config.Datacenter, "marathon")
+	migrateSingleDC(server.HTTPAddr, "marathon")
 
 	// then
 	client, _ := clientToServer(server)
@@ -54,7 +54,7 @@ func TestMigrateToMarathonTaskTag_shouldLeaveServicePropertiesOtherThanTagsUncha
 	before := entriesBeforeMigration[0]
 
 	// when
-	migrateSingleDC(server.HTTPAddr, server.Config.Datacenter, "marathon")
+	migrateSingleDC(server.HTTPAddr, "marathon")
 
 	// then
 	entriesAfterMigration, _, _ := client.Health().Service("serviceA", "", false, &api.QueryOptions{})
@@ -87,7 +87,7 @@ func TestMigrateToMarathonTaskTag_shouldMigrateServicesInAllDCs(t *testing.T) {
 	server2.AddService("serviceB", "passing", []string{"marathon"})
 
 	// when
-	migrateSingleDC(server1.HTTPAddr, server1.Config.Datacenter, "marathon")
+	migrateSingleDC(server1.HTTPAddr, "marathon")
 
 	// then
 	client1, _ := clientToServer(server1)

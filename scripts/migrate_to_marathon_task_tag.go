@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"strconv"
@@ -10,25 +11,39 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
-func main() {
-	migrateSingleDC("10.10.10.10:8500", "dc1", "marathon") // TODO config
+type Config struct {
+	BootstrapAgentAddress string
+	ConsulTag             string
 }
 
+func main() {
+	config := createConfig()
+	migrateSingleDC(config.BootstrapAgentAddress, config.ConsulTag)
+}
+
+func createConfig() *Config {
+	config := &Config{}
+	flag.StringVar(&config.BootstrapAgentAddress, "bootstrap-agent-address", "127.0.0.1:8500", "Address to one of the agents in the migrated DC")
+	flag.StringVar(&config.ConsulTag, "consul-tag", "marathon", "Tag specifying that a service is managed by marathon-consul")
+	flag.Parse()
+	return config
+}
 // TODO logs and stats
 
-func migrateSingleDC(bootstrapAgentAddress string, datacenter string, consulTag string) {
+func migrateSingleDC(bootstrapAgentAddress string, consulTag string) {
 	agentsPort, err := extractPort(bootstrapAgentAddress)
 	if err != nil {
-		logrus.WithError(err).WithField("AgentAddress", bootstrapAgentAddress).Error("Could not extract port from bootstrap agent address, aborting.")
+		logrus.WithError(err).WithField("AgentAddress", bootstrapAgentAddress).
+			Error("Could not extract port from bootstrap agent address, aborting.")
 		os.Exit(1)
 	}
 
 	client, err := api.NewClient(&api.Config{
 		Address: bootstrapAgentAddress,
-		Datacenter: datacenter,
 	})
 	if err != nil {
-		logrus.WithError(err).WithField("AgentAddress", bootstrapAgentAddress).Error("Could not create client to agent, aborting.")
+		logrus.WithError(err).WithField("AgentAddress", bootstrapAgentAddress).
+			Error("Could not create client to agent, aborting.")
 		os.Exit(1)
 	}
 
@@ -48,7 +63,8 @@ func migrateNodes(nodes []*api.Node, agentsPort int, consulTag string) {
 			Address: nodeAddress,
 		})
 		if err != nil {
-			logrus.WithError(err).WithField("Node", node.Node).WithField("Address", nodeAddress).Warn("Could not create client to node, skipping this node")
+			logrus.WithError(err).WithField("Node", node.Node).WithField("Address", nodeAddress).
+				Warn("Could not create client to node, skipping this node")
 			continue
 		}
 		agentServices, err := nodeClient.Agent().Services()
@@ -66,7 +82,8 @@ func migrateServicesOnNode(services map[string]*api.AgentService, nodeClient *ap
 		if shouldBeMigrated(agentService, consulTag) {
 			err := nodeClient.Agent().ServiceRegister(migrated(agentService))
 			if err != nil {
-				logrus.WithError(err).WithField("ServiceID", agentService.ID).Warn("Could not reregister service, skipping this service")
+				logrus.WithError(err).WithField("ServiceID", agentService.ID).
+					Warn("Could not reregister service, skipping this service")
 				continue
 			}
 			logrus.WithField("ServiceID", agentService.ID).Info("Migrated service")
