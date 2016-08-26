@@ -1,5 +1,5 @@
 PACKAGES=$(shell go list ./... | grep -v /vendor/)
-TESTARGS?=
+TESTARGS?=-race
 CURRENT_DIR = $(shell pwd)
 SOURCEDIR = $(CURRENT_DIR)
 SOURCES := $(shell find $(SOURCEDIR) -name '*.go')

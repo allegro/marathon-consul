@@ -11,7 +11,6 @@ import (
 )
 
 func TestMark(t *testing.T) {
-	t.Parallel()
 	// given
 	Init(Config{Target: "stdout", Prefix: ""})
 
@@ -33,8 +32,6 @@ func TestMark(t *testing.T) {
 }
 
 func TestTime(t *testing.T) {
-	t.Parallel()
-
 	// given
 	Init(Config{Target: "stdout", Prefix: ""})
 
@@ -56,8 +53,6 @@ func TestTime(t *testing.T) {
 }
 
 func TestUpdateGauge(t *testing.T) {
-	t.Parallel()
-
 	// given
 	Init(Config{Target: "stdout", Prefix: ""})
 
