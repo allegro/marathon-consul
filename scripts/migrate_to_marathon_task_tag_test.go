@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/allegro/marathon-consul/consul"
@@ -99,6 +100,23 @@ func TestMigrateToMarathonTaskTag_shouldMigrateServicesInBootstrapAgentsDCOnly(t
 	servicesOnOtherDC, _, _ := clientToOtherDC.Catalog().Services(&api.QueryOptions{})
 	assert.Contains(t, services["serviceA"], "marathon-task:serviceA")
 	assert.NotContains(t, servicesOnOtherDC["serviceB"], "marathon-task:serviceC")
+}
+
+func TestMigrateToMarathonTaskTag_shouldMigrateThroughCallingMain(t *testing.T) {
+	t.Parallel()
+	// given
+	server := consul.CreateConsulTestServer(t)
+	defer server.Stop()
+	server.AddService("serviceA", "passing", []string{"marathon"})
+	os.Args = []string{"./migrate", fmt.Sprintf("--bootstrap-agent-location=%s", server.HTTPAddr)}
+
+	// when
+	main()
+
+	//then
+	client, _ := clientToServer(server)
+	services, _, _ := client.Catalog().Services(&api.QueryOptions{})
+	assert.Contains(t, services["serviceA"], "marathon-task:serviceA")
 }
 
 func clientToServer(server *testutil.TestServer) (*api.Client, error) {

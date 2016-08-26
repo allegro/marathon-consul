@@ -12,8 +12,8 @@ import (
 )
 
 type Config struct {
-	BootstrapAgentAddress string
-	ConsulTag             string
+	BootstrapAgentLocation string
+	ConsulTag              string
 }
 
 type MigrationStats struct {
@@ -26,32 +26,32 @@ type MigrationStats struct {
 
 func main() {
 	config := createConfig()
-	migrateSingleDC(config.BootstrapAgentAddress, config.ConsulTag)
+	migrateSingleDC(config.BootstrapAgentLocation, config.ConsulTag)
 }
 
 func createConfig() *Config {
 	config := &Config{}
-	flag.StringVar(&config.BootstrapAgentAddress, "bootstrap-agent-address", "127.0.0.1:8500", "Address to one of the agents in the migrated DC")
+	flag.StringVar(&config.BootstrapAgentLocation, "bootstrap-agent-location", "127.0.0.1:8500", "Address with port to one of the agents in the migrated DC")
 	flag.StringVar(&config.ConsulTag, "consul-tag", "marathon", "Tag specifying that a service is managed by marathon-consul")
 	flag.Parse()
 	return config
 }
 
-func migrateSingleDC(bootstrapAgentAddress string, consulTag string) *MigrationStats {
-	log.WithField("BootstrapAgentAddress", bootstrapAgentAddress).WithField("Tag", consulTag).Info("Starting migration...")
+func migrateSingleDC(bootstrapAgentLocation string, consulTag string) *MigrationStats {
+	log.WithField("BootstrapAgentLocation", bootstrapAgentLocation).WithField("Tag", consulTag).Info("Starting migration...")
 
-	agentsPort, err := extractPort(bootstrapAgentAddress)
+	agentsPort, err := extractPort(bootstrapAgentLocation)
 	if err != nil {
-		log.WithError(err).WithField("BootstrapAgentAddress", bootstrapAgentAddress).
-			Fatal("Could not extract port from agent address, aborting.")
+		log.WithError(err).WithField("BootstrapAgentLocation", bootstrapAgentLocation).
+			Fatal("Could not extract port from agent location, aborting.")
 		os.Exit(1)
 	}
 
 	client, err := api.NewClient(&api.Config{
-		Address: bootstrapAgentAddress,
+		Address: bootstrapAgentLocation,
 	})
 	if err != nil {
-		log.WithError(err).WithField("BootstrapAgentAddress", bootstrapAgentAddress).
+		log.WithError(err).WithField("BootstrapAgentLocation", bootstrapAgentLocation).
 			Fatal("Could not create client to agent, aborting.")
 		os.Exit(1)
 	}
@@ -110,13 +110,13 @@ func migrateServicesOnNode(services map[string]*api.AgentService, nodeClient *ap
 			continue
 		}
 
-		err := nodeClient.Agent().ServiceRegister(migrated(agentService))
-		if err != nil {
+		if err := nodeClient.Agent().ServiceRegister(migrated(agentService)); err != nil {
 			log.WithError(err).WithField("ServiceID", agentService.ID).
-				Warn("Could not reregister service, skipping")
+			Warn("Could not reregister service, skipping")
 			stats.SkippedFailedServices++
 			continue
 		}
+
 		log.WithField("ServiceID", agentService.ID).Info("Migrated service")
 		stats.MigratedServices++
 	}
