@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"github.com/hashicorp/consul/api"
 )
 
@@ -38,12 +38,12 @@ func createConfig() *Config {
 }
 
 func migrateSingleDC(bootstrapAgentAddress string, consulTag string) *MigrationStats {
-	logrus.WithField("BootstrapAgentAddress", bootstrapAgentAddress).WithField("Tag", consulTag).Info("Starting migration...")
+	log.WithField("BootstrapAgentAddress", bootstrapAgentAddress).WithField("Tag", consulTag).Info("Starting migration...")
 
 	agentsPort, err := extractPort(bootstrapAgentAddress)
 	if err != nil {
-		logrus.WithError(err).WithField("BootstrapAgentAddress", bootstrapAgentAddress).
-			Error("Could not extract port from agent address, aborting.")
+		log.WithError(err).WithField("BootstrapAgentAddress", bootstrapAgentAddress).
+			Fatal("Could not extract port from agent address, aborting.")
 		os.Exit(1)
 	}
 
@@ -51,20 +51,20 @@ func migrateSingleDC(bootstrapAgentAddress string, consulTag string) *MigrationS
 		Address: bootstrapAgentAddress,
 	})
 	if err != nil {
-		logrus.WithError(err).WithField("BootstrapAgentAddress", bootstrapAgentAddress).
-			Error("Could not create client to agent, aborting.")
+		log.WithError(err).WithField("BootstrapAgentAddress", bootstrapAgentAddress).
+			Fatal("Could not create client to agent, aborting.")
 		os.Exit(1)
 	}
 
 	nodes, _, err := client.Catalog().Nodes(&api.QueryOptions{})
 	if err != nil {
-		logrus.WithError(err).Error("Could not fetch nodes, aborting.")
+		log.WithError(err).Fatal("Could not fetch nodes, aborting.")
 		os.Exit(1)
 	}
 
-	logrus.Infof("Discovered %d node(s) to migrate", len(nodes))
+	log.Infof("Discovered %d node(s) to migrate", len(nodes))
 	stats := migrateNodes(nodes, agentsPort, consulTag)
-	logrus.WithField("Stats", stats).Info("Migration finished")
+	log.WithField("Stats", stats).Info("Migration finished")
 	return stats
 }
 
@@ -72,26 +72,26 @@ func migrateNodes(nodes []*api.Node, agentsPort int, consulTag string) *Migratio
 	stats := &MigrationStats{}
 
 	for _, node := range nodes {
-		logrus.WithField("Node", node.Node).Info("Migrating node...")
+		log.WithField("Node", node.Node).Info("Migrating node...")
 		nodeAddress := fmt.Sprintf("%s:%d", node.Address, agentsPort)
 		nodeClient, err := api.NewClient(&api.Config{
 			Address: nodeAddress,
 		})
 		if err != nil {
-			logrus.WithError(err).WithField("Node", node.Node).WithField("Address", nodeAddress).
+			log.WithError(err).WithField("Node", node.Node).WithField("Address", nodeAddress).
 				Warn("Could not create client to node, skipping")
 			stats.SkippedFailedNodes++
 			continue
 		}
 		agentServices, err := nodeClient.Agent().Services()
 		if err != nil {
-			logrus.WithError(err).WithField("Node", node.Node).Warn("Could not fetch services on node, skipping")
+			log.WithError(err).WithField("Node", node.Node).Warn("Could not fetch services on node, skipping")
 			stats.SkippedFailedNodes++
 			continue
 		}
 
 		migrateServicesOnNode(agentServices, nodeClient, consulTag, stats)
-		logrus.WithField("Node", node.Node).Info("Migrated node")
+		log.WithField("Node", node.Node).Info("Migrated node")
 	}
 
 	return stats
@@ -100,30 +100,34 @@ func migrateNodes(nodes []*api.Node, agentsPort int, consulTag string) *Migratio
 func migrateServicesOnNode(services map[string]*api.AgentService, nodeClient *api.Client, consulTag string, stats *MigrationStats) {
 	for _, agentService := range services {
 		if !isManagedByMarathonConsul(agentService, consulTag) {
-			logrus.WithField("ServiceID", agentService.ID).Info("Service not managed by marathon-consul, skipping")
+			log.WithField("ServiceID", agentService.ID).Info("Service not managed by marathon-consul, skipping")
 			stats.SkippedServicesNotManagedByMarathonConsul++
 			continue
 		}
 		if hasMarathonTaskTag(agentService) {
-			logrus.WithField("ServiceID", agentService.ID).Info("Service already has marathon-task tag, skipping")
+			log.WithField("ServiceID", agentService.ID).Info("Service already has marathon-task tag, skipping")
 			stats.SkippedServicesAlreadyWithMarathonTaskTag++
 			continue
 		}
 
 		err := nodeClient.Agent().ServiceRegister(migrated(agentService))
 		if err != nil {
-			logrus.WithError(err).WithField("ServiceID", agentService.ID).
+			log.WithError(err).WithField("ServiceID", agentService.ID).
 				Warn("Could not reregister service, skipping")
 			stats.SkippedFailedServices++
 			continue
 		}
-		logrus.WithField("ServiceID", agentService.ID).Info("Migrated service")
+		log.WithField("ServiceID", agentService.ID).Info("Migrated service")
 		stats.MigratedServices++
 	}
 }
 
 func extractPort(address string) (int, error) {
-	return strconv.Atoi(address[strings.LastIndex(address, ":")+1:])
+	indexOfColon := strings.LastIndex(address, ":")
+	if indexOfColon == -1 {
+		return -1, fmt.Errorf("Could not extract port from address %s, colon not found", address)
+	}
+	return strconv.Atoi(address[indexOfColon+1:])
 }
 
 func isManagedByMarathonConsul(checked *api.AgentService, consulTag string) bool {
