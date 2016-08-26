@@ -1,7 +1,7 @@
 language: go
 
 go:
-  - 1.6
+  - 1.7
   - tip
 before_install:
   - go get golang.org/x/tools/cmd/cover
@@ -10,7 +10,7 @@ before_install:
   - go get github.com/mattn/goveralls
   - if ! go get github.com/golang/tools/cmd/cover; then go get golang.org/x/tools/cmd/cover; fi
 script:
-  - make build
+  - make deps
   - go test -coverprofile=apps.coverprofile ./apps
   - go test -coverprofile=config.coverprofile ./config
   - go test -coverprofile=consul.coverprofile ./consul

@@ -77,6 +77,22 @@ sudo apt-get -qy install marathon-consul
 
 Run it with `service marathon-consul start`. The configuration file is located at `/etc/marathon-consul.d/config.json`.
 
+### Installing with Docker
+
+To build docker image run
+```bash
+make docker
+```
+Then you can run it with
+```bash
+docker run -d -P allegro/marathon-consul [options]
+```
+If you want to use SSL you will need to expose cert store to Docker. The Following line is only example,
+your cert store might be different depending on your system.
+```bash
+docker run '/etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt' -P  allegro/marathon-consul
+```
+
 ## Setting up `marathon-consul` after installation
 
 The Marathon [event bus](https://mesosphere.github.io/marathon/docs/event-bus.html) should point to [`/events`](#endpoints). You can set up the event subscription with a call similar to this one:
