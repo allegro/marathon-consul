@@ -234,12 +234,19 @@ Depending on the configured healthchecks this may result in many seconds of serv
 not acceptable for you, you should ensure that before updating marathon-consul all managed services contain a `marathon-task:<task-id>` tag, where `<task-id>` is the Marathon task id
 being registered in Consul.
 
-You can run our migration script before updating to 1.x.x to ensure that.
+### Migration script
 
-// TODO moar
+You can run our migration script before updating to 1.x.x to ensure marathon-task tag in each registered service in a given datacenter.
+
+```
+migrate_to_marathon_task_tag --bootstrap-agent-location=1.2.3.4:8500
 ```
 
-```
+Provide `--bootstrap-agent-location` specifying address and port of one of the nodes in migrated datacenter. The script will discover
+all nodes in the datacenter and migrate all services registered there. Optionally, you can provide `--consul-tag` to match the one
+configured in your marathon-consul installation if you did customize it.
+
+If you have multiple datacenters you should migrate each one separately.
 
 ## License
 
