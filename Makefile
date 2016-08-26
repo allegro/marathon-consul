@@ -1,6 +1,5 @@
-TEST?=./...
+PACKAGES=$(shell go list ./... | grep -v /vendor/)
 TESTARGS?=
-DEPS = $(shell go list -f '{{range .TestImports}}{{.}} {{end}}' ./...)
 CURRENT_DIR = $(shell pwd)
 SOURCEDIR = $(CURRENT_DIR)
 SOURCES := $(shell find $(SOURCEDIR) -name '*.go')
@@ -9,12 +8,6 @@ all: deps build
 
 deps:
 	@./install_consul.sh
-	go get -d -v ./...
-	echo $(DEPS) | xargs -n1 go get -d
-
-updatedeps:
-	go get -u -v ./...
-	echo $(DEPS) | xargs -n1 go get -d
 
 build: deps test
 	@mkdir -p bin/
@@ -28,8 +21,8 @@ docker: build-linux
 	docker build -t allegro/marathon-consul .
 
 test: deps $(SOURCES)
-	PATH=$(CURRENT_DIR)/bin:$(PATH) go test $(TEST) $(TESTARGS)
-	go vet $(TEST)
+	PATH=$(CURRENT_DIR)/bin:$(PATH) go test $(PACKAGES) $(TESTARGS)
+	go vet $(PACKAGES)
 
 release:
 	@rm -rf dist
@@ -39,4 +32,4 @@ release:
 	git add .goxc.json
 	git commit -m "Bumped version"
 
-.PHONY: all deps updatedeps build test xcompile package dist
+.PHONY: all build test xcompile package dist
