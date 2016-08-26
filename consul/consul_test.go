@@ -495,7 +495,7 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 			{
 				Path:                   "/api/health?with=query",
 				Protocol:               "HTTP",
-				PortIndex:              0,
+				Port:                   8123,
 				IntervalSeconds:        60,
 				TimeoutSeconds:         20,
 				MaxConsecutiveFailures: 3,
@@ -532,6 +532,13 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 				MaxConsecutiveFailures: 3,
 			},
 			{
+				Protocol:               "TCP",
+				Port:                   8234,
+				IntervalSeconds:        40,
+				TimeoutSeconds:         20,
+				MaxConsecutiveFailures: 3,
+			},
+			{
 				Protocol: "COMMAND",
 				Command: struct {
 					Value string `json:"value"`
@@ -562,11 +569,11 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 	assert.Equal(t, []string{"marathon", "public"}, service.Tags)
 	assert.Equal(t, 8090, service.Port)
 	assert.Nil(t, service.Check)
-	assert.Equal(t, 4, len(service.Checks))
+	assert.Equal(t, 5, len(service.Checks))
 
 	assert.Equal(t, consulapi.AgentServiceChecks{
 		{
-			HTTP:     "http://127.0.0.6:8090/api/health?with=query",
+			HTTP:     "http://127.0.0.6:8123/api/health?with=query",
 			Interval: "60s",
 			Timeout:  "20s",
 		},
@@ -577,6 +584,11 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 		},
 		{
 			TCP:      "127.0.0.6:8443",
+			Interval: "40s",
+			Timeout:  "20s",
+		},
+		{
+			TCP:      "127.0.0.6:8234",
 			Interval: "40s",
 			Timeout:  "20s",
 		},

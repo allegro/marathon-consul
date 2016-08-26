@@ -10,6 +10,7 @@ const MARATHON_CONSUL_LABEL = "consul"
 type HealthCheck struct {
 	Path                   string `json:"path"`
 	PortIndex              int    `json:"portIndex"`
+	Port                   int    `json:"port"`
 	Protocol               string `json:"protocol"`
 	GracePeriodSeconds     int    `json:"gracePeriodSeconds"`
 	IntervalSeconds        int    `json:"intervalSeconds"`
