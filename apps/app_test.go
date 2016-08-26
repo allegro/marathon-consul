@@ -55,13 +55,26 @@ func TestParseApp(t *testing.T) {
 	appBlob, _ := ioutil.ReadFile("app.json")
 
 	expected := &App{Labels: map[string]string{"consul": "true", "public": "tag"},
-		HealthChecks: []HealthCheck{{Path: "/",
-			PortIndex:              0,
-			Protocol:               "HTTP",
-			GracePeriodSeconds:     10,
-			IntervalSeconds:        5,
-			TimeoutSeconds:         10,
-			MaxConsecutiveFailures: 3}},
+		HealthChecks: []HealthCheck{
+			{
+				Path:                   "/",
+				PortIndex:              0,
+				Protocol:               "HTTP",
+				GracePeriodSeconds:     10,
+				IntervalSeconds:        5,
+				TimeoutSeconds:         10,
+				MaxConsecutiveFailures: 3,
+			},
+			{
+				Path:                   "/custom",
+				Port:                   8123,
+				Protocol:               "HTTP",
+				GracePeriodSeconds:     10,
+				IntervalSeconds:        5,
+				TimeoutSeconds:         10,
+				MaxConsecutiveFailures: 3,
+			},
+		},
 		ID: "/myapp",
 		Tasks: []Task{{
 			ID:    "myapp.cc49ccc1-9812-11e5-a06e-56847afe9799",

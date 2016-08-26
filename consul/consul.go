@@ -220,19 +220,25 @@ func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*c
 		Port:    task.Ports[0],
 		Address: serviceAddress,
 		Tags:    c.marathonLabelsToConsulTags(app.Labels),
-		Checks:  c.marathonToConsulChecks(task, app.HealthChecks, serviceAddress),
+		Checks:  marathonToConsulChecks(task, app.HealthChecks, serviceAddress),
 	}, nil
 }
 
-func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.HealthCheck, serviceAddress string) consulapi.AgentServiceChecks {
+func marathonToConsulChecks(task *apps.Task, healthChecks []apps.HealthCheck, serviceAddress string) consulapi.AgentServiceChecks {
 	var checks consulapi.AgentServiceChecks = make(consulapi.AgentServiceChecks, 0, len(healthChecks))
 
 	for _, check := range healthChecks {
+		var port int
+		if check.Port != 0 {
+			port = check.Port
+		} else {
+			port = task.Ports[check.PortIndex]
+		}
 		switch check.Protocol {
 		case "HTTP", "HTTPS":
 			if parsedUrl, err := url.ParseRequestURI(check.Path); err == nil {
 				parsedUrl.Scheme = strings.ToLower(check.Protocol)
-				parsedUrl.Host = fmt.Sprintf("%s:%d", serviceAddress, task.Ports[check.PortIndex])
+				parsedUrl.Host = fmt.Sprintf("%s:%d", serviceAddress, port)
 
 				checks = append(checks, &consulapi.AgentServiceCheck{
 					HTTP:     parsedUrl.String(),
@@ -247,7 +253,7 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 			}
 		case "TCP":
 			checks = append(checks, &consulapi.AgentServiceCheck{
-				TCP:      fmt.Sprintf("%s:%d", serviceAddress, task.Ports[check.PortIndex]),
+				TCP:      fmt.Sprintf("%s:%d", serviceAddress, port),
 				Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
 				Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
 			})
