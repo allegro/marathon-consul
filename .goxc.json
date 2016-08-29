@@ -1,7 +1,8 @@
 {
 	"ArtifactsDest": "dist",
-	"Tasks": [
-		"default"
+	"TasksExclude": [
+		"go-vet",
+		"go-test"
 	],
 	"BuildConstraints": "linux,!arm darwin",
 	"PackageVersion": "0.4.1",
