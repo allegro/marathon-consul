@@ -122,12 +122,13 @@ func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.A
 	runningTasks := s.marathonTaskIdsSet(marathonApps)
 	for _, service := range services {
 		taskIdInTag, err := service.TaskId()
-		if err != nil {
-			log.WithField("Id", service.ID).WithError(err).Warn("Couldn't extract marathon task id, skipping sync for this service")
-			continue
+		taskIdNotFoundInTag := err != nil
+		if taskIdNotFoundInTag {
+			log.WithField("Id", service.ID).WithError(err).
+				Warn("Couldn't extract marathon task id, deregistering to have sync reregister it properly")
 		}
 
-		if _, isRunning := runningTasks[taskIdInTag]; !isRunning {
+		if _, isRunning := runningTasks[taskIdInTag]; !isRunning || taskIdNotFoundInTag {
 			err := s.serviceRegistry.Deregister(service)
 			if err != nil {
 				log.WithError(err).WithFields(log.Fields{
