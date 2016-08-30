@@ -5,7 +5,7 @@
 		"go-test"
 	],
 	"BuildConstraints": "linux,!arm darwin",
-	"PackageVersion": "0.4.1",
+	"PackageVersion": "0.4.2",
 	"TaskSettings": {
 		"bintray": {
 			"downloadspage": "bintray.md",
