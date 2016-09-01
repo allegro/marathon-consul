@@ -232,31 +232,6 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleApps
 	assert.False(t, marathon.Interactions())
 }
 
-func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleAppsAndProblemsGettingServicesForOne(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app1 := ConsulApp("/test/app", 3)
-	app2 := ConsulApp("/test/otherapp", 2)
-	marathon := marathon.MarathonerStubForApps()
-	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
-	service.FailGetServicesForName("test.app")
-	assert.Len(t, service.RegisteredTaskIds(), 5)
-	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
-	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app1, app2))
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
-
-	// when
-	recorder := httptest.NewRecorder()
-	handle(recorder, req)
-	stop()
-
-	// then
-	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 3)
-	assert.False(t, marathon.Interactions())
-}
-
 func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionWithNoServicesRegistered(t *testing.T) {
 	t.Parallel()
 
