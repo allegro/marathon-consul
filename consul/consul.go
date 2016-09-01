@@ -257,21 +257,6 @@ func (c *Consul) deregister(toDeregister *service.Service) error {
 	return err
 }
 
-func (c *Consul) ServiceName(app *apps.App) string {
-	appConsulName := app.ConsulName()
-	serviceName := c.marathonAppNameToConsulServiceName(appConsulName)
-	if serviceName == "" {
-		log.WithField("AppId", app.ID.String()).WithField("ConsulServiceName", appConsulName).
-			Warn("Warning! Invalid Consul service name provided for app. Will use default app name instead.")
-		return c.marathonAppNameToConsulServiceName(app.ID.String())
-	}
-	return serviceName
-}
-
-func (c *Consul) marathonAppNameToConsulServiceName(name string) string {
-	return strings.Replace(strings.Trim(strings.TrimSpace(name), "/"), "/", c.config.ConsulNameSeparator, -1)
-}
-
 func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*consulapi.AgentServiceRegistration, error) {
 	IP, err := utils.HostToIPv4(task.Host)
 	if err != nil {
@@ -279,16 +264,15 @@ func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*c
 	}
 	serviceAddress := IP.String()
 
-	name := c.ServiceName(app)
-	port := task.Ports[0]
-	serviceID := c.serviceId(task, name, port)
-	tags := c.marathonLabelsToConsulTags(app.Labels)
+	intent := toRegistrationIntent(task, app, c.config.ConsulNameSeparator)
+
+	tags := append(intent.Tags, c.config.Tag)
 	tags = append(tags, service.MarathonTaskTag(task.ID))
 
 	return &consulapi.AgentServiceRegistration{
-		ID:      serviceID,
-		Name:    name,
-		Port:    port,
+		ID:      c.serviceId(task, intent.Name, intent.Port),
+		Name:    intent.Name,
+		Port:    intent.Port,
 		Address: serviceAddress,
 		Tags:    tags,
 		Checks:  c.marathonToConsulChecks(task, app.HealthChecks, serviceAddress),
@@ -338,16 +322,6 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 		}
 	}
 	return checks
-}
-
-func (c *Consul) marathonLabelsToConsulTags(labels map[string]string) []string {
-	tags := []string{c.config.Tag}
-	for key, value := range labels {
-		if value == "tag" {
-			tags = append(tags, key)
-		}
-	}
-	return tags
 }
 
 func (c *Consul) AddAgentsFromApps(apps []*apps.App) {
