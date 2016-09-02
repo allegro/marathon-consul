@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
+	"reflect"
 )
 
 // Only Marathon apps with this label will be registered in Consul
@@ -57,15 +58,14 @@ func (app *App) IsConsulApp() bool {
 	return ok
 }
 
-func (app *App) ConsulRawNames() []string {
-	definitions := app.findConsulPortDefinitions()
-	if len(definitions) == 0 {
-		return []string{app.labelsToRawName(app.Labels)}
-	}
+func (app *App) HasSameConsulNamesAs(other *App) bool {
+	return reflect.DeepEqual(rawConsulNames(app), rawConsulNames(other))
+}
 
+func rawConsulNames(app *App) []string {
 	var names []string
-	for _, d := range definitions {
-		names = append(names, app.labelsToRawName(d.Labels))
+	for _, i := range app.RegistrationIntents("/") {
+		names = append(names, i.Name)
 	}
 	return names
 }
@@ -96,12 +96,12 @@ func ParseApp(jsonBlob []byte) (*App, error) {
 }
 
 type RegistrationIntent struct {
-	Name string
-	Port int
-	Tags []string
+	Name      string
+	PortIndex int
+	Tags      []string
 }
 
-func (app *App) RegistrationIntents(task *Task, nameSeparator string) []*RegistrationIntent {
+func (app *App) RegistrationIntents(nameSeparator string) []*RegistrationIntent {
 	commonTags := labelsToTags(app.Labels)
 
 	definitions := app.findConsulPortDefinitions()
@@ -109,7 +109,7 @@ func (app *App) RegistrationIntents(task *Task, nameSeparator string) []*Registr
 		return []*RegistrationIntent{
 			&RegistrationIntent{
 				Name: app.labelsToName(app.Labels, nameSeparator),
-				Port: task.Ports[0],
+				PortIndex: 0,
 				Tags: commonTags,
 			},
 		}
@@ -119,7 +119,7 @@ func (app *App) RegistrationIntents(task *Task, nameSeparator string) []*Registr
 	for _, d := range definitions {
 		intents = append(intents, &RegistrationIntent{
 			Name: app.labelsToName(d.Labels, nameSeparator),
-			Port: task.Ports[d.PortIndex],
+			PortIndex: d.PortIndex,
 			Tags: append(commonTags, labelsToTags(d.Labels)...),
 		})
 	}

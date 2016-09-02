@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/allegro/marathon-consul/apps"
-	"reflect"
 )
 
 type DeploymentEvent struct {
@@ -93,7 +92,7 @@ func (d *DeploymentEvent) RenamedConsulApps() []*apps.App {
 		targetMap := d.appsMap(target)
 		for id, originalApp := range originalMap {
 			targetApp, ok := targetMap[id]
-			if !ok || !reflect.DeepEqual(originalApp.ConsulRawNames(), targetApp.ConsulRawNames()) {
+			if !ok || !originalApp.HasSameConsulNamesAs(targetApp) {
 				renamedApps = append(renamedApps, originalApp)
 			}
 		}

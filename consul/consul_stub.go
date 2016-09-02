@@ -96,15 +96,17 @@ func (c *ConsulStub) Register(task *apps.Task, app *apps.App) error {
 }
 
 func (c *ConsulStub) RegisterWithoutMarathonTaskTag(task *apps.Task, app *apps.App) {
-	serviceRegistration := consulapi.AgentServiceRegistration{
-		ID:      task.ID.String(),
-		Name:    app.ConsulRawNames()[0],
-		Port:    task.Ports[0],
-		Address: "127.0.0.1",
-		Tags:    []string{c.consul.config.Tag},
-		Checks:  consulapi.AgentServiceChecks{},
+	for _, intent := range app.RegistrationIntents(c.consul.config.ConsulNameSeparator) {
+		serviceRegistration := consulapi.AgentServiceRegistration{
+			ID:      task.ID.String(),
+			Name:    intent.Name,
+			Port:    task.Ports[intent.PortIndex],
+			Address: task.Host,
+			Tags:    intent.Tags,
+			Checks:  consulapi.AgentServiceChecks{},
+		}
+		c.services[service.ServiceId(serviceRegistration.ID)] = &serviceRegistration
 	}
-	c.services[service.ServiceId(serviceRegistration.ID)] = &serviceRegistration
 }
 
 func (c *ConsulStub) DeregisterByTask(taskId apps.TaskId) error {

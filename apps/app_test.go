@@ -120,11 +120,6 @@ func TestAppId_String(t *testing.T) {
 	assert.Equal(t, "appId", AppId("appId").String())
 }
 
-var dummyTask = &Task{
-	ID:    TaskId("some-task"),
-	Ports: []int{1337},
-}
-
 func TestRegistrationIntent_NameWithSeparator(t *testing.T) {
 	t.Parallel()
 
@@ -134,7 +129,7 @@ func TestRegistrationIntent_NameWithSeparator(t *testing.T) {
 	}
 
 	// when
-	intent := app.RegistrationIntents(dummyTask, ".")[0]
+	intent := app.RegistrationIntents(".")[0]
 
 	// then
 	assert.Equal(t, "rootGroup.subGroup.subSubGroup.name", intent.Name)
@@ -150,7 +145,7 @@ func TestRegistrationIntent_NameWithEmptyConsulLabel(t *testing.T) {
 	}
 
 	// when
-	intent := app.RegistrationIntents(dummyTask, "-")[0]
+	intent := app.RegistrationIntents("-")[0]
 
 	// then
 	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", intent.Name)
@@ -166,7 +161,7 @@ func TestRegistrationIntent_NameWithConsulLabelSetToTrue(t *testing.T) {
 	}
 
 	// when
-	intent := app.RegistrationIntents(dummyTask, "-")[0]
+	intent := app.RegistrationIntents("-")[0]
 
 	// then
 	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", intent.Name)
@@ -182,7 +177,7 @@ func TestRegistrationIntent_NameWithCustomConsulLabelEscapingChars(t *testing.T)
 	}
 
 	// when
-	intent := app.RegistrationIntents(dummyTask, "-")[0]
+	intent := app.RegistrationIntents("-")[0]
 
 	// then
 	assert.Equal(t, "some-other-name", intent.Name)
@@ -198,7 +193,7 @@ func TestRegistrationIntent_NameWithInvalidLabelValue(t *testing.T) {
 	}
 
 	// when
-	intent := app.RegistrationIntents(dummyTask, "-")[0]
+	intent := app.RegistrationIntents("-")[0]
 
 	// then
 	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", intent.Name)
@@ -211,15 +206,12 @@ func TestRegistrationIntent_PickFirstPort(t *testing.T) {
 	app := &App{
 		ID: "name",
 	}
-	task := &Task{
-		Ports: []int{1234, 5678},
-	}
 
 	// when
-	intent := app.RegistrationIntents(task, "-")[0]
+	intent := app.RegistrationIntents("-")[0]
 
 	// then
-	assert.Equal(t, 1234, intent.Port)
+	assert.Equal(t, 0, intent.PortIndex)
 }
 
 func TestRegistrationIntent_WithTags(t *testing.T) {
@@ -232,7 +224,7 @@ func TestRegistrationIntent_WithTags(t *testing.T) {
 	}
 
 	// when
-	intent := app.RegistrationIntents(dummyTask, "-")[0]
+	intent := app.RegistrationIntents("-")[0]
 
 	// then
 	assert.Equal(t, []string{"private"}, intent.Tags)
@@ -253,17 +245,14 @@ func TestRegistrationIntent_NoOverrideViaPortDefinitionsIfNoConsulLabelThere(t *
 			},
 		},
 	}
-	task := &Task{
-		Ports: []int{1234, 5678},
-	}
 
 	// when
-	intents := app.RegistrationIntents(task, "-")
+	intents := app.RegistrationIntents("-")
 
 	// then
 	assert.Len(t, intents, 1)
 	assert.Equal(t, "app-name", intents[0].Name)
-	assert.Equal(t, 1234, intents[0].Port)
+	assert.Equal(t, 0, intents[0].PortIndex)
 	assert.Equal(t, []string{"private"}, intents[0].Tags)
 }
 
@@ -282,17 +271,14 @@ func TestRegistrationIntent_OverrideNameAndAddTagsViaPortDefinitions(t *testing.
 			},
 		},
 	}
-	task := &Task{
-		Ports: []int{1234, 5678},
-	}
 
 	// when
-	intents := app.RegistrationIntents(task, "-")
+	intents := app.RegistrationIntents("-")
 
 	// then
 	assert.Len(t, intents, 1)
 	assert.Equal(t, "other-name", intents[0].Name)
-	assert.Equal(t, 1234, intents[0].Port)
+	assert.Equal(t, 0, intents[0].PortIndex)
 	assert.Equal(t, []string{"private", "other"}, intents[0].Tags)
 }
 
@@ -311,15 +297,12 @@ func TestRegistrationIntent_PickDifferentPortViaPortDefinitions(t *testing.T) {
 			},
 		},
 	}
-	task := &Task{
-		Ports: []int{1234, 5678},
-	}
 
 	// when
-	intent := app.RegistrationIntents(task, "-")[0]
+	intent := app.RegistrationIntents("-")[0]
 
 	// then
-	assert.Equal(t, 5678, intent.Port)
+	assert.Equal(t, 1, intent.PortIndex)
 }
 
 func TestRegistrationIntent_MultipleIntentsViaPortDefinitionIfMultipleContainConsulLabel(t *testing.T) {
@@ -338,19 +321,16 @@ func TestRegistrationIntent_MultipleIntentsViaPortDefinitionIfMultipleContainCon
 			},
 		},
 	}
-	task := &Task{
-		Ports: []int{1234, 5678},
-	}
 
 	// when
-	intents := app.RegistrationIntents(task, "-")
+	intents := app.RegistrationIntents("-")
 
 	// then
 	assert.Len(t, intents, 2)
 	assert.Equal(t, "first-name", intents[0].Name)
-	assert.Equal(t, 1234, intents[0].Port)
+	assert.Equal(t, 0, intents[0].PortIndex)
 	assert.Equal(t, []string{"common-tag", "first-tag"}, intents[0].Tags)
 	assert.Equal(t, "second-name", intents[1].Name)
-	assert.Equal(t, 5678, intents[1].Port)
+	assert.Equal(t, 1, intents[1].PortIndex)
 	assert.Equal(t, []string{"common-tag", "second-tag"}, intents[1].Tags)
 }
