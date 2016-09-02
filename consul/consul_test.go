@@ -10,6 +10,7 @@ import (
 	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
+	"sort"
 )
 
 func TestGetAgent_WithEmptyHost(t *testing.T) {
@@ -385,6 +386,66 @@ func TestRegisterServices_CustomServiceName(t *testing.T) {
 	assert.Equal(t, "myCustomServiceName", services[0].Name)
 }
 
+func TestRegisterServices_MultipleRegistrations(t *testing.T) {
+	t.Parallel()
+	server := CreateConsulTestServer(t)
+	defer server.Stop()
+
+	consul := ConsulClientAtServer(server)
+	consul.config.Tag = "marathon"
+
+	// given
+	app := utils.ConsulApp("serviceA", 1)
+	app.PortDefinitions = []apps.PortDefinition{
+		apps.PortDefinition{
+			Labels: map[string]string{"consul": "first-name", "first-tag": "tag"},
+		},
+		apps.PortDefinition{
+			Labels: map[string]string{"consul": "second-name", "second-tag": "tag"},
+		},
+	}
+	app.Tasks[0].Host = server.Config.Bind
+	app.Tasks[0].Ports = []int{8080, 8081}
+	app.Labels["common-tag"] = "tag"
+
+	// when
+	err := consul.Register(&app.Tasks[0], app)
+
+	// then
+	assert.NoError(t, err)
+
+	// when
+	services, _ := consul.GetAllServices()
+	sort.Sort(&serviceSorter{
+		services: services,
+		by: func(s1, s2 *service.Service) bool { return s1.Name < s2.Name },
+	})
+
+	// then
+	assert.Len(t, services, 2)
+	assert.Equal(t, "first-name", services[0].Name)
+	assert.Equal(t, []string{"marathon", "common-tag", "first-tag", "marathon-task:serviceA.0"}, services[0].Tags)
+	assert.Equal(t, "second-name", services[1].Name)
+	assert.Equal(t, []string{"marathon", "common-tag", "second-tag", "marathon-task:serviceA.0"}, services[1].Tags)
+}
+
+type serviceSorter struct {
+	services []*service.Service
+	by       func(s1, s2 *service.Service) bool
+}
+
+func (s *serviceSorter) Len() int {
+	return len(s.services)
+}
+
+func (s *serviceSorter) Swap(i, j int) {
+	s.services[i], s.services[j] = s.services[j], s.services[i]
+}
+
+func (s *serviceSorter) Less(i, j int) bool {
+	return s.by(s.services[i], s.services[j])
+}
+
 func TestRegisterServices_InvalidHostnameShouldFail(t *testing.T) {
 	t.Parallel()
 	server := CreateConsulTestServer(t)
@@ -687,7 +748,8 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 	}
 
 	// when
-	service, err := consul.marathonTaskToConsulService(task, app)
+	services, err := consul.marathonTaskToConsulService(task, app)
+	service := services[0]
 
 	// then
 	assert.NoError(t, err)

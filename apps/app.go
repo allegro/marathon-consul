@@ -57,15 +57,20 @@ func (app *App) IsConsulApp() bool {
 	return ok
 }
 
-func (app *App) ConsulName() string {
-	_, portDef, found := app.findConsulPortDefinition()
-	if found {
-		return app.LabelsToConsulName(portDef.Labels)
+func (app *App) ConsulRawNames() []string {
+	definitions := app.findConsulPortDefinitions()
+	if len(definitions) == 0 {
+		return []string{app.labelsToRawName(app.Labels)}
 	}
-	return app.LabelsToConsulName(app.Labels)
+
+	var names []string
+	for _, d := range definitions {
+		names = append(names, app.labelsToRawName(d.Labels))
+	}
+	return names
 }
 
-func (app *App) LabelsToConsulName(labels map[string]string) string {
+func (app *App) labelsToRawName(labels map[string]string) string {
 	if value, ok := labels[MARATHON_CONSUL_LABEL]; ok && !isSpecialConsulNameValue(value) {
 		return value
 	}
@@ -96,27 +101,29 @@ type RegistrationIntent struct {
 	Tags []string
 }
 
-func (app *App) RegistrationIntent(task *Task, nameSeparator string) *RegistrationIntent {
-	name := app.serviceName(nameSeparator)
-	portIndex := 0
-	tags := labelsToTags(app.Labels)
+func (app *App) RegistrationIntents(task *Task, nameSeparator string) []*RegistrationIntent {
+	commonTags := labelsToTags(app.Labels)
 
-	portDefIndex, portDef, portDefFound := app.findConsulPortDefinition()
-	if portDefFound {
-		name = app.labelsToName(portDef.Labels, nameSeparator)
-		portIndex = portDefIndex
-		tags = append(tags, labelsToTags(portDef.Labels)...)
+	definitions := app.findConsulPortDefinitions()
+	if len(definitions) == 0 {
+		return []*RegistrationIntent{
+			&RegistrationIntent{
+				Name: app.labelsToName(app.Labels, nameSeparator),
+				Port: task.Ports[0],
+				Tags: commonTags,
+			},
+		}
 	}
 
-	return &RegistrationIntent{
-		Name: name,
-		Port: task.Ports[portIndex],
-		Tags: tags,
+	var intents []*RegistrationIntent
+	for _, d := range definitions {
+		intents = append(intents, &RegistrationIntent{
+			Name: app.labelsToName(d.Labels, nameSeparator),
+			Port: task.Ports[d.PortIndex],
+			Tags: append(commonTags, labelsToTags(d.Labels)...),
+		})
 	}
-}
-
-func (app *App) serviceName(nameSeparator string) string {
-	return app.labelsToName(app.Labels, nameSeparator)
+	return intents
 }
 
 func marathonAppNameToServiceName(name string, nameSeparator string) string {
@@ -134,7 +141,7 @@ func labelsToTags(labels map[string]string) []string {
 }
 
 func (app *App) labelsToName(labels map[string]string, nameSeparator string) string {
-	appConsulName := app.LabelsToConsulName(labels)
+	appConsulName := app.labelsToRawName(labels)
 	serviceName := marathonAppNameToServiceName(appConsulName, nameSeparator)
 	if serviceName == "" {
 		log.WithField("AppId", app.ID.String()).WithField("ConsulServiceName", appConsulName).
@@ -144,11 +151,20 @@ func (app *App) labelsToName(labels map[string]string, nameSeparator string) str
 	return serviceName
 }
 
-func (app *App) findConsulPortDefinition() (int, PortDefinition, bool) {
+type IndexedPortDefinition struct {
+	PortIndex int
+	Labels    map[string]string
+}
+
+func (app *App) findConsulPortDefinitions() []IndexedPortDefinition {
+	var definitions []IndexedPortDefinition
 	for i, d := range app.PortDefinitions {
 		if _, ok := d.Labels[MARATHON_CONSUL_LABEL]; ok {
-			return i, d, true
+			definitions = append(definitions, IndexedPortDefinition{
+				PortIndex: i,
+				Labels:    d.Labels,
+			})
 		}
 	}
-	return -1, PortDefinition{}, false
+	return definitions
 }

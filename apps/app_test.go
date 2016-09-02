@@ -134,7 +134,7 @@ func TestRegistrationIntent_NameWithSeparator(t *testing.T) {
 	}
 
 	// when
-	intent := app.RegistrationIntent(dummyTask, ".")
+	intent := app.RegistrationIntents(dummyTask, ".")[0]
 
 	// then
 	assert.Equal(t, "rootGroup.subGroup.subSubGroup.name", intent.Name)
@@ -150,7 +150,7 @@ func TestRegistrationIntent_NameWithEmptyConsulLabel(t *testing.T) {
 	}
 
 	// when
-	intent := app.RegistrationIntent(dummyTask, "-")
+	intent := app.RegistrationIntents(dummyTask, "-")[0]
 
 	// then
 	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", intent.Name)
@@ -166,7 +166,7 @@ func TestRegistrationIntent_NameWithConsulLabelSetToTrue(t *testing.T) {
 	}
 
 	// when
-	intent := app.RegistrationIntent(dummyTask, "-")
+	intent := app.RegistrationIntents(dummyTask, "-")[0]
 
 	// then
 	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", intent.Name)
@@ -182,7 +182,7 @@ func TestRegistrationIntent_NameWithCustomConsulLabelEscapingChars(t *testing.T)
 	}
 
 	// when
-	intent := app.RegistrationIntent(dummyTask, "-")
+	intent := app.RegistrationIntents(dummyTask, "-")[0]
 
 	// then
 	assert.Equal(t, "some-other-name", intent.Name)
@@ -198,7 +198,7 @@ func TestRegistrationIntent_NameWithInvalidLabelValue(t *testing.T) {
 	}
 
 	// when
-	intent := app.RegistrationIntent(dummyTask, "-")
+	intent := app.RegistrationIntents(dummyTask, "-")[0]
 
 	// then
 	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", intent.Name)
@@ -216,7 +216,7 @@ func TestRegistrationIntent_PickFirstPort(t *testing.T) {
 	}
 
 	// when
-	intent := app.RegistrationIntent(task, "-")
+	intent := app.RegistrationIntents(task, "-")[0]
 
 	// then
 	assert.Equal(t, 1234, intent.Port)
@@ -232,7 +232,7 @@ func TestRegistrationIntent_WithTags(t *testing.T) {
 	}
 
 	// when
-	intent := app.RegistrationIntent(dummyTask, "-")
+	intent := app.RegistrationIntents(dummyTask, "-")[0]
 
 	// then
 	assert.Equal(t, []string{"private"}, intent.Tags)
@@ -258,12 +258,13 @@ func TestRegistrationIntent_NoOverrideViaPortDefinitionsIfNoConsulLabelThere(t *
 	}
 
 	// when
-	intent := app.RegistrationIntent(task, "-")
+	intents := app.RegistrationIntents(task, "-")
 
 	// then
-	assert.Equal(t, "app-name", intent.Name)
-	assert.Equal(t, 1234, intent.Port)
-	assert.Equal(t, []string{"private"}, intent.Tags)
+	assert.Len(t, intents, 1)
+	assert.Equal(t, "app-name", intents[0].Name)
+	assert.Equal(t, 1234, intents[0].Port)
+	assert.Equal(t, []string{"private"}, intents[0].Tags)
 }
 
 func TestRegistrationIntent_OverrideNameAndAddTagsViaPortDefinitions(t *testing.T) {
@@ -286,12 +287,13 @@ func TestRegistrationIntent_OverrideNameAndAddTagsViaPortDefinitions(t *testing.
 	}
 
 	// when
-	intent := app.RegistrationIntent(task, "-")
+	intents := app.RegistrationIntents(task, "-")
 
 	// then
-	assert.Equal(t, "other-name", intent.Name)
-	assert.Equal(t, 1234, intent.Port)
-	assert.Equal(t, []string{"private", "other"}, intent.Tags)
+	assert.Len(t, intents, 1)
+	assert.Equal(t, "other-name", intents[0].Name)
+	assert.Equal(t, 1234, intents[0].Port)
+	assert.Equal(t, []string{"private", "other"}, intents[0].Tags)
 }
 
 func TestRegistrationIntent_PickDifferentPortViaPortDefinitions(t *testing.T) {
@@ -314,25 +316,25 @@ func TestRegistrationIntent_PickDifferentPortViaPortDefinitions(t *testing.T) {
 	}
 
 	// when
-	intent := app.RegistrationIntent(task, "-")
+	intent := app.RegistrationIntents(task, "-")[0]
 
 	// then
 	assert.Equal(t, 5678, intent.Port)
 }
 
-func TestRegistrationIntent_PickFirstMatchingPortDefinitionIfMultipleContainConsulLabel(t *testing.T) {
+func TestRegistrationIntent_MultipleIntentsViaPortDefinitionIfMultipleContainConsulLabel(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := &App{
 		ID: 	"app-name",
-		Labels: map[string]string{"consul": "true", "private": "tag"},
+		Labels: map[string]string{"consul": "true", "common-tag": "tag"},
 		PortDefinitions: []PortDefinition{
 			PortDefinition{
-				Labels: map[string]string{"consul": "first"},
+				Labels: map[string]string{"consul": "first-name", "first-tag": "tag"},
 			},
 			PortDefinition{
-				Labels: map[string]string{"consul": "second"},
+				Labels: map[string]string{"consul": "second-name", "second-tag": "tag"},
 			},
 		},
 	}
@@ -341,8 +343,14 @@ func TestRegistrationIntent_PickFirstMatchingPortDefinitionIfMultipleContainCons
 	}
 
 	// when
-	intent := app.RegistrationIntent(task, "-")
+	intents := app.RegistrationIntents(task, "-")
 
 	// then
-	assert.Equal(t, "first", intent.Name)
+	assert.Len(t, intents, 2)
+	assert.Equal(t, "first-name", intents[0].Name)
+	assert.Equal(t, 1234, intents[0].Port)
+	assert.Equal(t, []string{"common-tag", "first-tag"}, intents[0].Tags)
+	assert.Equal(t, "second-name", intents[1].Name)
+	assert.Equal(t, 5678, intents[1].Port)
+	assert.Equal(t, []string{"common-tag", "second-tag"}, intents[1].Tags)
 }
