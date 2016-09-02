@@ -2,10 +2,10 @@ package apps
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
-	"reflect"
 )
 
 // Only Marathon apps with this label will be registered in Consul
@@ -25,7 +25,7 @@ type HealthCheck struct {
 }
 
 type PortDefinition struct {
-	Labels map[string]string	`json:"labels"`
+	Labels map[string]string `json:"labels"`
 }
 
 type AppWrapper struct {
@@ -37,10 +37,10 @@ type AppsResponse struct {
 }
 
 type App struct {
-	Labels       	map[string]string `json:"labels"`
-	HealthChecks 	[]HealthCheck     `json:"healthChecks"`
-	ID           	AppId             `json:"id"`
-	Tasks        	[]Task            `json:"tasks"`
+	Labels          map[string]string `json:"labels"`
+	HealthChecks    []HealthCheck     `json:"healthChecks"`
+	ID              AppId             `json:"id"`
+	Tasks           []Task            `json:"tasks"`
 	PortDefinitions []PortDefinition  `json:"portDefinitions"`
 }
 
@@ -108,9 +108,9 @@ func (app *App) RegistrationIntents(nameSeparator string) []*RegistrationIntent 
 	if len(definitions) == 0 {
 		return []*RegistrationIntent{
 			&RegistrationIntent{
-				Name: app.labelsToName(app.Labels, nameSeparator),
+				Name:      app.labelsToName(app.Labels, nameSeparator),
 				PortIndex: 0,
-				Tags: commonTags,
+				Tags:      commonTags,
 			},
 		}
 	}
@@ -118,9 +118,9 @@ func (app *App) RegistrationIntents(nameSeparator string) []*RegistrationIntent 
 	var intents []*RegistrationIntent
 	for _, d := range definitions {
 		intents = append(intents, &RegistrationIntent{
-			Name: app.labelsToName(d.Labels, nameSeparator),
+			Name:      app.labelsToName(d.Labels, nameSeparator),
 			PortIndex: d.PortIndex,
-			Tags: append(commonTags, labelsToTags(d.Labels)...),
+			Tags:      append(commonTags, labelsToTags(d.Labels)...),
 		})
 	}
 	return intents

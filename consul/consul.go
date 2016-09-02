@@ -288,7 +288,7 @@ func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) ([]
 			Port:    port,
 			Address: serviceAddress,
 			Tags:    tags,
-			Checks:	 checks,
+			Checks:  checks,
 		})
 	}
 	return registrations, nil

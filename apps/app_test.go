@@ -219,7 +219,7 @@ func TestRegistrationIntent_WithTags(t *testing.T) {
 
 	// given
 	app := &App{
-		ID: 	"name",
+		ID:     "name",
 		Labels: map[string]string{"private": "tag", "other": "irrelevant"},
 	}
 
@@ -235,14 +235,13 @@ func TestRegistrationIntent_NoOverrideViaPortDefinitionsIfNoConsulLabelThere(t *
 
 	// given
 	app := &App{
-		ID: 	"app-name",
+		ID:     "app-name",
 		Labels: map[string]string{"consul": "true", "private": "tag"},
 		PortDefinitions: []PortDefinition{
 			PortDefinition{
 				Labels: map[string]string{"other": "tag"},
 			},
-			PortDefinition{
-			},
+			PortDefinition{},
 		},
 	}
 
@@ -261,14 +260,13 @@ func TestRegistrationIntent_OverrideNameAndAddTagsViaPortDefinitions(t *testing.
 
 	// given
 	app := &App{
-		ID: 	"app-name",
+		ID:     "app-name",
 		Labels: map[string]string{"consul": "true", "private": "tag"},
 		PortDefinitions: []PortDefinition{
 			PortDefinition{
 				Labels: map[string]string{"consul": "other-name", "other": "tag"},
 			},
-			PortDefinition{
-			},
+			PortDefinition{},
 		},
 	}
 
@@ -287,11 +285,10 @@ func TestRegistrationIntent_PickDifferentPortViaPortDefinitions(t *testing.T) {
 
 	// given
 	app := &App{
-		ID: 	"app-name",
+		ID:     "app-name",
 		Labels: map[string]string{"consul": "true", "private": "tag"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
-			},
+			PortDefinition{},
 			PortDefinition{
 				Labels: map[string]string{"consul": "true"},
 			},
@@ -310,7 +307,7 @@ func TestRegistrationIntent_MultipleIntentsViaPortDefinitionIfMultipleContainCon
 
 	// given
 	app := &App{
-		ID: 	"app-name",
+		ID:     "app-name",
 		Labels: map[string]string{"consul": "true", "common-tag": "tag"},
 		PortDefinitions: []PortDefinition{
 			PortDefinition{

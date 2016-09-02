@@ -2,6 +2,7 @@ package consul
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
-	"sort"
 )
 
 func TestGetAgent_WithEmptyHost(t *testing.T) {
@@ -418,7 +418,7 @@ func TestRegisterServices_MultipleRegistrations(t *testing.T) {
 	services, _ := consul.GetAllServices()
 	sort.Sort(&serviceSorter{
 		services: services,
-		by: func(s1, s2 *service.Service) bool { return s1.Name < s2.Name },
+		by:       func(s1, s2 *service.Service) bool { return s1.Name < s2.Name },
 	})
 
 	// then
