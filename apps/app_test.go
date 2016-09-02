@@ -119,3 +119,230 @@ func TestAppId_String(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "appId", AppId("appId").String())
 }
+
+var dummyTask = &Task{
+	ID:    TaskId("some-task"),
+	Ports: []int{1337},
+}
+
+func TestRegistrationIntent_NameWithSeparator(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID: "/rootGroup/subGroup/subSubGroup/name",
+	}
+
+	// when
+	intent := app.RegistrationIntent(dummyTask, ".")
+
+	// then
+	assert.Equal(t, "rootGroup.subGroup.subSubGroup.name", intent.Name)
+}
+
+func TestRegistrationIntent_NameWithEmptyConsulLabel(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "/rootGroup/subGroup/subSubGroup/name",
+		Labels: map[string]string{"consul": ""},
+	}
+
+	// when
+	intent := app.RegistrationIntent(dummyTask, "-")
+
+	// then
+	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", intent.Name)
+}
+
+func TestRegistrationIntent_NameWithConsulLabelSetToTrue(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "/rootGroup/subGroup/subSubGroup/name",
+		Labels: map[string]string{"consul": "true"},
+	}
+
+	// when
+	intent := app.RegistrationIntent(dummyTask, "-")
+
+	// then
+	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", intent.Name)
+}
+
+func TestRegistrationIntent_NameWithCustomConsulLabelEscapingChars(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "/rootGroup/subGroup/subSubGroup/name",
+		Labels: map[string]string{"consul": "/some-other/name"},
+	}
+
+	// when
+	intent := app.RegistrationIntent(dummyTask, "-")
+
+	// then
+	assert.Equal(t, "some-other-name", intent.Name)
+}
+
+func TestRegistrationIntent_NameWithInvalidLabelValue(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "/rootGroup/subGroup/subSubGroup/name",
+		Labels: map[string]string{"consul": "     ///"},
+	}
+
+	// when
+	intent := app.RegistrationIntent(dummyTask, "-")
+
+	// then
+	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", intent.Name)
+}
+
+func TestRegistrationIntent_PickFirstPort(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID: "name",
+	}
+	task := &Task{
+		Ports: []int{1234, 5678},
+	}
+
+	// when
+	intent := app.RegistrationIntent(task, "-")
+
+	// then
+	assert.Equal(t, 1234, intent.Port)
+}
+
+func TestRegistrationIntent_WithTags(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID: 	"name",
+		Labels: map[string]string{"private": "tag", "other": "irrelevant"},
+	}
+
+	// when
+	intent := app.RegistrationIntent(dummyTask, "-")
+
+	// then
+	assert.Equal(t, []string{"private"}, intent.Tags)
+}
+
+func TestRegistrationIntent_NoOverrideViaPortDefinitionsIfNoConsulLabelThere(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID: 	"app-name",
+		Labels: map[string]string{"consul": "true", "private": "tag"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"other": "tag"},
+			},
+			PortDefinition{
+			},
+		},
+	}
+	task := &Task{
+		Ports: []int{1234, 5678},
+	}
+
+	// when
+	intent := app.RegistrationIntent(task, "-")
+
+	// then
+	assert.Equal(t, "app-name", intent.Name)
+	assert.Equal(t, 1234, intent.Port)
+	assert.Equal(t, []string{"private"}, intent.Tags)
+}
+
+func TestRegistrationIntent_OverrideNameAndAddTagsViaPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID: 	"app-name",
+		Labels: map[string]string{"consul": "true", "private": "tag"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "other-name", "other": "tag"},
+			},
+			PortDefinition{
+			},
+		},
+	}
+	task := &Task{
+		Ports: []int{1234, 5678},
+	}
+
+	// when
+	intent := app.RegistrationIntent(task, "-")
+
+	// then
+	assert.Equal(t, "other-name", intent.Name)
+	assert.Equal(t, 1234, intent.Port)
+	assert.Equal(t, []string{"private", "other"}, intent.Tags)
+}
+
+func TestRegistrationIntent_PickDifferentPortViaPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID: 	"app-name",
+		Labels: map[string]string{"consul": "true", "private": "tag"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+			},
+			PortDefinition{
+				Labels: map[string]string{"consul": "true"},
+			},
+		},
+	}
+	task := &Task{
+		Ports: []int{1234, 5678},
+	}
+
+	// when
+	intent := app.RegistrationIntent(task, "-")
+
+	// then
+	assert.Equal(t, 5678, intent.Port)
+}
+
+func TestRegistrationIntent_PickFirstMatchingPortDefinitionIfMultipleContainConsulLabel(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID: 	"app-name",
+		Labels: map[string]string{"consul": "true", "private": "tag"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "first"},
+			},
+			PortDefinition{
+				Labels: map[string]string{"consul": "second"},
+			},
+		},
+	}
+	task := &Task{
+		Ports: []int{1234, 5678},
+	}
+
+	// when
+	intent := app.RegistrationIntent(task, "-")
+
+	// then
+	assert.Equal(t, "first", intent.Name)
+}

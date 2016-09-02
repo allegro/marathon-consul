@@ -264,7 +264,7 @@ func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*c
 	}
 	serviceAddress := IP.String()
 
-	intent := toRegistrationIntent(task, app, c.config.ConsulNameSeparator)
+	intent := app.RegistrationIntent(task, c.config.ConsulNameSeparator)
 
 	tags := append([]string{c.config.Tag}, intent.Tags...)
 	tags = append(tags, service.MarathonTaskTag(task.ID))
