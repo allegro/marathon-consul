@@ -20,6 +20,10 @@ type HealthCheck struct {
 	}
 }
 
+type PortDefinition struct {
+	Labels map[string]string	`json:"labels"`
+}
+
 type AppWrapper struct {
 	App App `json:"app"`
 }
@@ -29,10 +33,11 @@ type AppsResponse struct {
 }
 
 type App struct {
-	Labels       map[string]string `json:"labels"`
-	HealthChecks []HealthCheck     `json:"healthChecks"`
-	ID           AppId             `json:"id"`
-	Tasks        []Task            `json:"tasks"`
+	Labels       	map[string]string `json:"labels"`
+	HealthChecks 	[]HealthCheck     `json:"healthChecks"`
+	ID           	AppId             `json:"id"`
+	Tasks        	[]Task            `json:"tasks"`
+	PortDefinitions []PortDefinition  `json:"portDefinitions"`
 }
 
 // Marathon Application Id (aka PathId)
@@ -50,7 +55,11 @@ func (app *App) IsConsulApp() bool {
 }
 
 func (app *App) ConsulName() string {
-	if value, ok := app.Labels[MARATHON_CONSUL_LABEL]; ok && !isSpecialConsulNameValue(value) {
+	return app.LabelsToConsulName(app.Labels)
+}
+
+func (app *App) LabelsToConsulName(labels map[string]string) string {
+	if value, ok := labels[MARATHON_CONSUL_LABEL]; ok && !isSpecialConsulNameValue(value) {
 		return value
 	}
 	return app.ID.String()

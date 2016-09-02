@@ -266,7 +266,7 @@ func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*c
 
 	intent := toRegistrationIntent(task, app, c.config.ConsulNameSeparator)
 
-	tags := append(intent.Tags, c.config.Tag)
+	tags := append([]string{c.config.Tag}, intent.Tags...)
 	tags = append(tags, service.MarathonTaskTag(task.ID))
 
 	return &consulapi.AgentServiceRegistration{

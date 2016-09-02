@@ -13,22 +13,26 @@ type RegistrationIntent struct {
 }
 
 func toRegistrationIntent(task *apps.Task, app *apps.App, nameSeparator string) *RegistrationIntent {
+	name := serviceName(app, nameSeparator)
+	portIndex := 0
+	tags := labelsToTags(app.Labels)
+
+	portDefIndex, portDef, portDefFound := findConsulPortDefinition(app)
+	if portDefFound {
+		name = labelsToName(app, portDef.Labels, nameSeparator)
+		portIndex = portDefIndex
+		tags = append(tags, labelsToTags(portDef.Labels)...)
+	}
+
 	return &RegistrationIntent{
-		Name: serviceName(app, nameSeparator),
-		Port: task.Ports[0],
-		Tags: labelsToTags(app.Labels),
+		Name: name,
+		Port: task.Ports[portIndex],
+		Tags: tags,
 	}
 }
 
 func serviceName(app *apps.App, nameSeparator string) string {
-	appConsulName := app.ConsulName()
-	serviceName := marathonAppNameToServiceName(appConsulName, nameSeparator)
-	if serviceName == "" {
-		log.WithField("AppId", app.ID.String()).WithField("ConsulServiceName", appConsulName).
-		Warn("Warning! Invalid Consul service name provided for app. Will use default app name instead.")
-		return marathonAppNameToServiceName(app.ID.String(), nameSeparator)
-	}
-	return serviceName
+	return labelsToName(app, app.Labels, nameSeparator)
 }
 
 func marathonAppNameToServiceName(name string, nameSeparator string) string {
@@ -43,4 +47,24 @@ func labelsToTags(labels map[string]string) []string {
 		}
 	}
 	return tags
+}
+
+func labelsToName(app *apps.App, labels map[string]string, nameSeparator string) string {
+	appConsulName := app.LabelsToConsulName(labels)
+	serviceName := marathonAppNameToServiceName(appConsulName, nameSeparator)
+	if serviceName == "" {
+		log.WithField("AppId", app.ID.String()).WithField("ConsulServiceName", appConsulName).
+		Warn("Warning! Invalid Consul service name provided for app. Will use default app name instead.")
+		return marathonAppNameToServiceName(app.ID.String(), nameSeparator)
+	}
+	return serviceName
+}
+
+func findConsulPortDefinition(app *apps.App) (int, apps.PortDefinition, bool) {
+	for i, d := range app.PortDefinitions {
+		if _, ok := d.Labels[apps.MARATHON_CONSUL_LABEL]; ok {
+			return i, d, true
+		}
+	}
+	return -1, apps.PortDefinition{}, false
 }
