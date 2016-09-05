@@ -2,7 +2,6 @@ package consul
 
 import (
 	"fmt"
-	"sort"
 	"testing"
 	"time"
 
@@ -416,34 +415,28 @@ func TestRegisterServices_MultipleRegistrations(t *testing.T) {
 
 	// when
 	services, _ := consul.GetAllServices()
-	sort.Sort(&serviceSorter{
-		services: services,
-		by:       func(s1, s2 *service.Service) bool { return s1.Name < s2.Name },
-	})
 
 	// then
 	assert.Len(t, services, 2)
-	assert.Equal(t, "first-name", services[0].Name)
-	assert.Equal(t, []string{"marathon", "common-tag", "first-tag", "marathon-task:serviceA.0"}, services[0].Tags)
-	assert.Equal(t, "second-name", services[1].Name)
-	assert.Equal(t, []string{"marathon", "common-tag", "second-tag", "marathon-task:serviceA.0"}, services[1].Tags)
+
+	first, found := findServiceByName("first-name", services)
+	assert.True(t, found, "first-name not found in services")
+	second, found := findServiceByName("second-name", services)
+	assert.True(t, found, "second-name not found in services")
+
+	assert.Equal(t, "first-name", first.Name)
+	assert.Equal(t, []string{"marathon", "common-tag", "first-tag", "marathon-task:serviceA.0"}, first.Tags)
+	assert.Equal(t, "second-name", second.Name)
+	assert.Equal(t, []string{"marathon", "common-tag", "second-tag", "marathon-task:serviceA.0"}, second.Tags)
 }
 
-type serviceSorter struct {
-	services []*service.Service
-	by       func(s1, s2 *service.Service) bool
-}
-
-func (s *serviceSorter) Len() int {
-	return len(s.services)
-}
-
-func (s *serviceSorter) Swap(i, j int) {
-	s.services[i], s.services[j] = s.services[j], s.services[i]
-}
-
-func (s *serviceSorter) Less(i, j int) bool {
-	return s.by(s.services[i], s.services[j])
+func findServiceByName(name string, services []*service.Service) (*service.Service, bool) {
+	for _, s := range services {
+		if s.Name == name {
+			return s, true
+		}
+	}
+	return nil, false
 }
 
 func TestRegisterServices_InvalidHostnameShouldFail(t *testing.T) {
