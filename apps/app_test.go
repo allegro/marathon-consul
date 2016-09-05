@@ -125,7 +125,7 @@ var dummyTask = &Task{
 	Ports: []int{1337},
 }
 
-func TestRegistrationIntent_NameWithSeparator(t *testing.T) {
+func TestRegistrationIntent_NameWithoutConsulLabel(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -140,68 +140,34 @@ func TestRegistrationIntent_NameWithSeparator(t *testing.T) {
 	assert.Equal(t, "rootGroup.subGroup.subSubGroup.name", intent.Name)
 }
 
-func TestRegistrationIntent_NameWithEmptyConsulLabel(t *testing.T) {
+func TestRegistrationIntent_Name(t *testing.T) {
 	t.Parallel()
 
-	// given
-	app := &App{
-		ID:     "/rootGroup/subGroup/subSubGroup/name",
-		Labels: map[string]string{"consul": ""},
+	var intentNameTestsData = []struct {
+		consulLabel  string
+		expectedName string
+	}{
+		{"", "rootGroup-subGroup-subSubGroup-name"},
+		{"true", "rootGroup-subGroup-subSubGroup-name"},
+		{"/some-other/name", "some-other-name"},
+		{"     ///", "rootGroup-subGroup-subSubGroup-name"},
 	}
 
-	// when
-	intent := app.RegistrationIntents(dummyTask, "-")[0]
+	for _, testData := range intentNameTestsData {
+		// given
+		app := &App{
+			ID:     "/rootGroup/subGroup/subSubGroup/name",
+			Labels: map[string]string{"consul": testData.consulLabel},
+		}
 
-	// then
-	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", intent.Name)
-}
+		// when
+		intent := app.RegistrationIntents(dummyTask, "-")[0]
 
-func TestRegistrationIntent_NameWithConsulLabelSetToTrue(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &App{
-		ID:     "/rootGroup/subGroup/subSubGroup/name",
-		Labels: map[string]string{"consul": "true"},
+		// then
+		if intent.Name != testData.expectedName {
+			t.Errorf("Registration name from consul label '%s' was '%s', expected '%s'", testData.consulLabel, intent.Name, testData.expectedName)
+		}
 	}
-
-	// when
-	intent := app.RegistrationIntents(dummyTask, "-")[0]
-
-	// then
-	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", intent.Name)
-}
-
-func TestRegistrationIntent_NameWithCustomConsulLabelEscapingChars(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &App{
-		ID:     "/rootGroup/subGroup/subSubGroup/name",
-		Labels: map[string]string{"consul": "/some-other/name"},
-	}
-
-	// when
-	intent := app.RegistrationIntents(dummyTask, "-")[0]
-
-	// then
-	assert.Equal(t, "some-other-name", intent.Name)
-}
-
-func TestRegistrationIntent_NameWithInvalidLabelValue(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &App{
-		ID:     "/rootGroup/subGroup/subSubGroup/name",
-		Labels: map[string]string{"consul": "     ///"},
-	}
-
-	// when
-	intent := app.RegistrationIntents(dummyTask, "-")[0]
-
-	// then
-	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", intent.Name)
 }
 
 func TestRegistrationIntent_PickFirstPort(t *testing.T) {
