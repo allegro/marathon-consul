@@ -278,14 +278,13 @@ func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) ([]
 	checks := c.marathonToConsulChecks(task, app.HealthChecks, serviceAddress)
 
 	var registrations []*consulapi.AgentServiceRegistration
-	for _, intent := range app.RegistrationIntents(c.config.ConsulNameSeparator) {
+	for _, intent := range app.RegistrationIntents(task, c.config.ConsulNameSeparator) {
 		tags := append([]string{c.config.Tag}, intent.Tags...)
 		tags = append(tags, service.MarathonTaskTag(task.ID))
-		port := task.Ports[intent.PortIndex]
 		registrations = append(registrations, &consulapi.AgentServiceRegistration{
-			ID:      c.serviceId(task, intent.Name, port),
+			ID:      c.serviceId(task, intent.Name, intent.Port),
 			Name:    intent.Name,
-			Port:    port,
+			Port:    intent.Port,
 			Address: serviceAddress,
 			Tags:    tags,
 			Checks:  checks,

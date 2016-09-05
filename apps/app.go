@@ -2,7 +2,6 @@ package apps
 
 import (
 	"encoding/json"
-	"reflect"
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
@@ -25,6 +24,7 @@ type HealthCheck struct {
 }
 
 type PortDefinition struct {
+	Port   int               `json:"port"`
 	Labels map[string]string `json:"labels"`
 }
 
@@ -59,15 +59,23 @@ func (app *App) IsConsulApp() bool {
 }
 
 func (app *App) HasSameConsulNamesAs(other *App) bool {
-	return reflect.DeepEqual(rawConsulNames(app), rawConsulNames(other))
-}
+	thisDefs := app.findConsulPortDefinitions()
+	otherDefs := other.findConsulPortDefinitions()
 
-func rawConsulNames(app *App) []string {
-	var names []string
-	for _, i := range app.RegistrationIntents("/") {
-		names = append(names, i.Name)
+	if len(thisDefs) != len(otherDefs) {
+		return false
 	}
-	return names
+
+	if len(thisDefs) == 0 {
+		return app.labelsToRawName(app.Labels) == other.labelsToRawName(other.Labels)
+	}
+
+	for i, d := range thisDefs {
+		if app.labelsToRawName(d.Labels) != other.labelsToRawName(otherDefs[i].Labels) {
+			return false
+		}
+	}
+	return true
 }
 
 func (app *App) labelsToRawName(labels map[string]string) string {
@@ -96,21 +104,21 @@ func ParseApp(jsonBlob []byte) (*App, error) {
 }
 
 type RegistrationIntent struct {
-	Name      string
-	PortIndex int
-	Tags      []string
+	Name string
+	Port int
+	Tags []string
 }
 
-func (app *App) RegistrationIntents(nameSeparator string) []*RegistrationIntent {
+func (app *App) RegistrationIntents(task *Task, nameSeparator string) []*RegistrationIntent {
 	commonTags := labelsToTags(app.Labels)
 
 	definitions := app.findConsulPortDefinitions()
 	if len(definitions) == 0 {
 		return []*RegistrationIntent{
 			&RegistrationIntent{
-				Name:      app.labelsToName(app.Labels, nameSeparator),
-				PortIndex: 0,
-				Tags:      commonTags,
+				Name: app.labelsToName(app.Labels, nameSeparator),
+				Port: task.Ports[0],
+				Tags: commonTags,
 			},
 		}
 	}
@@ -118,9 +126,9 @@ func (app *App) RegistrationIntents(nameSeparator string) []*RegistrationIntent 
 	var intents []*RegistrationIntent
 	for _, d := range definitions {
 		intents = append(intents, &RegistrationIntent{
-			Name:      app.labelsToName(d.Labels, nameSeparator),
-			PortIndex: d.PortIndex,
-			Tags:      append(commonTags, labelsToTags(d.Labels)...),
+			Name: app.labelsToName(d.Labels, nameSeparator),
+			Port: d.toPort(task),
+			Tags: append(commonTags, labelsToTags(d.Labels)...),
 		})
 	}
 	return intents
@@ -152,8 +160,16 @@ func (app *App) labelsToName(labels map[string]string, nameSeparator string) str
 }
 
 type IndexedPortDefinition struct {
-	PortIndex int
-	Labels    map[string]string
+	Index  int
+	Port   int
+	Labels map[string]string
+}
+
+func (i *IndexedPortDefinition) toPort(task *Task) int {
+	if i.Port == 0 {
+		return task.Ports[i.Index]
+	}
+	return i.Port
 }
 
 func (app *App) findConsulPortDefinitions() []IndexedPortDefinition {
@@ -161,8 +177,9 @@ func (app *App) findConsulPortDefinitions() []IndexedPortDefinition {
 	for i, d := range app.PortDefinitions {
 		if _, ok := d.Labels[MARATHON_CONSUL_LABEL]; ok {
 			definitions = append(definitions, IndexedPortDefinition{
-				PortIndex: i,
-				Labels:    d.Labels,
+				Index:  i,
+				Port:   d.Port,
+				Labels: d.Labels,
 			})
 		}
 	}
