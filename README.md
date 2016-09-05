@@ -153,6 +153,8 @@ curl -X GET http://localhost:8500/v1/catalog/service/my-new-app
 - Every service registration contains an additional tag `marathon-task` specifying the Marathon task id related to this registration.
 - If there are multiple ports in use for the same app, note that only the first one will be registered by marathon-consul in Consul.
 
+If you need to register your task under multiple ports or names, refer to *Advanced usage* section below.
+
 ### Task healthchecks
 
 - At least one HTTP healthcheck should be defined for a task. The task is registered when Marathon marks it as alive.
@@ -215,14 +217,76 @@ Endpoint  | Description
 `/health` | healthcheck - returns `OK`
 `/events` | event sink - returns `OK` if all keys are set in an event, error message otherwise
 
-### Known limitations
+## Advanced usage
 
-The following section describes known limitations in `marathon-consul`.
+If you need to map your Marathon task into multiple service registrations in Consul, you can configure marathon-consul 
+via Marathon's `portDefinitions`:
 
-* In Marathon when a deployment changing the application's service name (by changing its `labels`) is being stopped, it changes app's configuration anyway.
-  This means we loose the link between the app and the services registered with the old name in Consul.
-  Later on, if another deployment takes place, new services are registered with a new name, the old ones are not being deregistered though.
-  A scheduled sync is required to wipe them out.
+```
+  "id": "my-new-app",
+  "labels": {
+    "consul": "true",
+    "common-tag": "tag"
+  },
+  "portDefinitions": [
+    {
+      "port": 0,
+      "protocol": "tcp",
+      "labels": {
+        "consul": "my-app-custom-name"
+      }
+    },
+    {
+      "port": 0,
+      "protocol": "tcp",
+      "labels": {
+        "consul": "my-app-other-name",
+        "specific-tag": "tag
+      }
+    }
+  ]
+```
+
+This configuration would result in two service registrations:
+
+```
+curl -X GET http://localhost:8500/v1/catalog/service/my-app-custom-name
+...
+"ServiceName": "my-app-custom-name",
+"ServiceTags": [
+  "marathon",
+  "common-tag",
+  "marathon-task:my-new-app.6a95bb03-6ad3-11e6-beaf-080027a7aca0"
+],
+"ServicePort": 31292,
+...
+
+curl -X GET http://localhost:8500/v1/catalog/service/my-app-other-name
+...
+"ServiceName": "my-app-other-name",
+"ServiceTags": [
+  "marathon",
+  "common-tag",
+  "specific-tag",
+  "marathon-task:my-new-app.6a95bb03-6ad3-11e6-beaf-080027a7aca0"
+],
+"ServicePort": 31293,
+...
+``` 
+
+If any port definition contains the `consul` label, then advanced configuration mode is enabled. As a result, only the ports 
+containing this label are registered, under the name specified as the label's value – with value `true` resolved to default name.
+Names don't have to be unique – you can have multiple registrations under the same name, but on different ports, 
+perhaps with different tags. Note that the `consul` label still needs to be present in the top-level application labels, even
+though its value won't have any effect.
+
+Tags configured in the top-level application labels will be added to all registrations. Tags configured in the port definition 
+labels will be added only to corresponding registrations.
+
+You can either provide explicit port numbers or provide 0, in which case randomly assigned ports will be used. Read more
+in [Marathon's documentation](https://mesosphere.github.io/marathon/docs/ports.html).
+
+All registrations share the same `marathon-task` tag.
 
 ## Migration to version 1.x.x
 
@@ -247,6 +311,15 @@ all nodes in the datacenter and migrate all services registered there. Optionall
 configured in your marathon-consul installation if you did customize it.
 
 If you have multiple datacenters you should migrate each one separately.
+
+## Known limitations
+
+The following section describes known limitations in `marathon-consul`.
+
+* In Marathon when a deployment changing the application's service name (by changing its `labels`) is being stopped, it changes app's configuration anyway.
+  This means we loose the link between the app and the services registered with the old name in Consul.
+  Later on, if another deployment takes place, new services are registered with a new name, the old ones are not being deregistered though.
+  A scheduled sync is required to wipe them out.
 
 ## License
 
