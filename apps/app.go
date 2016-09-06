@@ -59,23 +59,33 @@ func (app *App) IsConsulApp() bool {
 }
 
 func (app *App) HasSameConsulNamesAs(other *App) bool {
-	thisDefs := app.findConsulPortDefinitions()
-	otherDefs := other.findConsulPortDefinitions()
+	thisNames := app.ConsulNames(".")
+	otherNames := other.ConsulNames(".")
 
-	if len(thisDefs) != len(otherDefs) {
+	if len(thisNames) != len(otherNames) {
 		return false
 	}
 
-	if len(thisDefs) == 0 {
-		return app.labelsToRawName(app.Labels) == other.labelsToRawName(other.Labels)
-	}
-
-	for i, d := range thisDefs {
-		if app.labelsToRawName(d.Labels) != other.labelsToRawName(otherDefs[i].Labels) {
+	for i, name := range thisNames {
+		if name != otherNames[i] {
 			return false
 		}
 	}
 	return true
+}
+
+func (app *App) ConsulNames(separator string) []string {
+	definitions := app.findConsulPortDefinitions()
+
+	if len(definitions) == 0 {
+		return []string{app.labelsToName(app.Labels, separator)}
+	}
+
+	var names []string
+	for _, d := range definitions {
+		names = append(names, app.labelsToName(d.Labels, separator))
+	}
+	return names
 }
 
 func (app *App) labelsToRawName(labels map[string]string) string {

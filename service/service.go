@@ -40,4 +40,5 @@ type ServiceRegistry interface {
 	Register(task *apps.Task, app *apps.App) error
 	DeregisterByTask(taskId apps.TaskId) error
 	Deregister(toDeregister *Service) error
+	ServiceNames(app *apps.App) []string
 }

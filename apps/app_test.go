@@ -343,6 +343,40 @@ func TestRegistrationIntent_MultipleIntentsViaPortDefinitionIfMultipleContainCon
 	assert.Equal(t, []string{"common-tag", "second-tag"}, intents[1].Tags)
 }
 
+func TestConsulNames_WithoutPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "context/app-name",
+		Labels: map[string]string{"consul": ""},
+	}
+
+	// expect
+	assert.Equal(t, []string{"context.app-name"}, app.ConsulNames("."))
+}
+
+func TestConsulNames_WithPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "context/app-name",
+		Labels: map[string]string{"consul": ""},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "some/name"},
+			},
+			PortDefinition{
+				Labels: map[string]string{"consul": "yet-another/name"},
+			},
+		},
+	}
+
+	// expect
+	assert.Equal(t, []string{"some.name", "yet-another.name"}, app.ConsulNames("."))
+}
+
 func TestHasSameConsulNamesAs_SameConfigsWithoutPortDefinitions(t *testing.T) {
 	t.Parallel()
 
@@ -371,7 +405,7 @@ func TestHasSameConsulNamesAs_DifferentConfigsSameNameWithoutPortDefinitions(t *
 
 	// expect
 	assert.True(t, app.HasSameConsulNamesAs(other))
-	assert.True(t, other.HasSameConsulNamesAs(app))
+	assert.True(t, other.HasSameConsulNamesAs(other))
 }
 
 func TestHasSameConsulNamesAs_DifferentConfigsWithoutPortDefinitions(t *testing.T) {

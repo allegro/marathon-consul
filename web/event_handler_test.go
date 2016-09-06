@@ -143,6 +143,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationAction(t *testing.T) 
 	service := newConsulStubWithApplicationsTasksRegistered(app)
 	assert.Len(t, service.RegisteredTaskIds(), 3)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
+	app.Tasks = []apps.Task{} // tasks are not available in this event
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
