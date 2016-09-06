@@ -371,6 +371,7 @@ func TestHasSameConsulNamesAs_DifferentConfigsSameNameWithoutPortDefinitions(t *
 
 	// expect
 	assert.True(t, app.HasSameConsulNamesAs(other))
+	assert.True(t, other.HasSameConsulNamesAs(app))
 }
 
 func TestHasSameConsulNamesAs_DifferentConfigsWithoutPortDefinitions(t *testing.T) {
@@ -433,6 +434,7 @@ func TestHasSameConsulNamesAs_DifferentConfigsSameNamesWithPortDefinitions(t *te
 
 	// expect
 	assert.True(t, app.HasSameConsulNamesAs(other))
+	assert.True(t, other.HasSameConsulNamesAs(app))
 }
 
 func TestHasSameConsulNamesAs_DifferentConfigsDifferentNamesWithPortDefinitions(t *testing.T) {

@@ -153,7 +153,7 @@ curl -X GET http://localhost:8500/v1/catalog/service/my-new-app
 - Every service registration contains an additional tag `marathon-task` specifying the Marathon task id related to this registration.
 - If there are multiple ports in use for the same app, note that only the first one will be registered by marathon-consul in Consul.
 
-If you need to register your task under multiple ports or names, refer to *Advanced usage* section below.
+If you need to register your task under multiple ports, refer to *Advanced usage* section below.
 
 ### Task healthchecks
 
@@ -219,13 +219,15 @@ Endpoint  | Description
 
 ## Advanced usage
 
+### Register under multiple ports
+
 If you need to map your Marathon task into multiple service registrations in Consul, you can configure marathon-consul 
 via Marathon's `portDefinitions`:
 
 ```
   "id": "my-new-app",
   "labels": {
-    "consul": "true",
+    "consul": "",
     "common-tag": "tag"
   },
   "portDefinitions": [
@@ -241,7 +243,7 @@ via Marathon's `portDefinitions`:
       "protocol": "tcp",
       "labels": {
         "consul": "my-app-other-name",
-        "specific-tag": "tag
+        "specific-tag": "tag"
       }
     }
   ]
@@ -275,7 +277,7 @@ curl -X GET http://localhost:8500/v1/catalog/service/my-app-other-name
 ``` 
 
 If any port definition contains the `consul` label, then advanced configuration mode is enabled. As a result, only the ports 
-containing this label are registered, under the name specified as the label's value – with value `true` resolved to default name.
+containing this label are registered, under the name specified as the label's value – with empty value resolved to default name.
 Names don't have to be unique – you can have multiple registrations under the same name, but on different ports, 
 perhaps with different tags. Note that the `consul` label still needs to be present in the top-level application labels, even
 though its value won't have any effect.

@@ -84,7 +84,7 @@ func (c *ConsulStub) Register(task *apps.Task, app *apps.App) error {
 	if _, ok := c.failRegisterForIds[task.ID]; ok {
 		return fmt.Errorf("Consul stub programmed to fail when registering task of id %s", task.ID.String())
 	} else {
-		serviceRegistrations, err := c.consul.marathonTaskToConsulService(task, app)
+		serviceRegistrations, err := c.consul.marathonTaskToConsulServices(task, app)
 		if err != nil {
 			return err
 		}

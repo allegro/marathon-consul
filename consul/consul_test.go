@@ -741,7 +741,7 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 	}
 
 	// when
-	services, err := consul.marathonTaskToConsulService(task, app)
+	services, err := consul.marathonTaskToConsulServices(task, app)
 	service := services[0]
 
 	// then
@@ -806,7 +806,7 @@ func TestMarathonTaskToConsulServiceMapping_NotResolvableTaskHost(t *testing.T) 
 	}
 
 	// when
-	_, err := consul.marathonTaskToConsulService(task, app)
+	_, err := consul.marathonTaskToConsulServices(task, app)
 
 	// then
 	assert.Error(t, err)

@@ -144,7 +144,7 @@ func contains(slice []string, search string) bool {
 }
 
 func (c *Consul) Register(task *apps.Task, app *apps.App) error {
-	services, err := c.marathonTaskToConsulService(task, app)
+	services, err := c.marathonTaskToConsulServices(task, app)
 	if err != nil {
 		return err
 	}
@@ -269,7 +269,7 @@ func (c *Consul) deregister(toDeregister *service.Service) error {
 	return err
 }
 
-func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) ([]*consulapi.AgentServiceRegistration, error) {
+func (c *Consul) marathonTaskToConsulServices(task *apps.Task, app *apps.App) ([]*consulapi.AgentServiceRegistration, error) {
 	IP, err := utils.HostToIPv4(task.Host)
 	if err != nil {
 		return nil, err
