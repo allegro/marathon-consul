@@ -385,6 +385,60 @@ func TestRegisterServices_CustomServiceName(t *testing.T) {
 	assert.Equal(t, "myCustomServiceName", services[0].Name)
 }
 
+func TestRegisterServices_MultipleRegistrations(t *testing.T) {
+	t.Parallel()
+	server := CreateConsulTestServer(t)
+	defer server.Stop()
+
+	consul := ConsulClientAtServer(server)
+	consul.config.Tag = "marathon"
+
+	// given
+	app := utils.ConsulApp("serviceA", 1)
+	app.PortDefinitions = []apps.PortDefinition{
+		apps.PortDefinition{
+			Labels: map[string]string{"consul": "first-name", "first-tag": "tag"},
+		},
+		apps.PortDefinition{
+			Labels: map[string]string{"consul": "second-name", "second-tag": "tag"},
+		},
+	}
+	app.Tasks[0].Host = server.Config.Bind
+	app.Tasks[0].Ports = []int{8080, 8081}
+	app.Labels["common-tag"] = "tag"
+
+	// when
+	err := consul.Register(&app.Tasks[0], app)
+
+	// then
+	assert.NoError(t, err)
+
+	// when
+	services, _ := consul.GetAllServices()
+
+	// then
+	assert.Len(t, services, 2)
+
+	first, found := findServiceByName("first-name", services)
+	assert.True(t, found, "first-name not found in services")
+	second, found := findServiceByName("second-name", services)
+	assert.True(t, found, "second-name not found in services")
+
+	assert.Equal(t, "first-name", first.Name)
+	assert.Equal(t, []string{"marathon", "common-tag", "first-tag", "marathon-task:serviceA.0"}, first.Tags)
+	assert.Equal(t, "second-name", second.Name)
+	assert.Equal(t, []string{"marathon", "common-tag", "second-tag", "marathon-task:serviceA.0"}, second.Tags)
+}
+
+func findServiceByName(name string, services []*service.Service) (*service.Service, bool) {
+	for _, s := range services {
+		if s.Name == name {
+			return s, true
+		}
+	}
+	return nil, false
+}
+
 func TestRegisterServices_InvalidHostnameShouldFail(t *testing.T) {
 	t.Parallel()
 	server := CreateConsulTestServer(t)
@@ -687,7 +741,8 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 	}
 
 	// when
-	service, err := consul.marathonTaskToConsulService(task, app)
+	services, err := consul.marathonTaskToConsulServices(task, app)
+	service := services[0]
 
 	// then
 	assert.NoError(t, err)
@@ -751,92 +806,8 @@ func TestMarathonTaskToConsulServiceMapping_NotResolvableTaskHost(t *testing.T) 
 	}
 
 	// when
-	_, err := consul.marathonTaskToConsulService(task, app)
+	_, err := consul.marathonTaskToConsulServices(task, app)
 
 	// then
 	assert.Error(t, err)
-}
-
-func TestServiceName_WithSeparator(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &apps.App{
-		ID: "/rootGroup/subGroup/subSubGroup/name",
-	}
-	consul := New(ConsulConfig{ConsulNameSeparator: "."})
-
-	// when
-	serviceName := consul.ServiceName(app)
-
-	// then
-	assert.Equal(t, "rootGroup.subGroup.subSubGroup.name", serviceName)
-}
-
-func TestServiceName_WithEmptyConsulLabel(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &apps.App{
-		ID:     "/rootGroup/subGroup/subSubGroup/name",
-		Labels: map[string]string{"consul": ""},
-	}
-	consul := New(ConsulConfig{ConsulNameSeparator: "-"})
-
-	// when
-	serviceName := consul.ServiceName(app)
-
-	// then
-	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", serviceName)
-}
-
-func TestServiceName_WithConsulLabelSetToTrue(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &apps.App{
-		ID:     "/rootGroup/subGroup/subSubGroup/name",
-		Labels: map[string]string{"consul": "true"},
-	}
-	consul := New(ConsulConfig{ConsulNameSeparator: "-"})
-
-	// when
-	serviceName := consul.ServiceName(app)
-
-	// then
-	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", serviceName)
-}
-
-func TestServiceName_WithCustomConsulLabelEscapingChars(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &apps.App{
-		ID:     "/rootGroup/subGroup/subSubGroup/name",
-		Labels: map[string]string{"consul": "/some-other/name"},
-	}
-	consul := New(ConsulConfig{ConsulNameSeparator: "-"})
-
-	// when
-	serviceName := consul.ServiceName(app)
-
-	// then
-	assert.Equal(t, "some-other-name", serviceName)
-}
-
-func TestServiceName_WithInvalidLabelValue(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &apps.App{
-		ID:     "/rootGroup/subGroup/subSubGroup/name",
-		Labels: map[string]string{"consul": "     ///"},
-	}
-	consul := New(ConsulConfig{ConsulNameSeparator: "-"})
-
-	// when
-	serviceName := consul.ServiceName(app)
-
-	// then
-	assert.Equal(t, "rootGroup-subGroup-subSubGroup-name", serviceName)
 }

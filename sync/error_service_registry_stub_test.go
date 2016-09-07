@@ -30,6 +30,6 @@ func (c errorServiceRegistry) Deregister(toDeregister *service.Service) error {
 	return fmt.Errorf("Error occured")
 }
 
-func (c errorServiceRegistry) ServiceName(app *apps.App) string {
-	return ""
+func (c errorServiceRegistry) ServiceNames(app *apps.App) []string {
+	return []string{}
 }

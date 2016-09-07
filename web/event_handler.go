@@ -218,26 +218,28 @@ func (fh *eventHandler) handleDeploymentStepSuccess(body []byte) error {
 }
 
 func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
-
 	errors := []error{}
-	serviceName := fh.serviceRegistry.ServiceName(app)
+	serviceNames := fh.serviceRegistry.ServiceNames(app)
 
-	log.WithField("AppId", app.ID).WithField("ServiceName", serviceName).Info("Deregistering all services")
+	log.WithField("AppId", app.ID).WithField("ServiceNames", serviceNames).Info("Deregistering all services")
 
-	services, err := fh.serviceRegistry.GetServices(serviceName)
+	var allServices []*service.Service
+	for _, name := range serviceNames {
+		services, err := fh.serviceRegistry.GetServices(name)
+		if err != nil {
+			log.WithField("Id", app.ID).WithError(err).Error("There was a problem getting Consul services")
+			errors = append(errors, err)
+			return errors
+		}
+		allServices = append(allServices, services...)
+	}
 
-	if err != nil {
-		log.WithField("Id", app.ID).WithError(err).Error("There was a problem getting Consul services")
-		errors = append(errors, err)
+	if len(allServices) == 0 {
+		log.WithField("AppId", app.ID).WithField("ServiceNames", serviceNames).Info("No matching Consul services found")
 		return errors
 	}
 
-	if len(services) == 0 {
-		log.WithField("AppId", app.ID).WithField("ServiceName", serviceName).Info("No matching Consul services found")
-		return errors
-	}
-
-	for _, service := range services {
+	for _, service := range allServices {
 		taskId, err := service.TaskId()
 		if err != nil {
 			errors = append(errors, err)

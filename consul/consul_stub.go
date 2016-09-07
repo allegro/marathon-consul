@@ -84,29 +84,33 @@ func (c *ConsulStub) Register(task *apps.Task, app *apps.App) error {
 	if _, ok := c.failRegisterForIds[task.ID]; ok {
 		return fmt.Errorf("Consul stub programmed to fail when registering task of id %s", task.ID.String())
 	} else {
-		serviceRegistration, err := c.consul.marathonTaskToConsulService(task, app)
+		serviceRegistrations, err := c.consul.marathonTaskToConsulServices(task, app)
 		if err != nil {
 			return err
 		}
-		c.services[service.ServiceId(serviceRegistration.ID)] = serviceRegistration
+		for _, r := range serviceRegistrations {
+			c.services[service.ServiceId(r.ID)] = r
+		}
 		return nil
 	}
 }
 
 func (c *ConsulStub) RegisterWithoutMarathonTaskTag(task *apps.Task, app *apps.App) {
-	serviceRegistration := consulapi.AgentServiceRegistration{
-		ID:      task.ID.String(),
-		Name:    app.ConsulName(),
-		Port:    task.Ports[0],
-		Address: "127.0.0.1",
-		Tags:    []string{c.consul.config.Tag},
-		Checks:  consulapi.AgentServiceChecks{},
+	for _, intent := range app.RegistrationIntents(task, c.consul.config.ConsulNameSeparator) {
+		serviceRegistration := consulapi.AgentServiceRegistration{
+			ID:      task.ID.String(),
+			Name:    intent.Name,
+			Port:    intent.Port,
+			Address: task.Host,
+			Tags:    intent.Tags,
+			Checks:  consulapi.AgentServiceChecks{},
+		}
+		c.services[service.ServiceId(serviceRegistration.ID)] = &serviceRegistration
 	}
-	c.services[service.ServiceId(serviceRegistration.ID)] = &serviceRegistration
 }
 
-func (c *ConsulStub) ServiceName(app *apps.App) string {
-	return c.consul.ServiceName(app)
+func (c *ConsulStub) ServiceNames(app *apps.App) []string {
+	return c.consul.ServiceNames(app)
 }
 
 func (c *ConsulStub) DeregisterByTask(taskId apps.TaskId) error {

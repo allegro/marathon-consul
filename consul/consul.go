@@ -144,20 +144,32 @@ func contains(slice []string, search string) bool {
 }
 
 func (c *Consul) Register(task *apps.Task, app *apps.App) error {
-	service, err := c.marathonTaskToConsulService(task, app)
+	services, err := c.marathonTaskToConsulServices(task, app)
 	if err != nil {
 		return err
 	}
 	if value, ok := app.Labels[apps.MARATHON_CONSUL_LABEL]; ok && value == "true" {
 		log.WithField("Id", app.ID).Warn("Warning! Application configuration is deprecated (labeled as `consul:true`). Support for special `true` value will be removed in the future!")
 	}
-	metrics.Time("consul.register", func() { err = c.register(service) })
+	metrics.Time("consul.register", func() { err = c.registerMultipleServices(services) })
 	if err != nil {
 		metrics.Mark("consul.register.error")
 	} else {
 		metrics.Mark("consul.register.success")
 	}
 	return err
+}
+
+func (c *Consul) registerMultipleServices(services []*consulapi.AgentServiceRegistration) error {
+	var registerErrors []error
+	for _, s := range services {
+		registerErr := c.register(s)
+		if registerErr != nil {
+			registerErrors = append(registerErrors, registerErr)
+		}
+	}
+
+	return utils.MergeErrorsOrNil(registerErrors, fmt.Sprintf("registering services"))
 }
 
 func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
@@ -257,42 +269,32 @@ func (c *Consul) deregister(toDeregister *service.Service) error {
 	return err
 }
 
-func (c *Consul) ServiceName(app *apps.App) string {
-	appConsulName := app.ConsulName()
-	serviceName := c.marathonAppNameToConsulServiceName(appConsulName)
-	if serviceName == "" {
-		log.WithField("AppId", app.ID.String()).WithField("ConsulServiceName", appConsulName).
-			Warn("Warning! Invalid Consul service name provided for app. Will use default app name instead.")
-		return c.marathonAppNameToConsulServiceName(app.ID.String())
-	}
-	return serviceName
+func (c *Consul) ServiceNames(app *apps.App) []string {
+	return app.ConsulNames(c.config.ConsulNameSeparator)
 }
 
-func (c *Consul) marathonAppNameToConsulServiceName(name string) string {
-	return strings.Replace(strings.Trim(strings.TrimSpace(name), "/"), "/", c.config.ConsulNameSeparator, -1)
-}
-
-func (c *Consul) marathonTaskToConsulService(task *apps.Task, app *apps.App) (*consulapi.AgentServiceRegistration, error) {
+func (c *Consul) marathonTaskToConsulServices(task *apps.Task, app *apps.App) ([]*consulapi.AgentServiceRegistration, error) {
 	IP, err := utils.HostToIPv4(task.Host)
 	if err != nil {
 		return nil, err
 	}
 	serviceAddress := IP.String()
+	checks := c.marathonToConsulChecks(task, app.HealthChecks, serviceAddress)
 
-	name := c.ServiceName(app)
-	port := task.Ports[0]
-	serviceID := c.serviceId(task, name, port)
-	tags := c.marathonLabelsToConsulTags(app.Labels)
-	tags = append(tags, service.MarathonTaskTag(task.ID))
-
-	return &consulapi.AgentServiceRegistration{
-		ID:      serviceID,
-		Name:    name,
-		Port:    port,
-		Address: serviceAddress,
-		Tags:    tags,
-		Checks:  c.marathonToConsulChecks(task, app.HealthChecks, serviceAddress),
-	}, nil
+	var registrations []*consulapi.AgentServiceRegistration
+	for _, intent := range app.RegistrationIntents(task, c.config.ConsulNameSeparator) {
+		tags := append([]string{c.config.Tag}, intent.Tags...)
+		tags = append(tags, service.MarathonTaskTag(task.ID))
+		registrations = append(registrations, &consulapi.AgentServiceRegistration{
+			ID:      c.serviceId(task, intent.Name, intent.Port),
+			Name:    intent.Name,
+			Port:    intent.Port,
+			Address: serviceAddress,
+			Tags:    tags,
+			Checks:  checks,
+		})
+	}
+	return registrations, nil
 }
 
 func (c *Consul) serviceId(task *apps.Task, name string, port int) string {
@@ -338,16 +340,6 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 		}
 	}
 	return checks
-}
-
-func (c *Consul) marathonLabelsToConsulTags(labels map[string]string) []string {
-	tags := []string{c.config.Tag}
-	for key, value := range labels {
-		if value == "tag" {
-			tags = append(tags, key)
-		}
-	}
-	return tags
 }
 
 func (c *Consul) AddAgentsFromApps(apps []*apps.App) {

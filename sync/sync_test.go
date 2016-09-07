@@ -160,12 +160,12 @@ func (c *ConsulServicesMock) RegistrationsCount(instanceId string) int {
 	return c.registrations[instanceId]
 }
 
-func (c *ConsulServicesMock) ServiceName(app *apps.App) string {
-	return ""
-}
-
 func (c *ConsulServicesMock) DeregisterByTask(taskId apps.TaskId) error {
 	return nil
+}
+
+func (c *ConsulServicesMock) ServiceNames(app *apps.App) []string {
+	return []string{}
 }
 
 func (c *ConsulServicesMock) Deregister(toDeregister *service.Service) error {

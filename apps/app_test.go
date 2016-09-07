@@ -119,3 +119,411 @@ func TestAppId_String(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "appId", AppId("appId").String())
 }
+
+var dummyTask = &Task{
+	ID:    TaskId("some-task"),
+	Ports: []int{1337},
+}
+
+func TestRegistrationIntent_NameWithoutConsulLabel(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID: "/rootGroup/subGroup/subSubGroup/name",
+	}
+
+	// when
+	intent := app.RegistrationIntents(dummyTask, ".")[0]
+
+	// then
+	assert.Equal(t, "rootGroup.subGroup.subSubGroup.name", intent.Name)
+}
+
+func TestRegistrationIntent_Name(t *testing.T) {
+	t.Parallel()
+
+	var intentNameTestsData = []struct {
+		consulLabel  string
+		expectedName string
+	}{
+		{"", "rootGroup-subGroup-subSubGroup-name"},
+		{"true", "rootGroup-subGroup-subSubGroup-name"},
+		{"/some-other/name", "some-other-name"},
+		{"     ///", "rootGroup-subGroup-subSubGroup-name"},
+	}
+
+	for _, testData := range intentNameTestsData {
+		// given
+		app := &App{
+			ID:     "/rootGroup/subGroup/subSubGroup/name",
+			Labels: map[string]string{"consul": testData.consulLabel},
+		}
+
+		// when
+		intent := app.RegistrationIntents(dummyTask, "-")[0]
+
+		// then
+		if intent.Name != testData.expectedName {
+			t.Errorf("Registration name from consul label '%s' was '%s', expected '%s'", testData.consulLabel, intent.Name, testData.expectedName)
+		}
+	}
+}
+
+func TestRegistrationIntent_PickFirstPort(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID: "name",
+	}
+	task := &Task{
+		Ports: []int{1234, 5678},
+	}
+
+	// when
+	intent := app.RegistrationIntents(task, "-")[0]
+
+	// then
+	assert.Equal(t, 1234, intent.Port)
+}
+
+func TestRegistrationIntent_WithTags(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "name",
+		Labels: map[string]string{"private": "tag", "other": "irrelevant"},
+	}
+
+	// when
+	intent := app.RegistrationIntents(dummyTask, "-")[0]
+
+	// then
+	assert.Equal(t, []string{"private"}, intent.Tags)
+}
+
+func TestRegistrationIntent_NoOverrideViaPortDefinitionsIfNoConsulLabelThere(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true", "private": "tag"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"other": "tag"},
+			},
+			PortDefinition{},
+		},
+	}
+	task := &Task{
+		Ports: []int{1234, 5678},
+	}
+
+	// when
+	intents := app.RegistrationIntents(task, "-")
+
+	// then
+	assert.Len(t, intents, 1)
+	assert.Equal(t, "app-name", intents[0].Name)
+	assert.Equal(t, 1234, intents[0].Port)
+	assert.Equal(t, []string{"private"}, intents[0].Tags)
+}
+
+func TestRegistrationIntent_OverrideNameAndAddTagsViaPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true", "private": "tag"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "other-name", "other": "tag"},
+			},
+			PortDefinition{},
+		},
+	}
+	task := &Task{
+		Ports: []int{1234, 5678},
+	}
+
+	// when
+	intents := app.RegistrationIntents(task, "-")
+
+	// then
+	assert.Len(t, intents, 1)
+	assert.Equal(t, "other-name", intents[0].Name)
+	assert.Equal(t, 1234, intents[0].Port)
+	assert.Equal(t, []string{"private", "other"}, intents[0].Tags)
+}
+
+func TestRegistrationIntent_PickDifferentPortViaPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true", "private": "tag"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{},
+			PortDefinition{
+				Labels: map[string]string{"consul": "true"},
+			},
+		},
+	}
+	task := &Task{
+		Ports: []int{1234, 5678},
+	}
+
+	// when
+	intent := app.RegistrationIntents(task, "-")[0]
+
+	// then
+	assert.Equal(t, 5678, intent.Port)
+}
+
+func TestRegistrationIntent_PickExplicitPortViaPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true", "private": "tag"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Port:   1337,
+				Labels: map[string]string{"consul": "true"},
+			},
+		},
+	}
+	task := &Task{
+		Ports: []int{},
+	}
+
+	// when
+	intent := app.RegistrationIntents(task, "-")[0]
+
+	// then
+	assert.Equal(t, 1337, intent.Port)
+}
+
+func TestRegistrationIntent_MultipleIntentsViaPortDefinitionIfMultipleContainConsulLabel(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true", "common-tag": "tag"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "first-name", "first-tag": "tag"},
+			},
+			PortDefinition{
+				Labels: map[string]string{"consul": "second-name", "second-tag": "tag"},
+			},
+		},
+	}
+	task := &Task{
+		Ports: []int{1234, 5678},
+	}
+
+	// when
+	intents := app.RegistrationIntents(task, "-")
+
+	// then
+	assert.Len(t, intents, 2)
+	assert.Equal(t, "first-name", intents[0].Name)
+	assert.Equal(t, 1234, intents[0].Port)
+	assert.Equal(t, []string{"common-tag", "first-tag"}, intents[0].Tags)
+	assert.Equal(t, "second-name", intents[1].Name)
+	assert.Equal(t, 5678, intents[1].Port)
+	assert.Equal(t, []string{"common-tag", "second-tag"}, intents[1].Tags)
+}
+
+func TestConsulNames_WithoutPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "context/app-name",
+		Labels: map[string]string{"consul": ""},
+	}
+
+	// expect
+	assert.Equal(t, []string{"context.app-name"}, app.ConsulNames("."))
+}
+
+func TestConsulNames_WithPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "context/app-name",
+		Labels: map[string]string{"consul": ""},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "some/name"},
+			},
+			PortDefinition{
+				Labels: map[string]string{"consul": "yet-another/name"},
+			},
+		},
+	}
+
+	// expect
+	assert.Equal(t, []string{"some.name", "yet-another.name"}, app.ConsulNames("."))
+}
+
+func TestHasSameConsulNamesAs_SameConfigsWithoutPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true"},
+	}
+
+	// expect
+	assert.True(t, app.HasSameConsulNamesAs(app))
+}
+
+func TestHasSameConsulNamesAs_DifferentConfigsSameNameWithoutPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true"},
+	}
+	other := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "app-name"},
+	}
+
+	// expect
+	assert.True(t, app.HasSameConsulNamesAs(other))
+	assert.True(t, other.HasSameConsulNamesAs(other))
+}
+
+func TestHasSameConsulNamesAs_DifferentConfigsWithoutPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "some-name"},
+	}
+	other := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "different-name"},
+	}
+
+	// expect
+	assert.False(t, app.HasSameConsulNamesAs(other))
+}
+
+func TestHasSameConsulNamesAs_SameConfigsWithPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "true"},
+			},
+		},
+	}
+
+	// expect
+	assert.True(t, app.HasSameConsulNamesAs(app))
+}
+
+func TestHasSameConsulNamesAs_DifferentConfigsSameNamesWithPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "true"},
+			},
+		},
+	}
+	other := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "app-name"},
+			},
+		},
+	}
+
+	// expect
+	assert.True(t, app.HasSameConsulNamesAs(other))
+	assert.True(t, other.HasSameConsulNamesAs(app))
+}
+
+func TestHasSameConsulNamesAs_DifferentConfigsDifferentNamesWithPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "some-name"},
+			},
+		},
+	}
+	other := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "other-name"},
+			},
+		},
+	}
+
+	// expect
+	assert.False(t, app.HasSameConsulNamesAs(other))
+}
+
+func TestHasSameConsulNamesAs_DifferentConfigsDifferentNumberOfRegitrationsWithPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "some-name"},
+			},
+		},
+	}
+	other := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true"},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": "some-name"},
+			},
+			PortDefinition{
+				Labels: map[string]string{"consul": "yet-another-name"},
+			},
+		},
+	}
+
+	// expect
+	assert.False(t, app.HasSameConsulNamesAs(other))
+}
