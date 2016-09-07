@@ -109,6 +109,11 @@ func (c *ConsulStub) RegisterWithoutMarathonTaskTag(task *apps.Task, app *apps.A
 	}
 }
 
+func (c *ConsulStub) RegisterOnlyFirstRegistrationIntent(task *apps.Task, app *apps.App) {
+	serviceRegistrations, _ := c.consul.marathonTaskToConsulServices(task, app)
+	c.services[service.ServiceId(serviceRegistrations[0].ID)] = serviceRegistrations[0]
+}
+
 func (c *ConsulStub) ServiceNames(app *apps.App) []string {
 	return c.consul.ServiceNames(app)
 }

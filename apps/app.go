@@ -119,6 +119,19 @@ type RegistrationIntent struct {
 	Tags []string
 }
 
+func (app *App) RegistrationIntentsNumber() int {
+	if !app.IsConsulApp() {
+		return 0
+	}
+
+	definitions := app.findConsulPortDefinitions()
+	if len(definitions) == 0 {
+		return 1
+	}
+
+	return len(definitions)
+}
+
 func (app *App) RegistrationIntents(task *Task, nameSeparator string) []*RegistrationIntent {
 	commonTags := labelsToTags(app.Labels)
 

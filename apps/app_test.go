@@ -527,3 +527,67 @@ func TestHasSameConsulNamesAs_DifferentConfigsDifferentNumberOfRegitrationsWithP
 	// expect
 	assert.False(t, app.HasSameConsulNamesAs(other))
 }
+
+func TestRegistrationIntentsNumber_NotConsulApp(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID: "id",
+	}
+
+	// expect
+	assert.Equal(t, 0, app.RegistrationIntentsNumber())
+}
+
+func TestRegistrationIntentsNumber_NoPortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID: "id",
+		Labels: map[string]string{"consul": ""},
+	}
+
+	// expect
+	assert.Equal(t, 1, app.RegistrationIntentsNumber())
+}
+
+func TestRegistrationIntentsNumber_SinglePortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "id",
+		Labels: map[string]string{"consul": ""},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": ""},
+			},
+		},
+	}
+
+	// expect
+	assert.Equal(t, 1, app.RegistrationIntentsNumber())
+}
+
+func TestRegistrationIntentsNumber_MultiplePortDefinitions(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "id",
+		Labels: map[string]string{"consul": ""},
+		PortDefinitions: []PortDefinition{
+			PortDefinition{
+				Labels: map[string]string{"consul": ""},
+			},
+			PortDefinition{
+				Labels: map[string]string{"consul": ""},
+			},
+		},
+	}
+
+	// expect
+	assert.Equal(t, 2, app.RegistrationIntentsNumber())
+}
