@@ -326,6 +326,28 @@ func TestSync_WithRegisteringProblems(t *testing.T) {
 	assert.Len(t, services, 2)
 }
 
+func TestSync_ShouldRegisterMissingRegistrationInMultiregistrationScenario(t *testing.T) {
+	t.Parallel()
+	// given
+	app := ConsulAppMultipleRegistrations("/test/app", 1, 2)
+	marathon := marathon.MarathonerStubForApps(app)
+	consul := consul.NewConsulStub()
+
+	consul.RegisterOnlyFirstRegistrationIntent(&app.Tasks[0], app)
+	services, _ := consul.GetAllServices()
+	assert.Len(t, services, 1)
+
+	sync := newSyncWithDefaultConfig(marathon, consul)
+
+	// when
+	err := sync.SyncServices()
+
+	// then
+	services, _ = consul.GetAllServices()
+	assert.NoError(t, err)
+	assert.Len(t, services, 2)
+}
+
 func TestSync_WithDeregisteringProblems(t *testing.T) {
 	t.Parallel()
 	// given

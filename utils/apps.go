@@ -8,24 +8,32 @@ import (
 )
 
 func ConsulApp(name string, instances int) *apps.App {
-	return app(name, instances, true, 0)
+	return app(name, instances, 1, true, 0)
 }
 
 func ConsulAppWithUnhealthyInstances(name string, instances int, unhealthyInstances int) *apps.App {
-	return app(name, instances, true, unhealthyInstances)
+	return app(name, instances, 1, true, unhealthyInstances)
+}
+
+func ConsulAppMultipleRegistrations(name string, instances int, registrations int) *apps.App {
+	return app(name, instances, registrations, true, 0)
 }
 
 func NonConsulApp(name string, instances int) *apps.App {
-	return app(name, instances, false, 0)
+	return app(name, instances, 1, false, 0)
 }
 
-func app(name string, instances int, consul bool, unhealthyInstances int) *apps.App {
+func app(name string, instances int, registrationsPerInstance int, consul bool, unhealthyInstances int) *apps.App {
 	var appTasks []apps.Task
 	for i := 0; i < instances; i++ {
+		var ports []int
+		for j := 1; j <= registrationsPerInstance; j++ {
+			ports = append(ports, 8080 + (i * j) + j - 1)
+		}
 		task := apps.Task{
 			AppID: apps.AppId(name),
 			ID:    apps.TaskId(fmt.Sprintf("%s.%d", strings.Replace(strings.Trim(name, "/"), "/", "_", -1), i)),
-			Ports: []int{8080 + i},
+			Ports: ports,
 			Host:  "localhost",
 		}
 		if unhealthyInstances > 0 {
@@ -45,9 +53,20 @@ func app(name string, instances int, consul bool, unhealthyInstances int) *apps.
 		labels[apps.MARATHON_CONSUL_LABEL] = "true"
 	}
 
-	return &apps.App{
+	app := &apps.App{
 		ID:     apps.AppId(name),
 		Tasks:  appTasks,
 		Labels: labels,
 	}
+
+	if registrationsPerInstance > 1 {
+		for i := 0; i < registrationsPerInstance; i++ {
+			app.PortDefinitions = append(app.PortDefinitions, apps.PortDefinition{
+				Port: 0,
+				Labels: map[string]string{"consul": ""},
+			})
+		}
+	}
+
+	return app
 }
