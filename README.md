@@ -312,7 +312,7 @@ Provide `--bootstrap-agent-location` specifying address and port of one of the n
 all nodes in the datacenter and migrate all services registered there. Optionally, you can provide `--consul-tag` to match the one
 configured in your marathon-consul installation if you did customize it.
 
-If you have multiple datacenters you should migrate each one separately.
+If you have multiple datacenters you should migrate each one separately. It's safe to run the migration script multiple times – it skips services already in the new format.
 
 ## Known limitations
 
