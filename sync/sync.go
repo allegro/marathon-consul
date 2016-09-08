@@ -21,8 +21,6 @@ type Sync struct {
 
 type startedListener func(apps []*apps.App)
 
-var noopSyncStartedListener = func(apps []*apps.App) {}
-
 func New(config Config, marathon marathon.Marathoner, serviceRegistry service.ServiceRegistry, syncStartedListener startedListener) *Sync {
 	return &Sync{config, marathon, serviceRegistry, syncStartedListener}
 }
@@ -41,14 +39,13 @@ func (s *Sync) StartSyncServicesJob() *time.Ticker {
 
 	ticker := time.NewTicker(s.config.Interval)
 	go func() {
-		s.SyncServices()
+		if err := s.SyncServices(); err != nil {
+			log.WithError(err).Error("An error occured while performing sync")
+		}
 		for {
-			select {
-			case <-ticker.C:
-				err := s.SyncServices()
-				if err != nil {
-					log.WithError(err).Error("An error occured while performing sync")
-				}
+			<-ticker.C
+			if err := s.SyncServices(); err != nil {
+				log.WithError(err).Error("An error occured while performing sync")
 			}
 		}
 	}()

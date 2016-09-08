@@ -39,9 +39,9 @@ func newEventHandler(id int, serviceRegistry service.ServiceRegistry, marathon m
 }
 
 func (fh *eventHandler) Start() chan<- stopEvent {
-	var event event
+	var e event
 	process := func() {
-		err := fh.handleEvent(event.eventType, event.body)
+		err := fh.handleEvent(e.eventType, e.body)
 		if err != nil {
 			metrics.Mark("events.processing.error")
 		} else {
@@ -54,11 +54,11 @@ func (fh *eventHandler) Start() chan<- stopEvent {
 	go func() {
 		for {
 			select {
-			case event = <-fh.eventQueue:
+			case e = <-fh.eventQueue:
 				metrics.Mark(fmt.Sprintf("events.handler.%d", fh.id))
 				metrics.UpdateGauge("events.queue.len", int64(len(fh.eventQueue)))
-				metrics.UpdateGauge("events.queue.delay_ns", time.Since(event.timestamp).Nanoseconds())
-				metrics.Time("events.processing."+event.eventType, process)
+				metrics.UpdateGauge("events.queue.delay_ns", time.Since(e.timestamp).Nanoseconds())
+				metrics.Time("events.processing."+e.eventType, process)
 			case <-quitChan:
 				log.WithField("Id", fh.id).Info("Stopping worker")
 			}
@@ -190,9 +190,7 @@ func (fh *eventHandler) handleDeploymentInfo(body []byte) error {
 
 	errors := []error{}
 	for _, app := range deploymentEvent.StoppedConsulApps() {
-		for _, err = range fh.deregisterAllAppServices(app) {
-			errors = append(errors, err)
-		}
+		errors = append(errors, fh.deregisterAllAppServices(app)...)
 	}
 	return utils.MergeErrorsOrNil(errors, "handling deregistration")
 }
@@ -208,9 +206,7 @@ func (fh *eventHandler) handleDeploymentStepSuccess(body []byte) error {
 
 	errors := []error{}
 	for _, app := range deploymentEvent.RenamedConsulApps() {
-		for _, err = range fh.deregisterAllAppServices(app) {
-			errors = append(errors, err)
-		}
+		errors = append(errors, fh.deregisterAllAppServices(app)...)
 	}
 	return utils.MergeErrorsOrNil(errors, "handling deregistration")
 }

@@ -133,16 +133,10 @@ func (d *DeploymentEvent) filterConsulApps(allApps []*apps.App) []*apps.App {
 func (d *DeploymentEvent) findAppsInDeploymentsGroup(appIds map[apps.AppID]struct{}, deployment *Deployments) []*apps.App {
 	foundApps := []*apps.App{}
 	filteredAppIds := deployment.filterCurrentGroupAppIds(appIds)
-
 	foundInCurrentGroup := d.findAppsInCurrentDeploymentGroupApps(filteredAppIds, deployment)
-	for _, app := range foundInCurrentGroup {
-		foundApps = append(foundApps, app)
-	}
-
+	foundApps = append(foundApps, foundInCurrentGroup...)
 	foundInChildGroups := d.findAppsInDeploymentChildGroups(filteredAppIds, deployment)
-	for _, app := range foundInChildGroups {
-		foundApps = append(foundApps, app)
-	}
+	foundApps = append(foundApps, foundInChildGroups...)
 	return foundApps
 }
 
@@ -171,9 +165,7 @@ func (d *DeploymentEvent) findAppsInDeploymentChildGroups(appIds map[apps.AppID]
 			break
 		}
 		foundInChildGroup := d.findAppsInDeploymentsGroup(appIds, group)
-		for _, app := range foundInChildGroup {
-			foundApps = append(foundApps, app)
-		}
+		foundApps = append(foundApps, foundInChildGroup...)
 		searchForCount -= len(foundInChildGroup)
 	}
 	return foundApps
