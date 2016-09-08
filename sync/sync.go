@@ -154,7 +154,7 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, servic
 			if registrations := registrationsUnderTaskIds[task.ID]; registrations != expectedRegistrations {
 				if registrations != 0 {
 					log.WithField("Id", task.ID).WithField("HasRegistrations", registrations).
-					WithField("ExpectedRegistrations", expectedRegistrations).Info("Registering missing service registrations")
+						WithField("ExpectedRegistrations", expectedRegistrations).Info("Registering missing service registrations")
 				}
 				if task.IsHealthy() {
 					err := s.serviceRegistry.Register(&task, app)
@@ -171,8 +171,8 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, servic
 	}
 }
 
-func (s *Sync) taskIdsInConsulServices(services []*service.Service) map[apps.TaskId]int {
-	serviceCounters := make(map[apps.TaskId]int)
+func (s *Sync) taskIdsInConsulServices(services []*service.Service) map[apps.TaskID]int {
+	serviceCounters := make(map[apps.TaskID]int)
 	for _, service := range services {
 		if taskId, err := service.TaskId(); err == nil {
 			serviceCounters[taskId] += 1
@@ -181,8 +181,8 @@ func (s *Sync) taskIdsInConsulServices(services []*service.Service) map[apps.Tas
 	return serviceCounters
 }
 
-func (s *Sync) marathonTaskIdsSet(marathonApps []*apps.App) map[apps.TaskId]struct{} {
-	tasksSet := make(map[apps.TaskId]struct{})
+func (s *Sync) marathonTaskIdsSet(marathonApps []*apps.App) map[apps.TaskID]struct{} {
+	tasksSet := make(map[apps.TaskID]struct{})
 	var exists struct{}
 	for _, app := range marathonApps {
 		for _, task := range app.Tasks {

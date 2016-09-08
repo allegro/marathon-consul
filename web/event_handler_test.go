@@ -163,9 +163,9 @@ func TestWebHandler_handleDeploymentInfoWithStopApplicationForOneApp(t *testing.
 
 	// given
 	green := ConsulApp("/test/app.green", 3)
-	green.Labels[apps.MARATHON_CONSUL_LABEL] = "app"
+	green.Labels[apps.MarathonConsulLabel] = "app"
 	blue := ConsulApp("/test/app.blue", 2)
-	blue.Labels[apps.MARATHON_CONSUL_LABEL] = "app"
+	blue.Labels[apps.MarathonConsulLabel] = "app"
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(green, blue)
 	assert.Len(t, service.RegisteredTaskIds(), 5)

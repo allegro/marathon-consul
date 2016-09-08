@@ -12,8 +12,8 @@ import (
 type ConsulStub struct {
 	services                   map[service.ServiceId]*consulapi.AgentServiceRegistration
 	failGetServicesForNames    map[string]bool
-	failRegisterForIds         map[apps.TaskId]bool
-	failDeregisterByTaskForIds map[apps.TaskId]bool
+	failRegisterForIds         map[apps.TaskID]bool
+	failDeregisterByTaskForIds map[apps.TaskID]bool
 	failDeregisterForIds       map[service.ServiceId]bool
 	consul                     *Consul
 }
@@ -26,8 +26,8 @@ func NewConsulStubWithTag(tag string) *ConsulStub {
 	return &ConsulStub{
 		services:                   make(map[service.ServiceId]*consulapi.AgentServiceRegistration),
 		failGetServicesForNames:    make(map[string]bool),
-		failRegisterForIds:         make(map[apps.TaskId]bool),
-		failDeregisterByTaskForIds: make(map[apps.TaskId]bool),
+		failRegisterForIds:         make(map[apps.TaskID]bool),
+		failDeregisterByTaskForIds: make(map[apps.TaskID]bool),
 		failDeregisterForIds:       make(map[service.ServiceId]bool),
 		consul:                     New(ConsulConfig{Tag: tag, ConsulNameSeparator: "."}),
 	}
@@ -40,7 +40,7 @@ func (c ConsulStub) GetAllServices() ([]*service.Service, error) {
 			ID:   service.ServiceId(s.ID),
 			Name: s.Name,
 			RegisteringAgentAddress: s.Address,
-			Tags: s.Tags,
+			Tags:                    s.Tags,
 		})
 	}
 	return allServices, nil
@@ -50,11 +50,11 @@ func (c ConsulStub) FailGetServicesForName(failOnName string) {
 	c.failGetServicesForNames[failOnName] = true
 }
 
-func (c ConsulStub) FailRegisterForId(taskId apps.TaskId) {
+func (c ConsulStub) FailRegisterForId(taskId apps.TaskID) {
 	c.failRegisterForIds[taskId] = true
 }
 
-func (c ConsulStub) FailDeregisterByTaskForId(taskId apps.TaskId) {
+func (c ConsulStub) FailDeregisterByTaskForId(taskId apps.TaskID) {
 	c.failDeregisterByTaskForIds[taskId] = true
 }
 
@@ -73,7 +73,7 @@ func (c ConsulStub) GetServices(name string) ([]*service.Service, error) {
 				ID:   service.ServiceId(s.ID),
 				Name: s.Name,
 				RegisteringAgentAddress: s.Address,
-				Tags: s.Tags,
+				Tags:                    s.Tags,
 			})
 		}
 	}
@@ -118,7 +118,7 @@ func (c *ConsulStub) ServiceNames(app *apps.App) []string {
 	return c.consul.ServiceNames(app)
 }
 
-func (c *ConsulStub) DeregisterByTask(taskId apps.TaskId) error {
+func (c *ConsulStub) DeregisterByTask(taskId apps.TaskID) error {
 	if _, ok := c.failDeregisterByTaskForIds[taskId]; ok {
 		return fmt.Errorf("Consul stub programmed to fail when deregistering task of id %s", taskId.String())
 	} else {
@@ -137,7 +137,7 @@ func (c *ConsulStub) Deregister(toDeregister *service.Service) error {
 	return nil
 }
 
-func (c *ConsulStub) servicesMatchingTask(services map[service.ServiceId]*consulapi.AgentServiceRegistration, taskId apps.TaskId) []*consulapi.AgentServiceRegistration {
+func (c *ConsulStub) servicesMatchingTask(services map[service.ServiceId]*consulapi.AgentServiceRegistration, taskId apps.TaskID) []*consulapi.AgentServiceRegistration {
 	matching := []*consulapi.AgentServiceRegistration{}
 	for _, s := range services {
 		if s.ID == taskId.String() || contains(s.Tags, fmt.Sprintf("marathon-task:%s", taskId.String())) {
@@ -147,9 +147,9 @@ func (c *ConsulStub) servicesMatchingTask(services map[service.ServiceId]*consul
 	return matching
 }
 
-func (c *ConsulStub) RegisteredTaskIds() []apps.TaskId {
+func (c *ConsulStub) RegisteredTaskIds() []apps.TaskID {
 	services, _ := c.GetAllServices()
-	taskIds := []apps.TaskId{}
+	taskIds := []apps.TaskID{}
 	for _, s := range services {
 		taskId, _ := s.TaskId()
 		taskIds = append(taskIds, taskId)

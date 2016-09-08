@@ -8,8 +8,8 @@ import (
 
 type MarathonerStub struct {
 	AppsStub     []*apps.App
-	AppStub      map[apps.AppId]*apps.App
-	TasksStub    map[apps.AppId][]*apps.Task
+	AppStub      map[apps.AppID]*apps.App
+	TasksStub    map[apps.AppID][]*apps.Task
 	leader       string
 	interactions bool
 }
@@ -19,7 +19,7 @@ func (m *MarathonerStub) ConsulApps() ([]*apps.App, error) {
 	return m.AppsStub, nil
 }
 
-func (m *MarathonerStub) App(id apps.AppId) (*apps.App, error) {
+func (m *MarathonerStub) App(id apps.AppID) (*apps.App, error) {
 	m.interactions = true
 	if app, ok := m.AppStub[id]; ok {
 		return app, nil
@@ -28,7 +28,7 @@ func (m *MarathonerStub) App(id apps.AppId) (*apps.App, error) {
 	}
 }
 
-func (m *MarathonerStub) Tasks(appId apps.AppId) ([]*apps.Task, error) {
+func (m *MarathonerStub) Tasks(appId apps.AppID) ([]*apps.Task, error) {
 	m.interactions = true
 	if app, ok := m.TasksStub[appId]; ok {
 		return app, nil
@@ -53,8 +53,8 @@ func MarathonerStubWithLeaderForApps(leader string, args ...*apps.App) *Marathon
 }
 
 func MarathonerStubForApps(args ...*apps.App) *MarathonerStub {
-	appsMap := make(map[apps.AppId]*apps.App)
-	tasksMap := make(map[apps.AppId][]*apps.Task)
+	appsMap := make(map[apps.AppID]*apps.App)
+	tasksMap := make(map[apps.AppID][]*apps.Task)
 
 	for _, app := range args {
 		appsMap[app.ID] = app

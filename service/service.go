@@ -21,16 +21,16 @@ type Service struct {
 	RegisteringAgentAddress string
 }
 
-func (s *Service) TaskId() (apps.TaskId, error) {
+func (s *Service) TaskId() (apps.TaskID, error) {
 	for _, tag := range s.Tags {
 		if strings.HasPrefix(tag, "marathon-task:") {
-			return apps.TaskId(strings.TrimPrefix(tag, "marathon-task:")), nil
+			return apps.TaskID(strings.TrimPrefix(tag, "marathon-task:")), nil
 		}
 	}
-	return apps.TaskId(""), errors.New("marathon-task tag missing")
+	return apps.TaskID(""), errors.New("marathon-task tag missing")
 }
 
-func MarathonTaskTag(taskId apps.TaskId) string {
+func MarathonTaskTag(taskId apps.TaskID) string {
 	return fmt.Sprintf("marathon-task:%s", taskId)
 }
 
@@ -38,7 +38,7 @@ type ServiceRegistry interface {
 	GetAllServices() ([]*Service, error)
 	GetServices(name string) ([]*Service, error)
 	Register(task *apps.Task, app *apps.App) error
-	DeregisterByTask(taskId apps.TaskId) error
+	DeregisterByTask(taskId apps.TaskID) error
 	Deregister(toDeregister *Service) error
 	ServiceNames(app *apps.App) []string
 }

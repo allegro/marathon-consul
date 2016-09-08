@@ -44,8 +44,8 @@ func TestConsulStub(t *testing.T) {
 	// then
 	assert.NoError(t, err)
 	assert.Len(t, services, 2)
-	assert.Contains(t, taskIds, apps.TaskId("test.0"))
-	assert.Contains(t, taskIds, apps.TaskId("test.2"))
+	assert.Contains(t, taskIds, apps.TaskID("test.0"))
+	assert.Contains(t, taskIds, apps.TaskID("test.2"))
 
 	// given
 	consul.FailDeregisterByTaskForId(app.Tasks[0].ID)

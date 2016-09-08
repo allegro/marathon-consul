@@ -396,10 +396,10 @@ func TestRegisterServices_MultipleRegistrations(t *testing.T) {
 	// given
 	app := utils.ConsulApp("serviceA", 1)
 	app.PortDefinitions = []apps.PortDefinition{
-		apps.PortDefinition{
+		{
 			Labels: map[string]string{"consul": "first-name", "first-tag": "tag"},
 		},
-		apps.PortDefinition{
+		{
 			Labels: map[string]string{"consul": "second-name", "second-tag": "tag"},
 		},
 	}
@@ -557,7 +557,7 @@ func TestDeregisterServicesByTask(t *testing.T) {
 	task := app.Tasks[0]
 
 	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
-	server.AddService("serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskId("other"))})
+	server.AddService("serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskID("other"))})
 	services, _ := consul.GetAllServices()
 	assert.Len(t, services, 2)
 
@@ -604,7 +604,7 @@ func TestDeregisterServicesByTask_shouldReturnErrorOnServiceMatchingTaskNotFound
 	task := app.Tasks[0]
 
 	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
-	server.AddService("serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskId("other"))})
+	server.AddService("serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskID("other"))})
 	services, _ := consul.GetAllServices()
 	assert.Len(t, services, 2)
 
@@ -631,7 +631,7 @@ func TestDeregisterServicesByTask_shouldDeregisterAllMatchingServicesWhenMultipl
 
 	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
 	server.AddService("serviceA-bis", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
-	server.AddService("serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskId("other"))})
+	server.AddService("serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskID("other"))})
 	services, _ := consul.GetAllServices()
 	assert.Len(t, services, 3)
 

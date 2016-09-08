@@ -16,8 +16,8 @@ import (
 
 type Marathoner interface {
 	ConsulApps() ([]*apps.App, error)
-	App(apps.AppId) (*apps.App, error)
-	Tasks(apps.AppId) ([]*apps.Task, error)
+	App(apps.AppID) (*apps.App, error)
+	Tasks(apps.AppID) ([]*apps.Task, error)
 	Leader() (string, error)
 }
 
@@ -56,7 +56,7 @@ func New(config Config) (*Marathon, error) {
 	}, nil
 }
 
-func (m Marathon) App(appId apps.AppId) (*apps.App, error) {
+func (m Marathon) App(appId apps.AppID) (*apps.App, error) {
 	log.WithField("Location", m.Location).Debug("Asking Marathon for " + appId)
 
 	body, err := m.get(m.urlWithQuery(fmt.Sprintf("/v2/apps/%s", appId), params{"embed": "apps.tasks"}))
@@ -69,7 +69,7 @@ func (m Marathon) App(appId apps.AppId) (*apps.App, error) {
 
 func (m Marathon) ConsulApps() ([]*apps.App, error) {
 	log.WithField("Location", m.Location).Debug("Asking Marathon for apps")
-	body, err := m.get(m.urlWithQuery("/v2/apps", params{"embed": "apps.tasks", "label": apps.MARATHON_CONSUL_LABEL}))
+	body, err := m.get(m.urlWithQuery("/v2/apps", params{"embed": "apps.tasks", "label": apps.MarathonConsulLabel}))
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (m Marathon) ConsulApps() ([]*apps.App, error) {
 	return apps.ParseApps(body)
 }
 
-func (m Marathon) Tasks(app apps.AppId) ([]*apps.Task, error) {
+func (m Marathon) Tasks(app apps.AppID) ([]*apps.Task, error) {
 	log.WithFields(log.Fields{
 		"Location": m.Location,
 		"Id":       app,

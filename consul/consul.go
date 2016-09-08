@@ -148,7 +148,7 @@ func (c *Consul) Register(task *apps.Task, app *apps.App) error {
 	if err != nil {
 		return err
 	}
-	if value, ok := app.Labels[apps.MARATHON_CONSUL_LABEL]; ok && value == "true" {
+	if value, ok := app.Labels[apps.MarathonConsulLabel]; ok && value == "true" {
 		log.WithField("Id", app.ID).Warn("Warning! Application configuration is deprecated (labeled as `consul:true`). Support for special `true` value will be removed in the future!")
 	}
 	metrics.Time("consul.register", func() { err = c.registerMultipleServices(services) })
@@ -193,7 +193,7 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 	return err
 }
 
-func (c *Consul) DeregisterByTask(taskId apps.TaskId) error {
+func (c *Consul) DeregisterByTask(taskId apps.TaskID) error {
 	services, err := c.findServicesByTaskId(taskId)
 	if err != nil {
 		return err
@@ -203,7 +203,7 @@ func (c *Consul) DeregisterByTask(taskId apps.TaskId) error {
 	return c.deregisterMultipleServices(services, taskId)
 }
 
-func (c *Consul) deregisterMultipleServices(services []*service.Service, taskId apps.TaskId) error {
+func (c *Consul) deregisterMultipleServices(services []*service.Service, taskId apps.TaskID) error {
 	var deregisterErrors []error
 	for _, s := range services {
 		deregisterErr := c.Deregister(s)
@@ -215,7 +215,7 @@ func (c *Consul) deregisterMultipleServices(services []*service.Service, taskId 
 	return utils.MergeErrorsOrNil(deregisterErrors, fmt.Sprintf("deregistering by task %s", taskId))
 }
 
-func (c *Consul) findServicesByTaskId(searchedTaskId apps.TaskId) ([]*service.Service, error) {
+func (c *Consul) findServicesByTaskId(searchedTaskId apps.TaskID) ([]*service.Service, error) {
 	return c.getServicesUsingProviderWithRetriesOnAgentFailure(func(agent *consulapi.Client) ([]*service.Service, error) {
 		dcAwareQueries, err := dcAwareQueriesForAllDCs(agent)
 		if err != nil {

@@ -160,7 +160,7 @@ func (c *ConsulServicesMock) RegistrationsCount(instanceId string) int {
 	return c.registrations[instanceId]
 }
 
-func (c *ConsulServicesMock) DeregisterByTask(taskId apps.TaskId) error {
+func (c *ConsulServicesMock) DeregisterByTask(taskId apps.TaskID) error {
 	return nil
 }
 

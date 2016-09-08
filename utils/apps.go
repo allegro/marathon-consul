@@ -28,11 +28,11 @@ func app(name string, instances int, registrationsPerInstance int, consul bool, 
 	for i := 0; i < instances; i++ {
 		var ports []int
 		for j := 1; j <= registrationsPerInstance; j++ {
-			ports = append(ports, 8080 + (i * j) + j - 1)
+			ports = append(ports, 8080+(i*j)+j-1)
 		}
 		task := apps.Task{
-			AppID: apps.AppId(name),
-			ID:    apps.TaskId(fmt.Sprintf("%s.%d", strings.Replace(strings.Trim(name, "/"), "/", "_", -1), i)),
+			AppID: apps.AppID(name),
+			ID:    apps.TaskID(fmt.Sprintf("%s.%d", strings.Replace(strings.Trim(name, "/"), "/", "_", -1), i)),
 			Ports: ports,
 			Host:  "localhost",
 		}
@@ -50,11 +50,11 @@ func app(name string, instances int, registrationsPerInstance int, consul bool, 
 
 	labels := make(map[string]string)
 	if consul {
-		labels[apps.MARATHON_CONSUL_LABEL] = "true"
+		labels[apps.MarathonConsulLabel] = "true"
 	}
 
 	app := &apps.App{
-		ID:     apps.AppId(name),
+		ID:     apps.AppID(name),
 		Tasks:  appTasks,
 		Labels: labels,
 	}
@@ -62,7 +62,7 @@ func app(name string, instances int, registrationsPerInstance int, consul bool, 
 	if registrationsPerInstance > 1 {
 		for i := 0; i < registrationsPerInstance; i++ {
 			app.PortDefinitions = append(app.PortDefinitions, apps.PortDefinition{
-				Port: 0,
+				Port:   0,
 				Labels: map[string]string{"consul": ""},
 			})
 		}
