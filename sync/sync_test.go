@@ -156,11 +156,11 @@ func (c *ConsulServicesMock) Register(task *apps.Task, app *apps.App) error {
 	return nil
 }
 
-func (c *ConsulServicesMock) RegistrationsCount(instanceId string) int {
-	return c.registrations[instanceId]
+func (c *ConsulServicesMock) RegistrationsCount(instanceID string) int {
+	return c.registrations[instanceID]
 }
 
-func (c *ConsulServicesMock) DeregisterByTask(taskId apps.TaskID) error {
+func (c *ConsulServicesMock) DeregisterByTask(taskID apps.TaskID) error {
 	return nil
 }
 

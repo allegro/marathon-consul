@@ -16,14 +16,14 @@ type Sync struct {
 	config              Config
 	marathon            marathon.Marathoner
 	serviceRegistry     service.ServiceRegistry
-	syncStartedListener SyncStartedListener
+	syncStartedListener startedListener
 }
 
-type SyncStartedListener func(apps []*apps.App)
+type startedListener func(apps []*apps.App)
 
 var noopSyncStartedListener = func(apps []*apps.App) {}
 
-func New(config Config, marathon marathon.Marathoner, serviceRegistry service.ServiceRegistry, syncStartedListener SyncStartedListener) *Sync {
+func New(config Config, marathon marathon.Marathoner, serviceRegistry service.ServiceRegistry, syncStartedListener startedListener) *Sync {
 	return &Sync{config, marathon, serviceRegistry, syncStartedListener}
 }
 
@@ -121,14 +121,14 @@ func (s *Sync) resolveHostname() error {
 func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.App, services []*service.Service) {
 	runningTasks := s.marathonTaskIdsSet(marathonApps)
 	for _, service := range services {
-		taskIdInTag, err := service.TaskId()
-		taskIdNotFoundInTag := err != nil
-		if taskIdNotFoundInTag {
+		taskIDInTag, err := service.TaskId()
+		taskIDNotFoundInTag := err != nil
+		if taskIDNotFoundInTag {
 			log.WithField("Id", service.ID).WithError(err).
 				Warn("Couldn't extract marathon task id, deregistering to have sync reregister it properly")
 		}
 
-		if _, isRunning := runningTasks[taskIdInTag]; !isRunning || taskIdNotFoundInTag {
+		if _, isRunning := runningTasks[taskIDInTag]; !isRunning || taskIDNotFoundInTag {
 			err := s.serviceRegistry.Deregister(service)
 			if err != nil {
 				log.WithError(err).WithFields(log.Fields{
@@ -174,8 +174,8 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, servic
 func (s *Sync) taskIdsInConsulServices(services []*service.Service) map[apps.TaskID]int {
 	serviceCounters := make(map[apps.TaskID]int)
 	for _, service := range services {
-		if taskId, err := service.TaskId(); err == nil {
-			serviceCounters[taskId] += 1
+		if taskID, err := service.TaskId(); err == nil {
+			serviceCounters[taskID]++
 		}
 	}
 	return serviceCounters
