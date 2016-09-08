@@ -389,7 +389,7 @@ func deploymentInfoWithStopApplicationActionForApps(applications ...*apps.App) *
 	}
 	for _, app := range applications {
 		deploymentInfo.Plan.Original.Apps = append(deploymentInfo.Plan.Original.Apps, app)
-		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppId: app.ID, Type: "StopApplication"})
+		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppID: app.ID, Type: "StopApplication"})
 	}
 	return deploymentInfo
 }
@@ -486,7 +486,7 @@ func deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(applicati
 			targetApp.Labels["consul"] = fmt.Sprintf("New%s", name)
 		}
 		deploymentInfo.Plan.Target.Apps = append(deploymentInfo.Plan.Target.Apps, targetApp)
-		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppId: app.ID, Type: "RestartApplication"})
+		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppID: app.ID, Type: "RestartApplication"})
 	}
 	return deploymentInfo
 }
@@ -797,7 +797,7 @@ func TestWebHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing.T
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
-	service.FailRegisterForId(app.Tasks[1].ID)
+	service.FailRegisterForID(app.Tasks[1].ID)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))

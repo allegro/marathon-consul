@@ -57,7 +57,7 @@ func TestConsulStub(t *testing.T) {
 	assert.Error(t, err)
 
 	// given
-	consul.FailRegisterForId(app.Tasks[0].ID)
+	consul.FailRegisterForID(app.Tasks[0].ID)
 
 	// when
 	err = consul.Register(&app.Tasks[0], app)

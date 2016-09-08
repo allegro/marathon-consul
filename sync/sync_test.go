@@ -316,7 +316,7 @@ func TestSync_WithRegisteringProblems(t *testing.T) {
 	// given
 	marathon := marathon.MarathonerStubForApps(ConsulApp("/test/app", 3))
 	consul := consul.NewConsulStub()
-	consul.FailRegisterForId("test_app.1")
+	consul.FailRegisterForID("test_app.1")
 	sync := newSyncWithDefaultConfig(marathon, consul)
 	// when
 	err := sync.SyncServices()
