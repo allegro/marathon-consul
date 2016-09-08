@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -975,13 +976,13 @@ func newConsulStubWithApplicationsTasksRegistered(applications ...*apps.App) *co
 type BadReader struct{}
 
 func (r BadReader) Read(p []byte) (n int, err error) {
-	return 0, fmt.Errorf("Some error")
+	return 0, errors.New("Some error")
 }
 
-func healthStatusChangeEventForTask(taskId string) string {
+func healthStatusChangeEventForTask(taskID string) string {
 	return `{
 	  "appId":"/test/app",
-	  "taskId":"` + taskId + `",
+	  "taskId":"` + taskID + `",
 	  "version":"2015-12-07T09:02:48.981Z",
 	  "alive":true,
 	  "eventType":"health_status_changed_event",

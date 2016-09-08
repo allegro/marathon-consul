@@ -69,7 +69,7 @@ func (fh *eventHandler) Start() chan<- stopEvent {
 
 func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 
-	body = replaceTaskIdWithId(body)
+	body = replaceTaskIDWithID(body)
 
 	switch eventType {
 	case "status_update_event":
@@ -106,8 +106,8 @@ func (fh *eventHandler) handleHealthStatusEvent(body []byte) error {
 		return nil
 	}
 
-	appId := taskHealthChange.AppID
-	app, err := fh.marathon.App(appId)
+	appID := taskHealthChange.AppID
+	app, err := fh.marathon.App(appID)
 	if err != nil {
 		log.WithField("Id", taskHealthChange.ID).WithError(err).Error("There was a problem obtaining app info")
 		return err
@@ -121,7 +121,7 @@ func (fh *eventHandler) handleHealthStatusEvent(body []byte) error {
 
 	tasks := app.Tasks
 
-	task, err := findTaskById(taskHealthChange.ID, tasks)
+	task, err := findTaskByID(taskHealthChange.ID, tasks)
 	if err != nil {
 		log.WithField("Id", taskHealthChange.ID).WithError(err).Error("Task not found")
 		return err
@@ -132,13 +132,11 @@ func (fh *eventHandler) handleHealthStatusEvent(body []byte) error {
 		if err != nil {
 			log.WithField("Id", task.ID).WithError(err).Error("There was a problem registering task")
 			return err
-		} else {
-			return nil
 		}
-	} else {
-		log.WithField("Id", task.ID).Debug("Task is not healthy. Not registering")
 		return nil
 	}
+	log.WithField("Id", task.ID).Debug("Task is not healthy. Not registering")
+	return nil
 }
 
 func (fh *eventHandler) handleStatusEvent(body []byte) error {
@@ -240,13 +238,13 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 	}
 
 	for _, service := range allServices {
-		taskId, err := service.TaskId()
+		taskID, err := service.TaskId()
 		if err != nil {
 			errors = append(errors, err)
 			continue
 		}
-		if taskId.AppID() == app.ID {
-			err = fh.deregister(taskId)
+		if taskID.AppID() == app.ID {
+			err = fh.deregister(taskID)
 			if err != nil {
 				errors = append(errors, err)
 			}
@@ -255,16 +253,16 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 	return errors
 }
 
-func (fh *eventHandler) deregister(taskId apps.TaskID) error {
-	err := fh.serviceRegistry.DeregisterByTask(taskId)
+func (fh *eventHandler) deregister(taskID apps.TaskID) error {
+	err := fh.serviceRegistry.DeregisterByTask(taskID)
 	if err != nil {
-		log.WithField("Id", taskId).WithError(err).Error("There was a problem deregistering task")
+		log.WithField("Id", taskID).WithError(err).Error("There was a problem deregistering task")
 	}
 	return err
 }
 
-func findTaskById(id apps.TaskID, tasks_ []apps.Task) (apps.Task, error) {
-	for _, task := range tasks_ {
+func findTaskByID(id apps.TaskID, tasks []apps.Task) (apps.Task, error) {
+	for _, task := range tasks {
 		if task.ID == id {
 			return task, nil
 		}
@@ -276,6 +274,6 @@ func findTaskById(id apps.TaskID, tasks_ []apps.Task) (apps.Task, error) {
 // Here, it uses "taskId", with most of the other fields being equal. We'll
 // just swap "taskId" for "id" in the body so that we can successfully parse
 // incoming events.
-func replaceTaskIdWithId(body []byte) []byte {
+func replaceTaskIDWithID(body []byte) []byte {
 	return bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
 }
