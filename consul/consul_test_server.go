@@ -10,8 +10,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func CreateTestServer(t *testing.T) *testutil.TestServer {
+	ports, err := getPorts(6)
+	assert.NoError(t, err)
+	return testutil.NewTestServerConfig(t, func(c *testutil.TestServerConfig) {
+		c.Datacenter = fmt.Sprint("dc-", time.Now().UnixNano())
+		c.Ports = &testutil.TestPortConfig{
+			DNS:     ports[0],
+			HTTP:    ports[1],
+			RPC:     ports[2],
+			SerfLan: ports[3],
+			SerfWan: ports[4],
+			Server:  ports[5],
+		}
+	})
+}
+
 // Ask the kernel for free open ports that are ready to use
-func GetPorts(number int) ([]int, error) {
+func getPorts(number int) ([]int, error) {
 	ports := make([]int, number)
 	listener := make([]*net.TCPListener, number)
 	defer func() {
@@ -35,32 +51,16 @@ func GetPorts(number int) ([]int, error) {
 	return ports, nil
 }
 
-func CreateConsulTestServer(t *testing.T) *testutil.TestServer {
-	ports, err := GetPorts(6)
-	assert.NoError(t, err)
-	return testutil.NewTestServerConfig(t, func(c *testutil.TestServerConfig) {
-		c.Datacenter = fmt.Sprint("dc-", time.Now().UnixNano())
-		c.Ports = &testutil.TestPortConfig{
-			DNS:     ports[0],
-			HTTP:    ports[1],
-			RPC:     ports[2],
-			SerfLan: ports[3],
-			SerfWan: ports[4],
-			Server:  ports[5],
-		}
-	})
-}
-
-func ConsulClientAtServer(server *testutil.TestServer) *Consul {
+func ClientAtServer(server *testutil.TestServer) *Consul {
 	return consulClientAtAddress(server.Config.Bind, server.Config.Ports.HTTP)
 }
 
-func FailingConsulClient() *Consul {
+func FailingClient() *Consul {
 	return consulClientAtAddress("127.5.5.5", 5555)
 }
 
 func consulClientAtAddress(host string, port int) *Consul {
-	config := ConsulConfig{
+	config := Config{
 		Timeout:             10 * time.Millisecond,
 		Port:                fmt.Sprintf("%d", port),
 		ConsulNameSeparator: ".",

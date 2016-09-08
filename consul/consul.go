@@ -15,12 +15,12 @@ import (
 
 type Consul struct {
 	agents Agents
-	config ConsulConfig
+	config Config
 }
 
 type ServicesProvider func(agent *consulapi.Client) ([]*service.Service, error)
 
-func New(config ConsulConfig) *Consul {
+func New(config Config) *Consul {
 	return &Consul{
 		agents: NewAgents(&config),
 		config: config,
@@ -193,17 +193,17 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 	return err
 }
 
-func (c *Consul) DeregisterByTask(taskId apps.TaskID) error {
-	services, err := c.findServicesByTaskId(taskId)
+func (c *Consul) DeregisterByTask(taskID apps.TaskID) error {
+	services, err := c.findServicesByTaskID(taskID)
 	if err != nil {
 		return err
 	} else if len(services) == 0 {
-		return fmt.Errorf("Couldn't find any service matching task id %s", taskId)
+		return fmt.Errorf("Couldn't find any service matching task id %s", taskID)
 	}
-	return c.deregisterMultipleServices(services, taskId)
+	return c.deregisterMultipleServices(services, taskID)
 }
 
-func (c *Consul) deregisterMultipleServices(services []*service.Service, taskId apps.TaskID) error {
+func (c *Consul) deregisterMultipleServices(services []*service.Service, taskID apps.TaskID) error {
 	var deregisterErrors []error
 	for _, s := range services {
 		deregisterErr := c.Deregister(s)
@@ -212,10 +212,10 @@ func (c *Consul) deregisterMultipleServices(services []*service.Service, taskId 
 		}
 	}
 
-	return utils.MergeErrorsOrNil(deregisterErrors, fmt.Sprintf("deregistering by task %s", taskId))
+	return utils.MergeErrorsOrNil(deregisterErrors, fmt.Sprintf("deregistering by task %s", taskID))
 }
 
-func (c *Consul) findServicesByTaskId(searchedTaskId apps.TaskID) ([]*service.Service, error) {
+func (c *Consul) findServicesByTaskID(searchedTaskID apps.TaskID) ([]*service.Service, error) {
 	return c.getServicesUsingProviderWithRetriesOnAgentFailure(func(agent *consulapi.Client) ([]*service.Service, error) {
 		dcAwareQueries, err := dcAwareQueriesForAllDCs(agent)
 		if err != nil {
@@ -223,7 +223,7 @@ func (c *Consul) findServicesByTaskId(searchedTaskId apps.TaskID) ([]*service.Se
 		}
 
 		var allFound []*service.Service
-		searchedTag := service.MarathonTaskTag(searchedTaskId)
+		searchedTag := service.MarathonTaskTag(searchedTaskID)
 		for _, dcAwareQuery := range dcAwareQueries {
 			consulServices, _, err := agent.Catalog().Services(dcAwareQuery)
 			if err != nil {
@@ -286,7 +286,7 @@ func (c *Consul) marathonTaskToConsulServices(task *apps.Task, app *apps.App) ([
 		tags := append([]string{c.config.Tag}, intent.Tags...)
 		tags = append(tags, service.MarathonTaskTag(task.ID))
 		registrations = append(registrations, &consulapi.AgentServiceRegistration{
-			ID:      c.serviceId(task, intent.Name, intent.Port),
+			ID:      c.serviceID(task, intent.Name, intent.Port),
 			Name:    intent.Name,
 			Port:    intent.Port,
 			Address: serviceAddress,
@@ -297,22 +297,22 @@ func (c *Consul) marathonTaskToConsulServices(task *apps.Task, app *apps.App) ([
 	return registrations, nil
 }
 
-func (c *Consul) serviceId(task *apps.Task, name string, port int) string {
+func (c *Consul) serviceID(task *apps.Task, name string, port int) string {
 	return fmt.Sprintf("%s_%s_%d", task.ID, name, port)
 }
 
 func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.HealthCheck, serviceAddress string) consulapi.AgentServiceChecks {
-	var checks consulapi.AgentServiceChecks = make(consulapi.AgentServiceChecks, 0, len(healthChecks))
+	var checks = make(consulapi.AgentServiceChecks, 0, len(healthChecks))
 
 	for _, check := range healthChecks {
 		switch check.Protocol {
 		case "HTTP", "HTTPS":
-			if parsedUrl, err := url.ParseRequestURI(check.Path); err == nil {
-				parsedUrl.Scheme = strings.ToLower(check.Protocol)
-				parsedUrl.Host = fmt.Sprintf("%s:%d", serviceAddress, task.Ports[check.PortIndex])
+			if parsedURL, err := url.ParseRequestURI(check.Path); err == nil {
+				parsedURL.Scheme = strings.ToLower(check.Protocol)
+				parsedURL.Host = fmt.Sprintf("%s:%d", serviceAddress, task.Ports[check.PortIndex])
 
 				checks = append(checks, &consulapi.AgentServiceCheck{
-					HTTP:     parsedUrl.String(),
+					HTTP:     parsedURL.String(),
 					Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
 					Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
 				})

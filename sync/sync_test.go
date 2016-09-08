@@ -359,7 +359,7 @@ func TestSync_WithDeregisteringProblems(t *testing.T) {
 	}
 	allServices, _ := consulStub.GetAllServices()
 	for _, s := range allServices {
-		consulStub.FailDeregisterForId(s.ID)
+		consulStub.FailDeregisterForID(s.ID)
 	}
 
 	sync := newSyncWithDefaultConfig(marathon, consulStub)
@@ -401,10 +401,10 @@ func newSyncWithDefaultConfig(marathon marathon.Marathoner, serviceRegistry serv
 func TestSync_AddingAgentsFromMarathonTasks(t *testing.T) {
 	t.Parallel()
 
-	consulServer := consul.CreateConsulTestServer(t)
+	consulServer := consul.CreateTestServer(t)
 	defer consulServer.Stop()
 
-	consulInstance := consul.New(consul.ConsulConfig{
+	consulInstance := consul.New(consul.Config{
 		Port: fmt.Sprintf("%d", consulServer.Config.Ports.HTTP),
 		Tag:  "marathon",
 	})

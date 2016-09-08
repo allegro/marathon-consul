@@ -2,7 +2,7 @@ package consul
 
 import "time"
 
-type ConsulConfig struct {
+type Config struct {
 	Auth                   Auth
 	Port                   string
 	SslEnabled             bool
