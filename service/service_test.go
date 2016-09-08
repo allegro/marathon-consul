@@ -18,8 +18,8 @@ func TestServiceTaskId(t *testing.T) {
 	service := Service{
 		ID:   "123",
 		Name: "abc",
+		Tags: []string{MarathonTaskTag("my-task")},
 		RegisteringAgentAddress: "localhost",
-		Tags:                    []string{MarathonTaskTag("my-task")},
 	}
 
 	// when
@@ -36,8 +36,8 @@ func TestServiceTaskId_NoMarathonTaskTag(t *testing.T) {
 	service := Service{
 		ID:   "123",
 		Name: "abc",
+		Tags: []string{},
 		RegisteringAgentAddress: "localhost",
-		Tags:                    []string{},
 	}
 
 	// when

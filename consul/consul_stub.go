@@ -39,8 +39,8 @@ func (c Stub) GetAllServices() ([]*service.Service, error) {
 		allServices = append(allServices, &service.Service{
 			ID:   service.ServiceId(s.ID),
 			Name: s.Name,
+			Tags: s.Tags,
 			RegisteringAgentAddress: s.Address,
-			Tags:                    s.Tags,
 		})
 	}
 	return allServices, nil
@@ -72,8 +72,8 @@ func (c Stub) GetServices(name string) ([]*service.Service, error) {
 			services = append(services, &service.Service{
 				ID:   service.ServiceId(s.ID),
 				Name: s.Name,
+				Tags: s.Tags,
 				RegisteringAgentAddress: s.Address,
-				Tags:                    s.Tags,
 			})
 		}
 	}
