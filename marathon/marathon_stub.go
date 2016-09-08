@@ -1,7 +1,7 @@
 package marathon
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/allegro/marathon-consul/apps"
 )
@@ -23,18 +23,16 @@ func (m *MarathonerStub) App(id apps.AppID) (*apps.App, error) {
 	m.interactions = true
 	if app, ok := m.AppStub[id]; ok {
 		return app, nil
-	} else {
-		return nil, fmt.Errorf("app not found")
 	}
+	return nil, errors.New("app not found")
 }
 
-func (m *MarathonerStub) Tasks(appId apps.AppID) ([]*apps.Task, error) {
+func (m *MarathonerStub) Tasks(appID apps.AppID) ([]*apps.Task, error) {
 	m.interactions = true
-	if app, ok := m.TasksStub[appId]; ok {
+	if app, ok := m.TasksStub[appID]; ok {
 		return app, nil
-	} else {
-		return nil, fmt.Errorf("app not found")
 	}
+	return nil, errors.New("app not found")
 }
 
 func (m *MarathonerStub) Leader() (string, error) {

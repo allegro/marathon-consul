@@ -56,10 +56,10 @@ func New(config Config) (*Marathon, error) {
 	}, nil
 }
 
-func (m Marathon) App(appId apps.AppID) (*apps.App, error) {
-	log.WithField("Location", m.Location).Debug("Asking Marathon for " + appId)
+func (m Marathon) App(appID apps.AppID) (*apps.App, error) {
+	log.WithField("Location", m.Location).Debug("Asking Marathon for " + appID)
 
-	body, err := m.get(m.urlWithQuery(fmt.Sprintf("/v2/apps/%s", appId), params{"embed": "apps.tasks"}))
+	body, err := m.get(m.urlWithQuery(fmt.Sprintf("/v2/apps/%s", appID), params{"embed": "apps.tasks"}))
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +83,8 @@ func (m Marathon) Tasks(app apps.AppID) ([]*apps.Task, error) {
 		"Id":       app,
 	}).Debug("asking Marathon for tasks")
 
-	trimmedAppId := strings.Trim(app.String(), "/")
-	body, err := m.get(m.url(fmt.Sprintf("/v2/apps/%s/tasks", trimmedAppId)))
+	trimmedAppID := strings.Trim(app.String(), "/")
+	body, err := m.get(m.url(fmt.Sprintf("/v2/apps/%s/tasks", trimmedAppID)))
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func (m Marathon) get(url string) ([]byte, error) {
 }
 
 func (m Marathon) logHTTPError(resp *http.Response, err error) {
-	var statusCode string = "???"
+	statusCode := "???"
 	if resp != nil {
 		statusCode = fmt.Sprintf("%d", resp.StatusCode)
 	}
