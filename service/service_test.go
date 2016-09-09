@@ -9,7 +9,7 @@ import (
 
 func TestMarathonTaskTAg(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "marathon-task:my-task", MarathonTaskTag(apps.TaskId("my-task")))
+	assert.Equal(t, "marathon-task:my-task", MarathonTaskTag(apps.TaskID("my-task")))
 }
 
 func TestServiceTaskId(t *testing.T) {
@@ -18,15 +18,15 @@ func TestServiceTaskId(t *testing.T) {
 	service := Service{
 		ID:   "123",
 		Name: "abc",
-		RegisteringAgentAddress: "localhost",
 		Tags: []string{MarathonTaskTag("my-task")},
+		RegisteringAgentAddress: "localhost",
 	}
 
 	// when
 	id, err := service.TaskId()
 
 	// then
-	assert.Equal(t, apps.TaskId("my-task"), id)
+	assert.Equal(t, apps.TaskID("my-task"), id)
 	assert.NoError(t, err)
 }
 
@@ -36,8 +36,8 @@ func TestServiceTaskId_NoMarathonTaskTag(t *testing.T) {
 	service := Service{
 		ID:   "123",
 		Name: "abc",
-		RegisteringAgentAddress: "localhost",
 		Tags: []string{},
+		RegisteringAgentAddress: "localhost",
 	}
 
 	// when

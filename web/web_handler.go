@@ -12,15 +12,15 @@ import (
 	"github.com/allegro/marathon-consul/metrics"
 )
 
-type WebHandler struct {
+type EventHandler struct {
 	eventQueue chan event
 }
 
-func newWebHandler(eventQueue chan event) *WebHandler {
-	return &WebHandler{eventQueue: eventQueue}
+func newWebHandler(eventQueue chan event) *EventHandler {
+	return &EventHandler{eventQueue: eventQueue}
 }
 
-func (h *WebHandler) Handle(w http.ResponseWriter, r *http.Request) {
+func (h *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	metrics.Time("events.response", func() {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {

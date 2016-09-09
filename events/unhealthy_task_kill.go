@@ -8,8 +8,8 @@ import (
 
 type UnhealthyTaskKilled struct {
 	Timestamp string      `json:"timestamp"`
-	ID        apps.TaskId `json:"taskId"`
-	AppID     apps.AppId  `json:"appId"`
+	ID        apps.TaskID `json:"taskId"`
+	AppID     apps.AppID  `json:"appId"`
 	Version   string      `json:"version"`
 }
 

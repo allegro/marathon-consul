@@ -16,6 +16,8 @@ import (
 	"github.com/allegro/marathon-consul/service"
 )
 
+var noopSyncStartedListener = func(apps []*apps.App) {}
+
 func TestSyncJob_ShouldSyncOnLeadership(t *testing.T) {
 	t.Parallel()
 	// given
@@ -32,11 +34,9 @@ func TestSyncJob_ShouldSyncOnLeadership(t *testing.T) {
 	ticker := sync.StartSyncServicesJob()
 
 	// then
-	select {
-	case <-time.After(15 * time.Millisecond):
-		ticker.Stop()
-		assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID.String()))
-	}
+	<-time.After(15 * time.Millisecond)
+	ticker.Stop()
+	assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID.String()))
 }
 
 func TestSyncJob_ShouldNotSyncWhenDisabled(t *testing.T) {
@@ -56,10 +56,8 @@ func TestSyncJob_ShouldNotSyncWhenDisabled(t *testing.T) {
 
 	// then
 	assert.Nil(t, ticker)
-	select {
-	case <-time.After(15 * time.Millisecond):
-		assert.Equal(t, 0, services.RegistrationsCount(app.Tasks[0].ID.String()))
-	}
+	<-time.After(15 * time.Millisecond)
+	assert.Equal(t, 0, services.RegistrationsCount(app.Tasks[0].ID.String()))
 }
 
 func TestSyncJob_ShouldDefaultLeaderConfigurationToResolvedHostname(t *testing.T) {
@@ -78,11 +76,9 @@ func TestSyncJob_ShouldDefaultLeaderConfigurationToResolvedHostname(t *testing.T
 	ticker := sync.StartSyncServicesJob()
 
 	// then
-	select {
-	case <-time.After(15 * time.Millisecond):
-		ticker.Stop()
-		assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID.String()))
-	}
+	<-time.After(15 * time.Millisecond)
+	ticker.Stop()
+	assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID.String()))
 }
 
 func TestSyncServices_ShouldNotSyncOnNoForceNorLeaderSpecified(t *testing.T) {
@@ -156,11 +152,11 @@ func (c *ConsulServicesMock) Register(task *apps.Task, app *apps.App) error {
 	return nil
 }
 
-func (c *ConsulServicesMock) RegistrationsCount(instanceId string) int {
-	return c.registrations[instanceId]
+func (c *ConsulServicesMock) RegistrationsCount(instanceID string) int {
+	return c.registrations[instanceID]
 }
 
-func (c *ConsulServicesMock) DeregisterByTask(taskId apps.TaskId) error {
+func (c *ConsulServicesMock) DeregisterByTask(taskID apps.TaskID) error {
 	return nil
 }
 
@@ -316,7 +312,7 @@ func TestSync_WithRegisteringProblems(t *testing.T) {
 	// given
 	marathon := marathon.MarathonerStubForApps(ConsulApp("/test/app", 3))
 	consul := consul.NewConsulStub()
-	consul.FailRegisterForId("test_app.1")
+	consul.FailRegisterForID("test_app.1")
 	sync := newSyncWithDefaultConfig(marathon, consul)
 	// when
 	err := sync.SyncServices()
@@ -359,7 +355,7 @@ func TestSync_WithDeregisteringProblems(t *testing.T) {
 	}
 	allServices, _ := consulStub.GetAllServices()
 	for _, s := range allServices {
-		consulStub.FailDeregisterForId(s.ID)
+		consulStub.FailDeregisterForID(s.ID)
 	}
 
 	sync := newSyncWithDefaultConfig(marathon, consulStub)
@@ -401,10 +397,10 @@ func newSyncWithDefaultConfig(marathon marathon.Marathoner, serviceRegistry serv
 func TestSync_AddingAgentsFromMarathonTasks(t *testing.T) {
 	t.Parallel()
 
-	consulServer := consul.CreateConsulTestServer(t)
+	consulServer := consul.CreateTestServer(t)
 	defer consulServer.Stop()
 
-	consulInstance := consul.New(consul.ConsulConfig{
+	consulInstance := consul.New(consul.Config{
 		Port: fmt.Sprintf("%d", consulServer.Config.Ports.HTTP),
 		Tag:  "marathon",
 	})

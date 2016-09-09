@@ -16,14 +16,12 @@ type Sync struct {
 	config              Config
 	marathon            marathon.Marathoner
 	serviceRegistry     service.ServiceRegistry
-	syncStartedListener SyncStartedListener
+	syncStartedListener startedListener
 }
 
-type SyncStartedListener func(apps []*apps.App)
+type startedListener func(apps []*apps.App)
 
-var noopSyncStartedListener = func(apps []*apps.App) {}
-
-func New(config Config, marathon marathon.Marathoner, serviceRegistry service.ServiceRegistry, syncStartedListener SyncStartedListener) *Sync {
+func New(config Config, marathon marathon.Marathoner, serviceRegistry service.ServiceRegistry, syncStartedListener startedListener) *Sync {
 	return &Sync{config, marathon, serviceRegistry, syncStartedListener}
 }
 
@@ -41,14 +39,13 @@ func (s *Sync) StartSyncServicesJob() *time.Ticker {
 
 	ticker := time.NewTicker(s.config.Interval)
 	go func() {
-		s.SyncServices()
+		if err := s.SyncServices(); err != nil {
+			log.WithError(err).Error("An error occured while performing sync")
+		}
 		for {
-			select {
-			case <-ticker.C:
-				err := s.SyncServices()
-				if err != nil {
-					log.WithError(err).Error("An error occured while performing sync")
-				}
+			<-ticker.C
+			if err := s.SyncServices(); err != nil {
+				log.WithError(err).Error("An error occured while performing sync")
 			}
 		}
 	}()
@@ -121,14 +118,14 @@ func (s *Sync) resolveHostname() error {
 func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.App, services []*service.Service) {
 	runningTasks := s.marathonTaskIdsSet(marathonApps)
 	for _, service := range services {
-		taskIdInTag, err := service.TaskId()
-		taskIdNotFoundInTag := err != nil
-		if taskIdNotFoundInTag {
+		taskIDInTag, err := service.TaskId()
+		taskIDNotFoundInTag := err != nil
+		if taskIDNotFoundInTag {
 			log.WithField("Id", service.ID).WithError(err).
 				Warn("Couldn't extract marathon task id, deregistering to have sync reregister it properly")
 		}
 
-		if _, isRunning := runningTasks[taskIdInTag]; !isRunning || taskIdNotFoundInTag {
+		if _, isRunning := runningTasks[taskIDInTag]; !isRunning || taskIDNotFoundInTag {
 			err := s.serviceRegistry.Deregister(service)
 			if err != nil {
 				log.WithError(err).WithFields(log.Fields{
@@ -154,7 +151,7 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, servic
 			if registrations := registrationsUnderTaskIds[task.ID]; registrations != expectedRegistrations {
 				if registrations != 0 {
 					log.WithField("Id", task.ID).WithField("HasRegistrations", registrations).
-					WithField("ExpectedRegistrations", expectedRegistrations).Info("Registering missing service registrations")
+						WithField("ExpectedRegistrations", expectedRegistrations).Info("Registering missing service registrations")
 				}
 				if task.IsHealthy() {
 					err := s.serviceRegistry.Register(&task, app)
@@ -171,18 +168,18 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, servic
 	}
 }
 
-func (s *Sync) taskIdsInConsulServices(services []*service.Service) map[apps.TaskId]int {
-	serviceCounters := make(map[apps.TaskId]int)
+func (s *Sync) taskIdsInConsulServices(services []*service.Service) map[apps.TaskID]int {
+	serviceCounters := make(map[apps.TaskID]int)
 	for _, service := range services {
-		if taskId, err := service.TaskId(); err == nil {
-			serviceCounters[taskId] += 1
+		if taskID, err := service.TaskId(); err == nil {
+			serviceCounters[taskID]++
 		}
 	}
 	return serviceCounters
 }
 
-func (s *Sync) marathonTaskIdsSet(marathonApps []*apps.App) map[apps.TaskId]struct{} {
-	tasksSet := make(map[apps.TaskId]struct{})
+func (s *Sync) marathonTaskIdsSet(marathonApps []*apps.App) map[apps.TaskID]struct{} {
+	tasksSet := make(map[apps.TaskID]struct{})
 	var exists struct{}
 	for _, app := range marathonApps {
 		for _, task := range app.Tasks {

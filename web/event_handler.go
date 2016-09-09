@@ -39,9 +39,9 @@ func newEventHandler(id int, serviceRegistry service.ServiceRegistry, marathon m
 }
 
 func (fh *eventHandler) Start() chan<- stopEvent {
-	var event event
+	var e event
 	process := func() {
-		err := fh.handleEvent(event.eventType, event.body)
+		err := fh.handleEvent(e.eventType, e.body)
 		if err != nil {
 			metrics.Mark("events.processing.error")
 		} else {
@@ -54,11 +54,11 @@ func (fh *eventHandler) Start() chan<- stopEvent {
 	go func() {
 		for {
 			select {
-			case event = <-fh.eventQueue:
+			case e = <-fh.eventQueue:
 				metrics.Mark(fmt.Sprintf("events.handler.%d", fh.id))
 				metrics.UpdateGauge("events.queue.len", int64(len(fh.eventQueue)))
-				metrics.UpdateGauge("events.queue.delay_ns", time.Since(event.timestamp).Nanoseconds())
-				metrics.Time("events.processing."+event.eventType, process)
+				metrics.UpdateGauge("events.queue.delay_ns", time.Since(e.timestamp).Nanoseconds())
+				metrics.Time("events.processing."+e.eventType, process)
 			case <-quitChan:
 				log.WithField("Id", fh.id).Info("Stopping worker")
 			}
@@ -69,7 +69,7 @@ func (fh *eventHandler) Start() chan<- stopEvent {
 
 func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 
-	body = replaceTaskIdWithId(body)
+	body = replaceTaskIDWithID(body)
 
 	switch eventType {
 	case "status_update_event":
@@ -106,8 +106,8 @@ func (fh *eventHandler) handleHealthStatusEvent(body []byte) error {
 		return nil
 	}
 
-	appId := taskHealthChange.AppID
-	app, err := fh.marathon.App(appId)
+	appID := taskHealthChange.AppID
+	app, err := fh.marathon.App(appID)
 	if err != nil {
 		log.WithField("Id", taskHealthChange.ID).WithError(err).Error("There was a problem obtaining app info")
 		return err
@@ -121,7 +121,7 @@ func (fh *eventHandler) handleHealthStatusEvent(body []byte) error {
 
 	tasks := app.Tasks
 
-	task, err := findTaskById(taskHealthChange.ID, tasks)
+	task, err := findTaskByID(taskHealthChange.ID, tasks)
 	if err != nil {
 		log.WithField("Id", taskHealthChange.ID).WithError(err).Error("Task not found")
 		return err
@@ -132,13 +132,11 @@ func (fh *eventHandler) handleHealthStatusEvent(body []byte) error {
 		if err != nil {
 			log.WithField("Id", task.ID).WithError(err).Error("There was a problem registering task")
 			return err
-		} else {
-			return nil
 		}
-	} else {
-		log.WithField("Id", task.ID).Debug("Task is not healthy. Not registering")
 		return nil
 	}
+	log.WithField("Id", task.ID).Debug("Task is not healthy. Not registering")
+	return nil
 }
 
 func (fh *eventHandler) handleStatusEvent(body []byte) error {
@@ -192,9 +190,7 @@ func (fh *eventHandler) handleDeploymentInfo(body []byte) error {
 
 	errors := []error{}
 	for _, app := range deploymentEvent.StoppedConsulApps() {
-		for _, err = range fh.deregisterAllAppServices(app) {
-			errors = append(errors, err)
-		}
+		errors = append(errors, fh.deregisterAllAppServices(app)...)
 	}
 	return utils.MergeErrorsOrNil(errors, "handling deregistration")
 }
@@ -210,9 +206,7 @@ func (fh *eventHandler) handleDeploymentStepSuccess(body []byte) error {
 
 	errors := []error{}
 	for _, app := range deploymentEvent.RenamedConsulApps() {
-		for _, err = range fh.deregisterAllAppServices(app) {
-			errors = append(errors, err)
-		}
+		errors = append(errors, fh.deregisterAllAppServices(app)...)
 	}
 	return utils.MergeErrorsOrNil(errors, "handling deregistration")
 }
@@ -240,13 +234,13 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 	}
 
 	for _, service := range allServices {
-		taskId, err := service.TaskId()
+		taskID, err := service.TaskId()
 		if err != nil {
 			errors = append(errors, err)
 			continue
 		}
-		if taskId.AppId() == app.ID {
-			err = fh.deregister(taskId)
+		if taskID.AppID() == app.ID {
+			err = fh.deregister(taskID)
 			if err != nil {
 				errors = append(errors, err)
 			}
@@ -255,16 +249,16 @@ func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
 	return errors
 }
 
-func (fh *eventHandler) deregister(taskId apps.TaskId) error {
-	err := fh.serviceRegistry.DeregisterByTask(taskId)
+func (fh *eventHandler) deregister(taskID apps.TaskID) error {
+	err := fh.serviceRegistry.DeregisterByTask(taskID)
 	if err != nil {
-		log.WithField("Id", taskId).WithError(err).Error("There was a problem deregistering task")
+		log.WithField("Id", taskID).WithError(err).Error("There was a problem deregistering task")
 	}
 	return err
 }
 
-func findTaskById(id apps.TaskId, tasks_ []apps.Task) (apps.Task, error) {
-	for _, task := range tasks_ {
+func findTaskByID(id apps.TaskID, tasks []apps.Task) (apps.Task, error) {
+	for _, task := range tasks {
 		if task.ID == id {
 			return task, nil
 		}
@@ -276,6 +270,6 @@ func findTaskById(id apps.TaskId, tasks_ []apps.Task) (apps.Task, error) {
 // Here, it uses "taskId", with most of the other fields being equal. We'll
 // just swap "taskId" for "id" in the body so that we can successfully parse
 // incoming events.
-func replaceTaskIdWithId(body []byte) []byte {
+func replaceTaskIDWithID(body []byte) []byte {
 	return bytes.Replace(body, []byte("taskId"), []byte("id"), -1)
 }

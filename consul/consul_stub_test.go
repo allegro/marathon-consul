@@ -39,16 +39,16 @@ func TestConsulStub(t *testing.T) {
 	// when
 	err = consul.DeregisterByTask(app.Tasks[1].ID)
 	services, _ = consul.GetAllServices()
-	taskIds := consul.RegisteredTaskIds()
+	taskIds := consul.RegisteredTaskIDs()
 
 	// then
 	assert.NoError(t, err)
 	assert.Len(t, services, 2)
-	assert.Contains(t, taskIds, apps.TaskId("test.0"))
-	assert.Contains(t, taskIds, apps.TaskId("test.2"))
+	assert.Contains(t, taskIds, apps.TaskID("test.0"))
+	assert.Contains(t, taskIds, apps.TaskID("test.2"))
 
 	// given
-	consul.FailDeregisterByTaskForId(app.Tasks[0].ID)
+	consul.FailDeregisterByTaskForID(app.Tasks[0].ID)
 
 	// when
 	err = consul.DeregisterByTask(app.Tasks[0].ID)
@@ -57,7 +57,7 @@ func TestConsulStub(t *testing.T) {
 	assert.Error(t, err)
 
 	// given
-	consul.FailRegisterForId(app.Tasks[0].ID)
+	consul.FailRegisterForID(app.Tasks[0].ID)
 
 	// when
 	err = consul.Register(&app.Tasks[0], app)
@@ -70,7 +70,7 @@ func TestConsulStub(t *testing.T) {
 
 	// then
 	assert.NoError(t, err)
-	assert.Len(t, consul.RegisteredTaskIds(), 1)
+	assert.Len(t, consul.RegisteredTaskIDs(), 1)
 
 	// when
 	app = utils.ConsulApp("other", 2)

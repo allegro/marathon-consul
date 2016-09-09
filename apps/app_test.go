@@ -117,11 +117,11 @@ func TestConsulApp(t *testing.T) {
 
 func TestAppId_String(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "appId", AppId("appId").String())
+	assert.Equal(t, "appId", AppID("appId").String())
 }
 
 var dummyTask = &Task{
-	ID:    TaskId("some-task"),
+	ID:    TaskID("some-task"),
 	Ports: []int{1337},
 }
 
@@ -212,10 +212,10 @@ func TestRegistrationIntent_NoOverrideViaPortDefinitionsIfNoConsulLabelThere(t *
 		ID:     "app-name",
 		Labels: map[string]string{"consul": "true", "private": "tag"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"other": "tag"},
 			},
-			PortDefinition{},
+			{},
 		},
 	}
 	task := &Task{
@@ -240,10 +240,10 @@ func TestRegistrationIntent_OverrideNameAndAddTagsViaPortDefinitions(t *testing.
 		ID:     "app-name",
 		Labels: map[string]string{"consul": "true", "private": "tag"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "other-name", "other": "tag"},
 			},
-			PortDefinition{},
+			{},
 		},
 	}
 	task := &Task{
@@ -268,8 +268,8 @@ func TestRegistrationIntent_PickDifferentPortViaPortDefinitions(t *testing.T) {
 		ID:     "app-name",
 		Labels: map[string]string{"consul": "true", "private": "tag"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{},
-			PortDefinition{
+			{},
+			{
 				Labels: map[string]string{"consul": "true"},
 			},
 		},
@@ -293,7 +293,7 @@ func TestRegistrationIntent_PickExplicitPortViaPortDefinitions(t *testing.T) {
 		ID:     "app-name",
 		Labels: map[string]string{"consul": "true", "private": "tag"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Port:   1337,
 				Labels: map[string]string{"consul": "true"},
 			},
@@ -318,10 +318,10 @@ func TestRegistrationIntent_MultipleIntentsViaPortDefinitionIfMultipleContainCon
 		ID:     "app-name",
 		Labels: map[string]string{"consul": "true", "common-tag": "tag"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "first-name", "first-tag": "tag"},
 			},
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "second-name", "second-tag": "tag"},
 			},
 		},
@@ -364,10 +364,10 @@ func TestConsulNames_WithPortDefinitions(t *testing.T) {
 		ID:     "context/app-name",
 		Labels: map[string]string{"consul": ""},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "some/name"},
 			},
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "yet-another/name"},
 			},
 		},
@@ -433,7 +433,7 @@ func TestHasSameConsulNamesAs_SameConfigsWithPortDefinitions(t *testing.T) {
 		ID:     "app-name",
 		Labels: map[string]string{"consul": "true"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "true"},
 			},
 		},
@@ -451,7 +451,7 @@ func TestHasSameConsulNamesAs_DifferentConfigsSameNamesWithPortDefinitions(t *te
 		ID:     "app-name",
 		Labels: map[string]string{"consul": "true"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "true"},
 			},
 		},
@@ -460,7 +460,7 @@ func TestHasSameConsulNamesAs_DifferentConfigsSameNamesWithPortDefinitions(t *te
 		ID:     "app-name",
 		Labels: map[string]string{"consul": "true"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "app-name"},
 			},
 		},
@@ -479,7 +479,7 @@ func TestHasSameConsulNamesAs_DifferentConfigsDifferentNamesWithPortDefinitions(
 		ID:     "app-name",
 		Labels: map[string]string{"consul": "true"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "some-name"},
 			},
 		},
@@ -488,7 +488,7 @@ func TestHasSameConsulNamesAs_DifferentConfigsDifferentNamesWithPortDefinitions(
 		ID:     "app-name",
 		Labels: map[string]string{"consul": "true"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "other-name"},
 			},
 		},
@@ -506,7 +506,7 @@ func TestHasSameConsulNamesAs_DifferentConfigsDifferentNumberOfRegitrationsWithP
 		ID:     "app-name",
 		Labels: map[string]string{"consul": "true"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "some-name"},
 			},
 		},
@@ -515,10 +515,10 @@ func TestHasSameConsulNamesAs_DifferentConfigsDifferentNumberOfRegitrationsWithP
 		ID:     "app-name",
 		Labels: map[string]string{"consul": "true"},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "some-name"},
 			},
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": "yet-another-name"},
 			},
 		},
@@ -545,7 +545,7 @@ func TestRegistrationIntentsNumber_NoPortDefinitions(t *testing.T) {
 
 	// given
 	app := &App{
-		ID: "id",
+		ID:     "id",
 		Labels: map[string]string{"consul": ""},
 	}
 
@@ -561,7 +561,7 @@ func TestRegistrationIntentsNumber_SinglePortDefinitions(t *testing.T) {
 		ID:     "id",
 		Labels: map[string]string{"consul": ""},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": ""},
 			},
 		},
@@ -579,10 +579,10 @@ func TestRegistrationIntentsNumber_MultiplePortDefinitions(t *testing.T) {
 		ID:     "id",
 		Labels: map[string]string{"consul": ""},
 		PortDefinitions: []PortDefinition{
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": ""},
 			},
-			PortDefinition{
+			{
 				Labels: map[string]string{"consul": ""},
 			},
 		},

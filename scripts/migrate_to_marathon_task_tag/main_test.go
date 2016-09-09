@@ -15,7 +15,7 @@ import (
 func TestMigrateToMarathonTaskTag_shouldMigrateOnlyServicesWithMarathonTagAndWithoutTaskTag(t *testing.T) {
 	t.Parallel()
 	// given
-	server := consul.CreateConsulTestServer(t)
+	server := consul.CreateTestServer(t)
 	defer server.Stop()
 	server.AddService("serviceA", "passing", []string{"marathon"})
 	server.AddService("serviceB-critical", "critical", []string{"marathon"})
@@ -40,7 +40,7 @@ func TestMigrateToMarathonTaskTag_shouldMigrateOnlyServicesWithMarathonTagAndWit
 func TestMigrateToMarathonTaskTag_shouldLeaveServicePropertiesOtherThanTagsUnchanged(t *testing.T) {
 	t.Parallel()
 	// given
-	server := consul.CreateConsulTestServer(t)
+	server := consul.CreateTestServer(t)
 	defer server.Stop()
 	client, _ := clientToServer(server)
 	client.Agent().ServiceRegister(&api.AgentServiceRegistration{
@@ -81,9 +81,9 @@ func TestMigrateToMarathonTaskTag_shouldLeaveServicePropertiesOtherThanTagsUncha
 func TestMigrateToMarathonTaskTag_shouldMigrateServicesInBootstrapAgentsDCOnly(t *testing.T) {
 	t.Parallel()
 	// given
-	server := consul.CreateConsulTestServer(t)
+	server := consul.CreateTestServer(t)
 	defer server.Stop()
-	serverOnOtherDC := consul.CreateConsulTestServer(t)
+	serverOnOtherDC := consul.CreateTestServer(t)
 	defer serverOnOtherDC.Stop()
 	server.JoinWAN(serverOnOtherDC.WANAddr)
 
@@ -105,7 +105,7 @@ func TestMigrateToMarathonTaskTag_shouldMigrateServicesInBootstrapAgentsDCOnly(t
 func TestMigrateToMarathonTaskTag_shouldMigrateThroughCallingMain(t *testing.T) {
 	t.Parallel()
 	// given
-	server := consul.CreateConsulTestServer(t)
+	server := consul.CreateTestServer(t)
 	defer server.Stop()
 	server.AddService("serviceA", "passing", []string{"marathon"})
 	os.Args = []string{"./migrate", fmt.Sprintf("--bootstrap-agent-location=%s", server.HTTPAddr)}

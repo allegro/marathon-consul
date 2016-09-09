@@ -112,7 +112,7 @@ func migrateServicesOnNode(services map[string]*api.AgentService, nodeClient *ap
 
 		if err := nodeClient.Agent().ServiceRegister(migrated(agentService)); err != nil {
 			log.WithError(err).WithField("ServiceID", agentService.ID).
-			Warn("Could not reregister service, skipping")
+				Warn("Could not reregister service, skipping")
 			stats.SkippedFailedServices++
 			continue
 		}

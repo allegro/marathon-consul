@@ -8,9 +8,9 @@ import (
 
 type TaskHealthChange struct {
 	Timestamp  string      `json:"timestamp"`
-	ID         apps.TaskId `json:"id"`
+	ID         apps.TaskID `json:"id"`
 	TaskStatus string      `json:"taskStatus"`
-	AppID      apps.AppId  `json:"appId"`
+	AppID      apps.AppID  `json:"appId"`
 	Version    string      `json:"version"`
 	Alive      bool        `json:"alive"`
 }

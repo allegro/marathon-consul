@@ -8,7 +8,7 @@ import (
 )
 
 // Only Marathon apps with this label will be registered in Consul
-const MARATHON_CONSUL_LABEL = "consul"
+const MarathonConsulLabel = "consul"
 
 type HealthCheck struct {
 	Path                   string `json:"path"`
@@ -32,14 +32,14 @@ type AppWrapper struct {
 	App App `json:"app"`
 }
 
-type AppsResponse struct {
+type Apps struct {
 	Apps []*App `json:"apps"`
 }
 
 type App struct {
 	Labels          map[string]string `json:"labels"`
 	HealthChecks    []HealthCheck     `json:"healthChecks"`
-	ID              AppId             `json:"id"`
+	ID              AppID             `json:"id"`
 	Tasks           []Task            `json:"tasks"`
 	PortDefinitions []PortDefinition  `json:"portDefinitions"`
 }
@@ -47,14 +47,14 @@ type App struct {
 // Marathon Application Id (aka PathId)
 // Usually in the form of /rootGroup/subGroup/subSubGroup/name
 // allowed characters: lowercase letters, digits, hyphens, slash
-type AppId string
+type AppID string
 
-func (id AppId) String() string {
+func (id AppID) String() string {
 	return string(id)
 }
 
 func (app *App) IsConsulApp() bool {
-	_, ok := app.Labels[MARATHON_CONSUL_LABEL]
+	_, ok := app.Labels[MarathonConsulLabel]
 	return ok
 }
 
@@ -89,7 +89,7 @@ func (app *App) ConsulNames(separator string) []string {
 }
 
 func (app *App) labelsToRawName(labels map[string]string) string {
-	if value, ok := labels[MARATHON_CONSUL_LABEL]; ok && !isSpecialConsulNameValue(value) {
+	if value, ok := labels[MarathonConsulLabel]; ok && !isSpecialConsulNameValue(value) {
 		return value
 	}
 	return app.ID.String()
@@ -100,7 +100,7 @@ func isSpecialConsulNameValue(name string) bool {
 }
 
 func ParseApps(jsonBlob []byte) ([]*App, error) {
-	apps := &AppsResponse{}
+	apps := &Apps{}
 	err := json.Unmarshal(jsonBlob, apps)
 
 	return apps.Apps, err
@@ -138,7 +138,7 @@ func (app *App) RegistrationIntents(task *Task, nameSeparator string) []*Registr
 	definitions := app.findConsulPortDefinitions()
 	if len(definitions) == 0 {
 		return []*RegistrationIntent{
-			&RegistrationIntent{
+			{
 				Name: app.labelsToName(app.Labels, nameSeparator),
 				Port: task.Ports[0],
 				Tags: commonTags,
@@ -176,7 +176,7 @@ func (app *App) labelsToName(labels map[string]string, nameSeparator string) str
 	serviceName := marathonAppNameToServiceName(appConsulName, nameSeparator)
 	if serviceName == "" {
 		log.WithField("AppId", app.ID.String()).WithField("ConsulServiceName", appConsulName).
-		Warn("Warning! Invalid Consul service name provided for app. Will use default app name instead.")
+			Warn("Warning! Invalid Consul service name provided for app. Will use default app name instead.")
 		return marathonAppNameToServiceName(app.ID.String(), nameSeparator)
 	}
 	return serviceName
@@ -198,7 +198,7 @@ func (i *IndexedPortDefinition) toPort(task *Task) int {
 func (app *App) findConsulPortDefinitions() []IndexedPortDefinition {
 	var definitions []IndexedPortDefinition
 	for i, d := range app.PortDefinitions {
-		if _, ok := d.Labels[MARATHON_CONSUL_LABEL]; ok {
+		if _, ok := d.Labels[MarathonConsulLabel]; ok {
 			definitions = append(definitions, IndexedPortDefinition{
 				Index:  i,
 				Port:   d.Port,

@@ -17,7 +17,7 @@ import (
 )
 
 type Config struct {
-	Consul   consul.ConsulConfig
+	Consul   consul.Config
 	Web      web.Config
 	Sync     sync.Config
 	Marathon marathon.Config

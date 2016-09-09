@@ -1,15 +1,15 @@
 package marathon
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/allegro/marathon-consul/apps"
 )
 
 type MarathonerStub struct {
 	AppsStub     []*apps.App
-	AppStub      map[apps.AppId]*apps.App
-	TasksStub    map[apps.AppId][]*apps.Task
+	AppStub      map[apps.AppID]*apps.App
+	TasksStub    map[apps.AppID][]*apps.Task
 	leader       string
 	interactions bool
 }
@@ -19,22 +19,20 @@ func (m *MarathonerStub) ConsulApps() ([]*apps.App, error) {
 	return m.AppsStub, nil
 }
 
-func (m *MarathonerStub) App(id apps.AppId) (*apps.App, error) {
+func (m *MarathonerStub) App(id apps.AppID) (*apps.App, error) {
 	m.interactions = true
 	if app, ok := m.AppStub[id]; ok {
 		return app, nil
-	} else {
-		return nil, fmt.Errorf("app not found")
 	}
+	return nil, errors.New("app not found")
 }
 
-func (m *MarathonerStub) Tasks(appId apps.AppId) ([]*apps.Task, error) {
+func (m *MarathonerStub) Tasks(appID apps.AppID) ([]*apps.Task, error) {
 	m.interactions = true
-	if app, ok := m.TasksStub[appId]; ok {
+	if app, ok := m.TasksStub[appID]; ok {
 		return app, nil
-	} else {
-		return nil, fmt.Errorf("app not found")
 	}
+	return nil, errors.New("app not found")
 }
 
 func (m *MarathonerStub) Leader() (string, error) {
@@ -53,8 +51,8 @@ func MarathonerStubWithLeaderForApps(leader string, args ...*apps.App) *Marathon
 }
 
 func MarathonerStubForApps(args ...*apps.App) *MarathonerStub {
-	appsMap := make(map[apps.AppId]*apps.App)
-	tasksMap := make(map[apps.AppId][]*apps.Task)
+	appsMap := make(map[apps.AppID]*apps.App)
+	tasksMap := make(map[apps.AppID][]*apps.Task)
 
 	for _, app := range args {
 		appsMap[app.ID] = app

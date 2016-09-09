@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -141,7 +142,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationAction(t *testing.T) 
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
-	assert.Len(t, service.RegisteredTaskIds(), 3)
+	assert.Len(t, service.RegisteredTaskIDs(), 3)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	app.Tasks = []apps.Task{} // tasks are not available in this event
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
@@ -154,7 +155,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationAction(t *testing.T) 
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Empty(t, service.RegisteredTaskIds())
+	assert.Empty(t, service.RegisteredTaskIDs())
 	assert.False(t, marathon.Interactions())
 }
 
@@ -163,12 +164,12 @@ func TestWebHandler_handleDeploymentInfoWithStopApplicationForOneApp(t *testing.
 
 	// given
 	green := ConsulApp("/test/app.green", 3)
-	green.Labels[apps.MARATHON_CONSUL_LABEL] = "app"
+	green.Labels[apps.MarathonConsulLabel] = "app"
 	blue := ConsulApp("/test/app.blue", 2)
-	blue.Labels[apps.MARATHON_CONSUL_LABEL] = "app"
+	blue.Labels[apps.MarathonConsulLabel] = "app"
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(green, blue)
-	assert.Len(t, service.RegisteredTaskIds(), 5)
+	assert.Len(t, service.RegisteredTaskIDs(), 5)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(green))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
@@ -180,7 +181,7 @@ func TestWebHandler_handleDeploymentInfoWithStopApplicationForOneApp(t *testing.
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 2)
+	assert.Len(t, service.RegisteredTaskIDs(), 2)
 	assert.False(t, marathon.Interactions())
 }
 
@@ -192,7 +193,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleApps
 	app2 := ConsulApp("/test/otherapp", 2)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
-	assert.Len(t, service.RegisteredTaskIds(), 5)
+	assert.Len(t, service.RegisteredTaskIDs(), 5)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app1, app2))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
@@ -204,7 +205,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleApps
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 0)
+	assert.Len(t, service.RegisteredTaskIDs(), 0)
 	assert.False(t, marathon.Interactions())
 }
 
@@ -216,8 +217,8 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleApps
 	app2 := ConsulApp("/test/otherapp", 2)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
-	service.FailDeregisterByTaskForId("test_app.1")
-	assert.Len(t, service.RegisteredTaskIds(), 5)
+	service.FailDeregisterByTaskForID("test_app.1")
+	assert.Len(t, service.RegisteredTaskIDs(), 5)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app1, app2))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
@@ -229,7 +230,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForMultipleApps
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 1)
+	assert.Len(t, service.RegisteredTaskIDs(), 1)
 	assert.False(t, marathon.Interactions())
 }
 
@@ -240,7 +241,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionWithNoServicesR
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps()
 	service := consul.NewConsulStub()
-	assert.Len(t, service.RegisteredTaskIds(), 0)
+	assert.Len(t, service.RegisteredTaskIDs(), 0)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
@@ -252,7 +253,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionWithNoServicesR
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 0)
+	assert.Len(t, service.RegisteredTaskIDs(), 0)
 	assert.False(t, marathon.Interactions())
 }
 
@@ -263,7 +264,7 @@ func TestWebHandler_HandleDeploymentInfoWithInvalidBody(t *testing.T) {
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
-	assert.Len(t, service.RegisteredTaskIds(), 3)
+	assert.Len(t, service.RegisteredTaskIDs(), 3)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":"deployment_info", "Plan": 123}`)))
 
@@ -274,7 +275,7 @@ func TestWebHandler_HandleDeploymentInfoWithInvalidBody(t *testing.T) {
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 3)
+	assert.Len(t, service.RegisteredTaskIDs(), 3)
 	assert.False(t, marathon.Interactions())
 }
 
@@ -285,7 +286,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForNonConsulApp
 	app := NonConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
-	assert.Len(t, service.RegisteredTaskIds(), 3)
+	assert.Len(t, service.RegisteredTaskIDs(), 3)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
@@ -297,7 +298,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForNonConsulApp
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 3)
+	assert.Len(t, service.RegisteredTaskIDs(), 3)
 	assert.False(t, marathon.Interactions())
 }
 
@@ -309,7 +310,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForCustomServic
 	app.Labels["consul"] = "someCustomServiceName"
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
-	assert.Len(t, service.RegisteredTaskIds(), 3)
+	assert.Len(t, service.RegisteredTaskIDs(), 3)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
@@ -321,7 +322,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionForCustomServic
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 0)
+	assert.Len(t, service.RegisteredTaskIDs(), 0)
 	assert.False(t, marathon.Interactions())
 }
 
@@ -332,7 +333,7 @@ func TestWebHandler_NotHandleDeploymentInfoWithScaleApplicationAction(t *testing
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
-	assert.Len(t, service.RegisteredTaskIds(), 3)
+	assert.Len(t, service.RegisteredTaskIDs(), 3)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	deploymentInfo := deploymentInfoWithStopApplicationActionForApps(app)
 	deploymentInfo.CurrentStep.Actions[0].Type = "ScaleApplication"
@@ -346,7 +347,7 @@ func TestWebHandler_NotHandleDeploymentInfoWithScaleApplicationAction(t *testing
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 3)
+	assert.Len(t, service.RegisteredTaskIDs(), 3)
 	assert.False(t, marathon.Interactions())
 }
 
@@ -357,8 +358,8 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionAndProblemsDere
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
-	service.FailDeregisterByTaskForId("test_app.1")
-	assert.Len(t, service.RegisteredTaskIds(), 3)
+	service.FailDeregisterByTaskForID("test_app.1")
+	assert.Len(t, service.RegisteredTaskIDs(), 3)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentInfoWithStopApplicationActionForApps(app))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
@@ -370,7 +371,7 @@ func TestWebHandler_HandleDeploymentInfoWithStopApplicationActionAndProblemsDere
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 1)
+	assert.Len(t, service.RegisteredTaskIDs(), 1)
 	assert.False(t, marathon.Interactions())
 }
 
@@ -389,7 +390,7 @@ func deploymentInfoWithStopApplicationActionForApps(applications ...*apps.App) *
 	}
 	for _, app := range applications {
 		deploymentInfo.Plan.Original.Apps = append(deploymentInfo.Plan.Original.Apps, app)
-		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppId: app.ID, Type: "StopApplication"})
+		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppID: app.ID, Type: "StopApplication"})
 	}
 	return deploymentInfo
 }
@@ -401,7 +402,7 @@ func TestWebHandler_HandleDeploymentStepSuccessWithRestartAndRenameApplicationAc
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
-	assert.Len(t, service.RegisteredTaskIds(), 3)
+	assert.Len(t, service.RegisteredTaskIDs(), 3)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(app))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
@@ -413,7 +414,7 @@ func TestWebHandler_HandleDeploymentStepSuccessWithRestartAndRenameApplicationAc
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 0)
+	assert.Len(t, service.RegisteredTaskIDs(), 0)
 	assert.False(t, marathon.Interactions())
 }
 
@@ -424,7 +425,7 @@ func TestWebHandler_HandleDeploymentStepSuccessWithInvalidBody(t *testing.T) {
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app)
-	assert.Len(t, service.RegisteredTaskIds(), 3)
+	assert.Len(t, service.RegisteredTaskIDs(), 3)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":"deployment_step_success", "Plan": 123}`)))
 
@@ -435,7 +436,7 @@ func TestWebHandler_HandleDeploymentStepSuccessWithInvalidBody(t *testing.T) {
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 3)
+	assert.Len(t, service.RegisteredTaskIDs(), 3)
 	assert.False(t, marathon.Interactions())
 }
 
@@ -447,8 +448,8 @@ func TestWebHandler_HandleDeploymentStepSuccessWithRestartApplicationActionForMu
 	app2 := ConsulApp("/test/otherapp", 2)
 	marathon := marathon.MarathonerStubForApps()
 	service := newConsulStubWithApplicationsTasksRegistered(app1, app2)
-	service.FailDeregisterByTaskForId("test_app.1")
-	assert.Len(t, service.RegisteredTaskIds(), 5)
+	service.FailDeregisterByTaskForID("test_app.1")
+	assert.Len(t, service.RegisteredTaskIDs(), 5)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body, _ := json.Marshal(deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(app1, app2))
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
@@ -460,7 +461,7 @@ func TestWebHandler_HandleDeploymentStepSuccessWithRestartApplicationActionForMu
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Len(t, service.RegisteredTaskIds(), 1)
+	assert.Len(t, service.RegisteredTaskIDs(), 1)
 	assert.False(t, marathon.Interactions())
 }
 
@@ -486,7 +487,7 @@ func deploymentStepSuccessWithRestartAndRenameApplicationActionForApps(applicati
 			targetApp.Labels["consul"] = fmt.Sprintf("New%s", name)
 		}
 		deploymentInfo.Plan.Target.Apps = append(deploymentInfo.Plan.Target.Apps, targetApp)
-		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppId: app.ID, Type: "RestartApplication"})
+		deploymentInfo.CurrentStep.Actions = append(deploymentInfo.CurrentStep.Actions, &events.Action{AppID: app.ID, Type: "RestartApplication"})
 	}
 	return deploymentInfo
 }
@@ -555,7 +556,7 @@ func TestWebHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 		// then
 		assert.Equal(t, 202, recorder.Code)
 		assert.Equal(t, "OK\n", recorder.Body.String())
-		assert.Empty(t, services.RegisteredTaskIds())
+		assert.Empty(t, services.RegisteredTaskIDs())
 	}
 }
 
@@ -592,7 +593,7 @@ func TestWebHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		handler.Handle(recorder, req)
 		stopChan <- stopEvent{}
-		taskIds := service.RegisteredTaskIds()
+		taskIds := service.RegisteredTaskIDs()
 
 		// then
 		assert.Equal(t, 202, recorder.Code)
@@ -631,7 +632,7 @@ func TestWebHandler_HandleEventAboutUnhealthyKilledTask(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	handler.Handle(recorder, req)
 	stopChan <- stopEvent{}
-	taskIds := service.RegisteredTaskIds()
+	taskIds := service.RegisteredTaskIDs()
 
 	// then
 	assert.Equal(t, 202, recorder.Code)
@@ -676,7 +677,7 @@ func TestWebHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testing
 
 	// given
 	service := consul.NewConsulStub()
-	service.FailDeregisterByTaskForId("task.1")
+	service.FailDeregisterByTaskForID("task.1")
 	queue := make(chan event)
 	stopChan := newEventHandler(0, service, nil, queue).Start()
 	handler := newWebHandler(queue)
@@ -703,7 +704,7 @@ func TestWebHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testing
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Empty(t, service.RegisteredTaskIds())
+	assert.Empty(t, service.RegisteredTaskIDs())
 }
 
 func TestWebHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.T) {
@@ -781,7 +782,7 @@ func TestWebHandler_HandleHealthStatusEvent(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	handle(recorder, req)
 	stop()
-	taskIds := service.RegisteredTaskIds()
+	taskIds := service.RegisteredTaskIDs()
 
 	// then
 	assertAccepted(t, recorder)
@@ -797,7 +798,7 @@ func TestWebHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing.T
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
-	service.FailRegisterForId(app.Tasks[1].ID)
+	service.FailRegisterForID(app.Tasks[1].ID)
 	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
 	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
@@ -809,7 +810,7 @@ func TestWebHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing.T
 
 	// then
 	assertAccepted(t, recorder)
-	assert.Empty(t, service.RegisteredTaskIds())
+	assert.Empty(t, service.RegisteredTaskIDs())
 	assert.True(t, marathon.Interactions())
 }
 
@@ -962,7 +963,7 @@ func TestWebHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.T)
 	assert.True(t, marathon.Interactions())
 }
 
-func newConsulStubWithApplicationsTasksRegistered(applications ...*apps.App) *consul.ConsulStub {
+func newConsulStubWithApplicationsTasksRegistered(applications ...*apps.App) *consul.Stub {
 	service := consul.NewConsulStub()
 	for _, app := range applications {
 		for _, task := range app.Tasks {
@@ -975,13 +976,13 @@ func newConsulStubWithApplicationsTasksRegistered(applications ...*apps.App) *co
 type BadReader struct{}
 
 func (r BadReader) Read(p []byte) (n int, err error) {
-	return 0, fmt.Errorf("Some error")
+	return 0, errors.New("Some error")
 }
 
-func healthStatusChangeEventForTask(taskId string) string {
+func healthStatusChangeEventForTask(taskID string) string {
 	return `{
 	  "appId":"/test/app",
-	  "taskId":"` + taskId + `",
+	  "taskId":"` + taskID + `",
 	  "version":"2015-12-07T09:02:48.981Z",
 	  "alive":true,
 	  "eventType":"health_status_changed_event",
