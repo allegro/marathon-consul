@@ -38,7 +38,7 @@ func newEventHandler(id int, serviceRegistry service.ServiceRegistry, marathon m
 	}
 }
 
-func (fh *eventHandler) Start() chan<- stopEvent {
+func (fh *eventHandler) start() chan<- stopEvent {
 	var e event
 	process := func() {
 		err := fh.handleEvent(e.eventType, e.body)

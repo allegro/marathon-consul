@@ -28,7 +28,7 @@ type PortDefinition struct {
 	Labels map[string]string `json:"labels"`
 }
 
-type AppWrapper struct {
+type appWrapper struct {
 	App App `json:"app"`
 }
 
@@ -107,7 +107,7 @@ func ParseApps(jsonBlob []byte) ([]*App, error) {
 }
 
 func ParseApp(jsonBlob []byte) (*App, error) {
-	wrapper := &AppWrapper{}
+	wrapper := &appWrapper{}
 	err := json.Unmarshal(jsonBlob, wrapper)
 
 	return &wrapper.App, err
@@ -182,24 +182,24 @@ func (app *App) labelsToName(labels map[string]string, nameSeparator string) str
 	return serviceName
 }
 
-type IndexedPortDefinition struct {
+type indexedPortDefinition struct {
 	Index  int
 	Port   int
 	Labels map[string]string
 }
 
-func (i *IndexedPortDefinition) toPort(task *Task) int {
+func (i *indexedPortDefinition) toPort(task *Task) int {
 	if i.Port == 0 {
 		return task.Ports[i.Index]
 	}
 	return i.Port
 }
 
-func (app *App) findConsulPortDefinitions() []IndexedPortDefinition {
-	var definitions []IndexedPortDefinition
+func (app *App) findConsulPortDefinitions() []indexedPortDefinition {
+	var definitions []indexedPortDefinition
 	for i, d := range app.PortDefinitions {
 		if _, ok := d.Labels[MarathonConsulLabel]; ok {
-			definitions = append(definitions, IndexedPortDefinition{
+			definitions = append(definitions, indexedPortDefinition{
 				Index:  i,
 				Port:   d.Port,
 				Labels: d.Labels,

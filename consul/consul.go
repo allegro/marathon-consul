@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -52,7 +53,7 @@ func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide Servi
 			return services, nil
 		}
 	}
-	return nil, fmt.Errorf("An error occurred getting services from Consul. Giving up")
+	return nil, errors.New("An error occurred getting services from Consul. Giving up")
 }
 
 func (c *Consul) getServicesUsingAgent(name string, agent *consulapi.Client) ([]*service.Service, error) {
@@ -169,7 +170,7 @@ func (c *Consul) registerMultipleServices(services []*consulapi.AgentServiceRegi
 		}
 	}
 
-	return utils.MergeErrorsOrNil(registerErrors, fmt.Sprintf("registering services"))
+	return utils.MergeErrorsOrNil(registerErrors, fmt.Sprint("registering services"))
 }
 
 func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {

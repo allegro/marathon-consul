@@ -18,7 +18,7 @@ func TestEventTypeInvalid(t *testing.T) {
 	t.Parallel()
 
 	out, err := EventType([]byte(`{}`))
-	assert.Equal(t, err, ErrNoEvent)
+	assert.Error(t, err)
 	assert.Equal(t, out, "")
 }
 
