@@ -34,6 +34,16 @@
         "timeoutSeconds": 10,
         "maxConsecutiveFailures": 3,
         "ignoreHttp1xx": false
+      },
+      {
+        "path": "/custom",
+        "protocol": "HTTP",
+        "port": 8123,
+        "gracePeriodSeconds": 10,
+        "intervalSeconds": 5,
+        "timeoutSeconds": 10,
+        "maxConsecutiveFailures": 3,
+        "ignoreHttp1xx": false
       }
     ],
     "dependencies": [],

@@ -1,16 +1,16 @@
 package sync
 
 import (
+	"fmt"
+	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	. "github.com/allegro/marathon-consul/utils"
 	"github.com/stretchr/testify/assert"
-
-	"fmt"
-	"os"
-	"time"
 
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/service"
@@ -130,6 +130,7 @@ func TestSyncServices_ShouldSyncOnForceWithoutLeadership(t *testing.T) {
 }
 
 type ConsulServicesMock struct {
+	sync.RWMutex
 	registrations map[string]int
 }
 
@@ -148,11 +149,15 @@ func (c *ConsulServicesMock) GetAllServices() ([]*service.Service, error) {
 }
 
 func (c *ConsulServicesMock) Register(task *apps.Task, app *apps.App) error {
+	c.Lock()
+	defer c.Unlock()
 	c.registrations[task.ID.String()]++
 	return nil
 }
 
 func (c *ConsulServicesMock) RegistrationsCount(instanceID string) int {
+	c.RLock()
+	defer c.RUnlock()
 	return c.registrations[instanceID]
 }
 

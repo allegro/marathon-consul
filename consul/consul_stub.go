@@ -2,6 +2,7 @@ package consul
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/service"
@@ -10,6 +11,7 @@ import (
 
 // TODO this should be a service registry stub in the service package, requires abstracting from AgentServiceRegistration
 type Stub struct {
+	sync.RWMutex
 	services                   map[service.ServiceId]*consulapi.AgentServiceRegistration
 	failGetServicesForNames    map[string]bool
 	failRegisterForIDs         map[apps.TaskID]bool
@@ -33,7 +35,9 @@ func NewConsulStubWithTag(tag string) *Stub {
 	}
 }
 
-func (c Stub) GetAllServices() ([]*service.Service, error) {
+func (c *Stub) GetAllServices() ([]*service.Service, error) {
+	c.RLock()
+	defer c.RUnlock()
 	var allServices []*service.Service
 	for _, s := range c.services {
 		allServices = append(allServices, &service.Service{
@@ -46,23 +50,25 @@ func (c Stub) GetAllServices() ([]*service.Service, error) {
 	return allServices, nil
 }
 
-func (c Stub) FailGetServicesForName(failOnName string) {
+func (c *Stub) FailGetServicesForName(failOnName string) {
 	c.failGetServicesForNames[failOnName] = true
 }
 
-func (c Stub) FailRegisterForID(taskID apps.TaskID) {
+func (c *Stub) FailRegisterForID(taskID apps.TaskID) {
 	c.failRegisterForIDs[taskID] = true
 }
 
-func (c Stub) FailDeregisterByTaskForID(taskID apps.TaskID) {
+func (c *Stub) FailDeregisterByTaskForID(taskID apps.TaskID) {
 	c.failDeregisterByTaskForIDs[taskID] = true
 }
 
-func (c Stub) FailDeregisterForID(serviceID service.ServiceId) {
+func (c *Stub) FailDeregisterForID(serviceID service.ServiceId) {
 	c.failDeregisterForIDs[serviceID] = true
 }
 
-func (c Stub) GetServices(name string) ([]*service.Service, error) {
+func (c *Stub) GetServices(name string) ([]*service.Service, error) {
+	c.RLock()
+	defer c.RUnlock()
 	if _, ok := c.failGetServicesForNames[name]; ok {
 		return nil, fmt.Errorf("Consul stub programmed to fail when getting services for name %s", name)
 	}
@@ -81,6 +87,8 @@ func (c Stub) GetServices(name string) ([]*service.Service, error) {
 }
 
 func (c *Stub) Register(task *apps.Task, app *apps.App) error {
+	c.Lock()
+	defer c.Unlock()
 	if _, ok := c.failRegisterForIDs[task.ID]; ok {
 		return fmt.Errorf("Consul stub programmed to fail when registering task of id %s", task.ID.String())
 	}
@@ -95,6 +103,8 @@ func (c *Stub) Register(task *apps.Task, app *apps.App) error {
 }
 
 func (c *Stub) RegisterWithoutMarathonTaskTag(task *apps.Task, app *apps.App) {
+	c.Lock()
+	defer c.Unlock()
 	for _, intent := range app.RegistrationIntents(task, c.consul.config.ConsulNameSeparator) {
 		serviceRegistration := consulapi.AgentServiceRegistration{
 			ID:      task.ID.String(),
@@ -109,6 +119,8 @@ func (c *Stub) RegisterWithoutMarathonTaskTag(task *apps.Task, app *apps.App) {
 }
 
 func (c *Stub) RegisterOnlyFirstRegistrationIntent(task *apps.Task, app *apps.App) {
+	c.Lock()
+	defer c.Unlock()
 	serviceRegistrations, _ := c.consul.marathonTaskToConsulServices(task, app)
 	c.services[service.ServiceId(serviceRegistrations[0].ID)] = serviceRegistrations[0]
 }
@@ -118,6 +130,8 @@ func (c *Stub) ServiceNames(app *apps.App) []string {
 }
 
 func (c *Stub) DeregisterByTask(taskID apps.TaskID) error {
+	c.Lock()
+	defer c.Unlock()
 	if _, ok := c.failDeregisterByTaskForIDs[taskID]; ok {
 		return fmt.Errorf("Consul stub programmed to fail when deregistering task of id %s", taskID.String())
 	}
@@ -128,6 +142,8 @@ func (c *Stub) DeregisterByTask(taskID apps.TaskID) error {
 }
 
 func (c *Stub) Deregister(toDeregister *service.Service) error {
+	c.Lock()
+	defer c.Unlock()
 	if _, ok := c.failDeregisterForIDs[toDeregister.ID]; ok {
 		return fmt.Errorf("Consul stub programmed to fail when deregistering service of id %s", toDeregister.ID)
 	}
