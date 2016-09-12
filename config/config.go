@@ -72,6 +72,7 @@ func (config *Config) parseFlags() {
 	flag.Uint32Var(&config.Consul.AgentFailuresTolerance, "consul-max-agent-failures", 3, "Max number of consecutive request failures for agent before removal from cache")
 	flag.Uint32Var(&config.Consul.RequestRetries, "consul-get-services-retry", 3, "Number of retries on failure when performing requests to Consul. Each retry uses different cached agent")
 	flag.StringVar(&config.Consul.ConsulNameSeparator, "consul-name-separator", ".", "Separator used to create default service name for Consul")
+	flag.StringVar(&config.Consul.IgnoredHealthChecks, "consul-ignored-healthchecks", "", "A comma separated blacklist of Marathon health check types that will not be migrated to Consul, e.g. command,tcp")
 
 	// Web
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "Accept connections at this address")

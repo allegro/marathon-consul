@@ -178,6 +178,7 @@ config-file                 |                 | Path to a JSON file to read conf
 consul-auth                 | `false`         | Use Consul with authentication
 consul-auth-password        |                 | The basic authentication password
 consul-auth-username        |                 | The basic authentication username
+consul-ignored-healthchecks |                 | A comma separated blacklist of Marathon health check types that will not be migrated to Consul, e.g. command,tcp
 consul-name-separator       | `.`             | Separator used to create default service name for Consul
 consul-get-services-retry   | `3`             | Number of retries on failure when performing requests to Consul. Each retry uses different cached agent
 consul-max-agent-failures   | `3`             | Max number of consecutive request failures for agent before removal from cache
