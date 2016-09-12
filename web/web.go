@@ -16,7 +16,7 @@ func NewHandler(config Config, marathon marathon.Marathoner, serviceOperations s
 	eventQueue := make(chan event, config.QueueSize)
 	for i := 0; i < config.WorkersCount; i++ {
 		handler := newEventHandler(i, serviceOperations, marathon, eventQueue)
-		stopChannels[i] = handler.Start()
+		stopChannels[i] = handler.start()
 	}
 	return newWebHandler(eventQueue).Handle, stop(stopChannels)
 }
