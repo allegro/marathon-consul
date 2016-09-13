@@ -15,6 +15,7 @@ type Config struct {
 	RequestRetries         uint32
 	AgentFailuresTolerance uint32
 	ConsulNameSeparator    string
+	IgnoredHealthChecks    string
 }
 
 type Auth struct {

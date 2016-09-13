@@ -305,7 +305,13 @@ func (c *Consul) serviceID(task *apps.Task, name string, port int) string {
 func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.HealthCheck, serviceAddress string) consulapi.AgentServiceChecks {
 	var checks = make(consulapi.AgentServiceChecks, 0, len(healthChecks))
 
+	ignoredHealthCheckTypes := c.getIgnoredHealthCheckTypes()
 	for _, check := range healthChecks {
+		if contains(ignoredHealthCheckTypes, check.Protocol) {
+			log.WithField("Id", task.AppID.String()).WithField("Address", serviceAddress).
+				Info(fmt.Sprintf("Ignoring health check of type %s", check.Protocol))
+			continue
+		}
 		var port int
 		if check.Port != 0 {
 			port = check.Port
@@ -347,6 +353,17 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 		}
 	}
 	return checks
+}
+
+func (c *Consul) getIgnoredHealthCheckTypes() []string {
+	ignoredTypes := make([]string, 0)
+	for _, ignoredType := range strings.Split(strings.ToUpper(c.config.IgnoredHealthChecks), ",") {
+		var ignoredType = strings.TrimSpace(ignoredType)
+		if ignoredType != "" {
+			ignoredTypes = append(ignoredTypes, ignoredType)
+		}
+	}
+	return ignoredTypes
 }
 
 func (c *Consul) AddAgentsFromApps(apps []*apps.App) {
