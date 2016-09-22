@@ -318,17 +318,20 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 		} else {
 			port = task.Ports[check.PortIndex]
 		}
+
+		consulCheck := consulapi.AgentServiceCheck{
+			Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
+			Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
+			Status:   "passing",
+		}
+
 		switch check.Protocol {
 		case "HTTP", "HTTPS":
 			if parsedURL, err := url.ParseRequestURI(check.Path); err == nil {
 				parsedURL.Scheme = strings.ToLower(check.Protocol)
 				parsedURL.Host = fmt.Sprintf("%s:%d", serviceAddress, port)
-
-				checks = append(checks, &consulapi.AgentServiceCheck{
-					HTTP:     parsedURL.String(),
-					Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
-					Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
-				})
+				consulCheck.HTTP = parsedURL.String()
+				checks = append(checks, &consulCheck)
 			} else {
 				log.WithError(err).
 					WithField("Id", task.AppID.String()).
@@ -336,17 +339,11 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 					Warn(fmt.Sprintf("Could not parse provided path: %s", check.Path))
 			}
 		case "TCP":
-			checks = append(checks, &consulapi.AgentServiceCheck{
-				TCP:      fmt.Sprintf("%s:%d", serviceAddress, port),
-				Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
-				Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
-			})
+			consulCheck.TCP = fmt.Sprintf("%s:%d", serviceAddress, port)
+			checks = append(checks, &consulCheck)
 		case "COMMAND":
-			checks = append(checks, &consulapi.AgentServiceCheck{
-				Script:   check.Command.Value,
-				Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
-				Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
-			})
+			consulCheck.Script = check.Command.Value
+			checks = append(checks, &consulCheck)
 		default:
 			log.WithField("Id", task.AppID.String()).WithField("Address", serviceAddress).
 				Warn(fmt.Sprintf("Unrecognized check protocol %s", check.Protocol))
