@@ -789,26 +789,31 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 			HTTP:     "http://127.0.0.6:8123/api/health?with=query",
 			Interval: "60s",
 			Timeout:  "20s",
+			Status:   "passing",
 		},
 		{
 			HTTP:     "https://127.0.0.6:8090/secure/health?with=query",
 			Interval: "50s",
 			Timeout:  "20s",
+			Status:   "passing",
 		},
 		{
 			TCP:      "127.0.0.6:8443",
 			Interval: "40s",
 			Timeout:  "20s",
+			Status:   "passing",
 		},
 		{
 			TCP:      "127.0.0.6:8234",
 			Interval: "40s",
 			Timeout:  "20s",
+			Status:   "passing",
 		},
 		{
 			Script:   "echo 1",
 			Interval: "30s",
 			Timeout:  "20s",
+			Status:   "passing",
 		},
 	}, service.Checks)
 }
@@ -899,11 +904,13 @@ func TestMarathonTaskToConsulServiceMapping_IgnoredHealthcheckTypes(t *testing.T
 			HTTP:     "http://127.0.0.6:8090/api/health?with=query",
 			Interval: "60s",
 			Timeout:  "20s",
+			Status:   "passing",
 		},
 		{
 			HTTP:     "https://127.0.0.6:8090/secure/health?with=query",
 			Interval: "50s",
 			Timeout:  "20s",
+			Status:   "passing",
 		},
 	}, service.Checks)
 }
