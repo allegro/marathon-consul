@@ -349,6 +349,36 @@ func TestSync_ShouldRegisterMissingRegistrationInMultiregistrationScenario(t *te
 	assert.Len(t, services, 2)
 }
 
+/*
+This may happen if an application configuration is changed, but there are still tasks running the older one, e.g.
+the new deployment is still in progress or was cancelled. There's no way to access the original configuration
+that was used to start the currently running tasks. In such case, it's possible that a given task has more registrations
+than it's now expected from the new application configuration. In order to be safe we don't want to deregister anything,
+let someone make the deployment explicitly.
+*/
+func TestSync_SkipServiceHavingMoreRegistrationsThanExpectedInMultiregistrationScenario(t *testing.T) {
+	t.Parallel()
+	// given
+	app := ConsulAppMultipleRegistrations("/test/app", 1, 2)
+	marathon := marathon.MarathonerStubForApps(app)
+	consul := consul.NewConsulStub()
+
+	consul.Register(&app.Tasks[0], app)
+	services, _ := consul.GetAllServices()
+	assert.Len(t, services, 2)
+
+	sync := newSyncWithDefaultConfig(marathon, consul)
+
+	// when
+	app.PortDefinitions[1].Labels = map[string]string{} // make it a single-registration app
+	err := sync.SyncServices()
+
+	// then
+	services, _ = consul.GetAllServices()
+	assert.NoError(t, err)
+	assert.Len(t, services, 2)
+}
+
 func TestSync_WithDeregisteringProblems(t *testing.T) {
 	t.Parallel()
 	// given

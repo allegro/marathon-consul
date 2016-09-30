@@ -148,7 +148,8 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, servic
 		}
 		expectedRegistrations := app.RegistrationIntentsNumber()
 		for _, task := range app.Tasks {
-			if registrations := registrationsUnderTaskIds[task.ID]; registrations != expectedRegistrations {
+			registrations := registrationsUnderTaskIds[task.ID]
+			if registrations < expectedRegistrations {
 				if registrations != 0 {
 					log.WithField("Id", task.ID).WithField("HasRegistrations", registrations).
 						WithField("ExpectedRegistrations", expectedRegistrations).Info("Registering missing service registrations")
@@ -161,6 +162,9 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, servic
 				} else {
 					log.WithField("Id", task.ID).Debug("Task is not healthy. Not Registering")
 				}
+			} else if registrations > expectedRegistrations {
+				log.WithField("Id", task.ID).WithField("HasRegistrations", registrations).
+					WithField("ExpectedRegistrations", expectedRegistrations).Warn("Skipping task with excess registrations")
 			} else {
 				log.WithField("Id", task.ID).Debug("Task already registered in Consul")
 			}
