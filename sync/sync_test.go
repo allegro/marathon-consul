@@ -350,7 +350,7 @@ func TestSync_ShouldRegisterMissingRegistrationInMultiregistrationScenario(t *te
 }
 
 /*
-This may happen if an application configuration is changed and then the deployment this triggered is rolled back.
+This may happen if an application configuration is changed and then the deployment this triggered is rolled back (deployment stopped).
 After rollback, the new configuration still stays with the application and there's no way to access the original configuration
 that was used to start the currently running tasks. In such case, it's possible that a given task has more registrations
 than it's now expected from the new application configuration. In order to be safe we don't want to deregister anything,
