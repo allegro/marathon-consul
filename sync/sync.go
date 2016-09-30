@@ -164,7 +164,7 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, servic
 				}
 			} else if registrations > expectedRegistrations {
 				log.WithField("Id", task.ID).WithField("HasRegistrations", registrations).
-				WithField("ExpectedRegistrations", expectedRegistrations).Warn("Skipping task with excess registrations")
+					WithField("ExpectedRegistrations", expectedRegistrations).Warn("Skipping task with excess registrations")
 			} else {
 				log.WithField("Id", task.ID).Debug("Task already registered in Consul")
 			}

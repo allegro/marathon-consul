@@ -355,7 +355,7 @@ After rollback, the new configuration still stays with the application and there
 that was used to start the currently running tasks. In such case, it's possible that a given task has more registrations
 than it's now expected from the new application configuration. In order to be safe we don't want to deregister anything,
 let someone make the deployment explicitly.
- */
+*/
 func TestSync_SkipServiceHavingMoreRegistrationsThanExpectedInMultiregistrationScenario(t *testing.T) {
 	t.Parallel()
 	// given
@@ -370,7 +370,7 @@ func TestSync_SkipServiceHavingMoreRegistrationsThanExpectedInMultiregistrationS
 	sync := newSyncWithDefaultConfig(marathon, consul)
 
 	// when
-	app.PortDefinitions[1].Labels = map[string]string{}  // make it a single-registration app
+	app.PortDefinitions[1].Labels = map[string]string{} // make it a single-registration app
 	err := sync.SyncServices()
 
 	// then
