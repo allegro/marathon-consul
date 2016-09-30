@@ -76,8 +76,8 @@ func (s *Sync) syncServices() error {
 		return fmt.Errorf("Can't get Consul services: %v", err)
 	}
 
-	s.deregisterConsulServicesNotFoundInMarathon(apps, services)
 	s.registerAppTasksNotFoundInConsul(apps, services)
+	s.deregisterConsulServicesNotFoundInMarathon(apps, services)
 
 	log.Info("Syncing services finished")
 	return nil
