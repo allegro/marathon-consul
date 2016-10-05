@@ -122,7 +122,7 @@ func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.A
 		taskIDNotFoundInTag := err != nil
 		if taskIDNotFoundInTag {
 			log.WithField("Id", service.ID).WithError(err).
-				Warn("Couldn't extract marathon task id, deregistering to have sync reregister it properly")
+				Warn("Couldn't extract marathon task id, deregistering since sync should have reregistered it already")
 		}
 
 		if _, isRunning := runningTasks[taskIDInTag]; !isRunning || taskIDNotFoundInTag {
