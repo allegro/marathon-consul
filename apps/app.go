@@ -25,7 +25,6 @@ type HealthCheck struct {
 }
 
 type PortDefinition struct {
-	Port   int               `json:"port"`
 	Labels map[string]string `json:"labels"`
 }
 
@@ -151,7 +150,7 @@ func (app *App) RegistrationIntents(task *Task, nameSeparator string) []*Registr
 	for _, d := range definitions {
 		intents = append(intents, &RegistrationIntent{
 			Name: app.labelsToName(d.Labels, nameSeparator),
-			Port: d.toPort(task),
+			Port: task.Ports[d.Index],
 			Tags: append(commonTags, labelsToTags(d.Labels)...),
 		})
 	}
@@ -185,15 +184,7 @@ func (app *App) labelsToName(labels map[string]string, nameSeparator string) str
 
 type indexedPortDefinition struct {
 	Index  int
-	Port   int
 	Labels map[string]string
-}
-
-func (i *indexedPortDefinition) toPort(task *Task) int {
-	if i.Port == 0 {
-		return task.Ports[i.Index]
-	}
-	return i.Port
 }
 
 func (app *App) findConsulPortDefinitions() []indexedPortDefinition {
@@ -202,7 +193,6 @@ func (app *App) findConsulPortDefinitions() []indexedPortDefinition {
 		if _, ok := d.Labels[MarathonConsulLabel]; ok {
 			definitions = append(definitions, indexedPortDefinition{
 				Index:  i,
-				Port:   d.Port,
 				Labels: d.Labels,
 			})
 		}

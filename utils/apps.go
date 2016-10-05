@@ -62,7 +62,6 @@ func app(name string, instances int, registrationsPerInstance int, consul bool, 
 	if registrationsPerInstance > 1 {
 		for i := 0; i < registrationsPerInstance; i++ {
 			app.PortDefinitions = append(app.PortDefinitions, apps.PortDefinition{
-				Port:   0,
 				Labels: map[string]string{"consul": ""},
 			})
 		}

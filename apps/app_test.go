@@ -298,31 +298,6 @@ func TestRegistrationIntent_PickDifferentPortViaPortDefinitions(t *testing.T) {
 	assert.Equal(t, 5678, intent.Port)
 }
 
-func TestRegistrationIntent_PickExplicitPortViaPortDefinitions(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &App{
-		ID:     "app-name",
-		Labels: map[string]string{"consul": "true", "private": "tag"},
-		PortDefinitions: []PortDefinition{
-			{
-				Port:   1337,
-				Labels: map[string]string{"consul": "true"},
-			},
-		},
-	}
-	task := &Task{
-		Ports: []int{},
-	}
-
-	// when
-	intent := app.RegistrationIntents(task, "-")[0]
-
-	// then
-	assert.Equal(t, 1337, intent.Port)
-}
-
 func TestRegistrationIntent_MultipleIntentsViaPortDefinitionIfMultipleContainConsulLabel(t *testing.T) {
 	t.Parallel()
 
