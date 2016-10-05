@@ -233,15 +233,11 @@ via Marathon's `portDefinitions`:
   },
   "portDefinitions": [
     {
-      "port": 0,
-      "protocol": "tcp",
       "labels": {
         "consul": "my-app-custom-name"
       }
     },
     {
-      "port": 0,
-      "protocol": "tcp",
       "labels": {
         "consul": "my-app-other-name",
         "specific-tag": "tag"
@@ -285,9 +281,6 @@ though its value won't have any effect.
 
 Tags configured in the top-level application labels will be added to all registrations. Tags configured in the port definition 
 labels will be added only to corresponding registrations.
-
-You can either provide explicit port numbers or provide 0, in which case randomly assigned ports will be used. Read more
-in [Marathon's documentation](https://mesosphere.github.io/marathon/docs/ports.html).
 
 All registrations share the same `marathon-task` tag.
 
