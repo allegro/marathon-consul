@@ -289,24 +289,8 @@ All registrations share the same `marathon-task` tag.
 Until 1.x.x marathon-consul would register services in Consul with registration id equal to related Marathon task id. Since 1.x.x registration ids are different and
 an additional tag, `marathon-task`, is added to each registration.
 
-If you update marathon-consul from version 0.x.x to 1.x.x, expect the synchronization phase during the first startup to reregister all services managed by marathon-consul to the new format.
-Depending on the configured healthchecks this may result in many seconds of services unavailability in the registry before their healthchecks become passing. If that's
-not acceptable for you, you should ensure that before updating marathon-consul all managed services contain a `marathon-task:<task-id>` tag, where `<task-id>` is the Marathon task id
-being registered in Consul.
-
-### Migration script
-
-You can run our migration script before updating to 1.x.x to ensure marathon-task tag in each registered service in a given datacenter.
-
-```
-migrate_to_marathon_task_tag --bootstrap-agent-location=1.2.3.4:8500
-```
-
-Provide `--bootstrap-agent-location` specifying address and port of one of the nodes in migrated datacenter. The script will discover
-all nodes in the datacenter and migrate all services registered there. Optionally, you can provide `--consul-tag` to match the one
-configured in your marathon-consul installation if you did customize it.
-
-If you have multiple datacenters you should migrate each one separately. It's safe to run the migration script multiple times – it skips services already in the new format.
+If you update marathon-consul from version 0.x.x to 1.x.x, expect the synchronization phase during the first startup to 
+reregister all healthy services managed by marathon-consul to the new format. Unhealthy services will get deregistered in the process.
 
 ## Known limitations
 
