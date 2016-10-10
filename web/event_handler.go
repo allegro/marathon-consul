@@ -11,7 +11,6 @@ import (
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/service"
-	"github.com/allegro/marathon-consul/utils"
 )
 
 type event struct {
@@ -78,10 +77,6 @@ func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 		return fh.handleHealthStatusEvent(body)
 	case "unhealthy_task_kill_event":
 		return fh.handleUnhealthyTaskKillEvent(body)
-	case "deployment_info":
-		return fh.handleDeploymentInfo(body)
-	case "deployment_step_success":
-		return fh.handleDeploymentStepSuccess(body)
 	default:
 		log.WithField("EventType", eventType).Debug("Not handled event type")
 		return nil
@@ -177,76 +172,6 @@ func (fh *eventHandler) handleUnhealthyTaskKillEvent(body []byte) error {
 	}).Info("Got Unhealthy TaskKilled Event")
 
 	return fh.deregister(task.ID)
-}
-
-//This handler is used when an application is stopped
-func (fh *eventHandler) handleDeploymentInfo(body []byte) error {
-	deploymentEvent, err := events.ParseDeploymentEvent(body)
-
-	if err != nil {
-		log.WithError(err).WithField("Body", body).Error("Could not parse event body")
-		return err
-	}
-
-	errors := []error{}
-	for _, app := range deploymentEvent.StoppedConsulApps() {
-		errors = append(errors, fh.deregisterAllAppServices(app)...)
-	}
-	return utils.MergeErrorsOrNil(errors, "handling deregistration")
-}
-
-//This handler is used when an application is restarted and renamed
-func (fh *eventHandler) handleDeploymentStepSuccess(body []byte) error {
-	deploymentEvent, err := events.ParseDeploymentEvent(body)
-
-	if err != nil {
-		log.WithError(err).WithField("Body", body).Error("Could not parse event body")
-		return err
-	}
-
-	errors := []error{}
-	for _, app := range deploymentEvent.RenamedConsulApps() {
-		errors = append(errors, fh.deregisterAllAppServices(app)...)
-	}
-	return utils.MergeErrorsOrNil(errors, "handling deregistration")
-}
-
-func (fh *eventHandler) deregisterAllAppServices(app *apps.App) []error {
-	errors := []error{}
-	serviceNames := fh.serviceRegistry.ServiceNames(app)
-
-	log.WithField("AppId", app.ID).WithField("ServiceNames", serviceNames).Info("Deregistering all services")
-
-	var allServices []*service.Service
-	for _, name := range serviceNames {
-		services, err := fh.serviceRegistry.GetServices(name)
-		if err != nil {
-			log.WithField("Id", app.ID).WithError(err).Error("There was a problem getting Consul services")
-			errors = append(errors, err)
-			return errors
-		}
-		allServices = append(allServices, services...)
-	}
-
-	if len(allServices) == 0 {
-		log.WithField("AppId", app.ID).WithField("ServiceNames", serviceNames).Info("No matching Consul services found")
-		return errors
-	}
-
-	for _, service := range allServices {
-		taskID, err := service.TaskId()
-		if err != nil {
-			errors = append(errors, err)
-			continue
-		}
-		if taskID.AppID() == app.ID {
-			err = fh.deregister(taskID)
-			if err != nil {
-				errors = append(errors, err)
-			}
-		}
-	}
-	return errors
 }
 
 func (fh *eventHandler) deregister(taskID apps.TaskID) error {

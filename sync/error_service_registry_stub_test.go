@@ -29,7 +29,3 @@ func (c errorServiceRegistry) DeregisterByTask(taskID apps.TaskID) error {
 func (c errorServiceRegistry) Deregister(toDeregister *service.Service) error {
 	return errors.New("Error occured")
 }
-
-func (c errorServiceRegistry) ServiceNames(app *apps.App) []string {
-	return []string{}
-}

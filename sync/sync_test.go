@@ -165,10 +165,6 @@ func (c *ConsulServicesMock) DeregisterByTask(taskID apps.TaskID) error {
 	return nil
 }
 
-func (c *ConsulServicesMock) ServiceNames(app *apps.App) []string {
-	return []string{}
-}
-
 func (c *ConsulServicesMock) Deregister(toDeregister *service.Service) error {
 	return nil
 }
