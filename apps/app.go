@@ -58,36 +58,6 @@ func (app *App) IsConsulApp() bool {
 	return ok
 }
 
-func (app *App) HasSameConsulNamesAs(other *App) bool {
-	thisNames := app.ConsulNames(".")
-	otherNames := other.ConsulNames(".")
-
-	if len(thisNames) != len(otherNames) {
-		return false
-	}
-
-	for i, name := range thisNames {
-		if name != otherNames[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func (app *App) ConsulNames(separator string) []string {
-	definitions := app.findConsulPortDefinitions()
-
-	if len(definitions) == 0 {
-		return []string{app.labelsToName(app.Labels, separator)}
-	}
-
-	var names []string
-	for _, d := range definitions {
-		names = append(names, app.labelsToName(d.Labels, separator))
-	}
-	return names
-}
-
 func (app *App) labelsToRawName(labels map[string]string) string {
 	if value, ok := labels[MarathonConsulLabel]; ok && !isSpecialConsulNameValue(value) {
 		return value

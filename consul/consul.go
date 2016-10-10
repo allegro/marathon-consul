@@ -270,10 +270,6 @@ func (c *Consul) deregister(toDeregister *service.Service) error {
 	return err
 }
 
-func (c *Consul) ServiceNames(app *apps.App) []string {
-	return app.ConsulNames(c.config.ConsulNameSeparator)
-}
-
 func (c *Consul) marathonTaskToConsulServices(task *apps.Task, app *apps.App) ([]*consulapi.AgentServiceRegistration, error) {
 	IP, err := utils.HostToIPv4(task.Host)
 	if err != nil {

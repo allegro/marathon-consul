@@ -125,10 +125,6 @@ func (c *Stub) RegisterOnlyFirstRegistrationIntent(task *apps.Task, app *apps.Ap
 	c.services[service.ServiceId(serviceRegistrations[0].ID)] = serviceRegistrations[0]
 }
 
-func (c *Stub) ServiceNames(app *apps.App) []string {
-	return c.consul.ServiceNames(app)
-}
-
 func (c *Stub) DeregisterByTask(taskID apps.TaskID) error {
 	c.Lock()
 	defer c.Unlock()
