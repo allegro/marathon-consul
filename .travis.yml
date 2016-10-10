@@ -21,7 +21,6 @@ script:
   - go test -coverprofile=metrics.coverprofile ./metrics
   - go test -coverprofile=service.coverprofile ./service
   - go test -coverprofile=sync.coverprofile ./sync
-  - go test -coverprofile=scripts.migrate_to_marathon_task_tag.coverprofile ./scripts/migrate_to_marathon_task_tag
   - go test -coverprofile=utils.coverprofile ./utils
   - go test -coverprofile=web.coverprofile ./web
   - go test -coverprofile=main.coverprofile
