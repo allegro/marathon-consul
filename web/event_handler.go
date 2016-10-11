@@ -75,8 +75,6 @@ func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 		return fh.handleStatusEvent(body)
 	case "health_status_changed_event":
 		return fh.handleHealthStatusEvent(body)
-	case "unhealthy_task_kill_event":
-		return fh.handleUnhealthyTaskKillEvent(body)
 	default:
 		log.WithField("EventType", eventType).Debug("Not handled event type")
 		return nil
@@ -157,21 +155,6 @@ func (fh *eventHandler) handleStatusEvent(body []byte) error {
 		}).Debug("Not handled task status")
 		return nil
 	}
-}
-
-func (fh *eventHandler) handleUnhealthyTaskKillEvent(body []byte) error {
-	task, err := apps.ParseTask(body)
-
-	if err != nil {
-		log.WithError(err).WithField("Body", body).Error("Could not parse event body")
-		return err
-	}
-
-	log.WithFields(log.Fields{
-		"Id": task.ID,
-	}).Info("Got Unhealthy TaskKilled Event")
-
-	return fh.deregister(task.ID)
 }
 
 func (fh *eventHandler) deregister(taskID apps.TaskID) error {
