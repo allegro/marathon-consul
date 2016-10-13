@@ -2,7 +2,10 @@
 	"ArtifactsDest": "dist",
 	"TasksExclude": [
 		"go-vet",
-		"go-test"
+		"go-test",
+		"deb",
+		"deb-dev",
+		"deb-source"
 	],
 	"BuildConstraints": "linux,!arm darwin",
 	"PackageVersion": "0.4.2",
@@ -14,13 +17,6 @@
 			"package": "marathon-consul",
 			"repository": "deb",
 			"subject": "allegro"
-		},
-		"deb": {
-			"other-mapped-files": {
-				"/etc/init/marathon-consul.conf": "debian/marathon-consul.upstart",
-				"/etc/marathon-consul.d/config.json": "debian/config.json",
-				"/etc/systemd/system/marathon-consul.service": "debian/marathon-consul.service"
-			}
 		},
 		"publish-github": {
 			"body": "",
