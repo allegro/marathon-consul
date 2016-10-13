@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/allegro/marathon-consul/apps"
@@ -111,7 +112,9 @@ func TestWebHandler_NotHandleInvalidEventType(t *testing.T) {
 
 	// then
 	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "json: cannot unmarshal array into Go value of type string\n", recorder.Body.String())
+
+	assert.True(t, strings.HasPrefix(recorder.Body.String(), "json: cannot unmarshal array"))
+
 }
 
 func TestWebHandler_HandleAppInvalidBody(t *testing.T) {
