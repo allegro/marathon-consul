@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -114,11 +113,8 @@ func TestWebHandler_NotHandleInvalidEventType(t *testing.T) {
 	// then
 	assert.Equal(t, 400, recorder.Code)
 
-	if runtime.Version() < "go1.8" && !strings.HasPrefix(runtime.Version(), "devel") {
-		assert.Equal(t, "json: cannot unmarshal array into Go value of type string\n", recorder.Body.String())
-	} else {
-		assert.Equal(t, "json: cannot unmarshal array into Go struct field BaseEvent.eventType of type string\n", recorder.Body.String())
-	}
+	assert.True(t, strings.HasPrefix(recorder.Body.String(), "json: cannot unmarshal array"))
+
 }
 
 func TestWebHandler_HandleAppInvalidBody(t *testing.T) {
