@@ -2,21 +2,24 @@ language: go
 
 go:
   - 1.7
-  - tip
 before_install:
   - go get golang.org/x/tools/cmd/cover
   - go get github.com/axw/gocov/gocov
   - go get github.com/modocache/gover
   - go get github.com/mattn/goveralls
   - if ! go get github.com/golang/tools/cmd/cover; then go get golang.org/x/tools/cmd/cover; fi
+  - go get github.com/alecthomas/gometalinter
 script:
   - make deps
+  - gometalinter --install
+  - gometalinter ./... --deadline 120s --vendor -D dupl -D gotype -D errcheck -D gas -D golint -E gofmt
   - go test -coverprofile=apps.coverprofile ./apps
   - go test -coverprofile=config.coverprofile ./config
   - go test -coverprofile=consul.coverprofile ./consul
   - go test -coverprofile=events.coverprofile ./events
   - go test -coverprofile=marathon.coverprofile ./marathon
   - go test -coverprofile=metrics.coverprofile ./metrics
+  - go test -coverprofile=service.coverprofile ./service
   - go test -coverprofile=sync.coverprofile ./sync
   - go test -coverprofile=utils.coverprofile ./utils
   - go test -coverprofile=web.coverprofile ./web

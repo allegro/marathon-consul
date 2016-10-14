@@ -15,7 +15,8 @@
     "Tag": "marathon",
     "Timeout": 3000000000,
     "AgentFailuresTolerance": 3,
-    "RequestRetries": 5
+    "RequestRetries": 5,
+    "IgnoredHealthChecks": ""
   },
   "Web": {
     "Listen": ":4000",

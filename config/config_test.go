@@ -85,7 +85,7 @@ func TestConfig_ShouldUseTextFormatterWhenFormatterIsUnknown(t *testing.T) {
 func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 	clear()
 	expected := &Config{
-		Consul: consul.ConsulConfig{
+		Consul: consul.Config{
 			Auth: consul.Auth{Enabled: false,
 				Username: "",
 				Password: ""},

@@ -145,13 +145,17 @@ curl -X GET http://localhost:8500/v1/catalog/service/my-new-app
 "ServiceTags": [
   "marathon",
   "varnish",
-  "metrics"
+  "metrics",
+  "marathon-task:my-new-app.6a95bb03-6ad3-11e6-beaf-080027a7aca0"
 ],
 
 ```
+- Every service registration contains an additional tag `marathon-task` specifying the Marathon task id related to this registration.
 - If there are multiple ports in use for the same app, note that only the first one will be registered by marathon-consul in Consul.
 
-### Task heathchecks
+If you need to register your task under multiple ports, refer to *Advanced usage* section below.
+
+### Task healthchecks
 
 - At least one HTTP healthcheck should be defined for a task. The task is registered when Marathon marks it as alive.
 - The provided HTTP healthcheck will be transferred to Consul.
@@ -174,6 +178,7 @@ config-file                 |                 | Path to a JSON file to read conf
 consul-auth                 | `false`         | Use Consul with authentication
 consul-auth-password        |                 | The basic authentication password
 consul-auth-username        |                 | The basic authentication username
+consul-ignored-healthchecks |                 | A comma separated blacklist of Marathon health check types that will not be migrated to Consul, e.g. command,tcp
 consul-name-separator       | `.`             | Separator used to create default service name for Consul
 consul-get-services-retry   | `3`             | Number of retries on failure when performing requests to Consul. Each retry uses different cached agent
 consul-max-agent-failures   | `3`             | Max number of consecutive request failures for agent before removal from cache
@@ -213,7 +218,81 @@ Endpoint  | Description
 `/health` | healthcheck - returns `OK`
 `/events` | event sink - returns `OK` if all keys are set in an event, error message otherwise
 
-### Known limitations
+## Advanced usage
+
+### Register under multiple ports
+
+If you need to map your Marathon task into multiple service registrations in Consul, you can configure marathon-consul 
+via Marathon's `portDefinitions`:
+
+```
+  "id": "my-new-app",
+  "labels": {
+    "consul": "",
+    "common-tag": "tag"
+  },
+  "portDefinitions": [
+    {
+      "labels": {
+        "consul": "my-app-custom-name"
+      }
+    },
+    {
+      "labels": {
+        "consul": "my-app-other-name",
+        "specific-tag": "tag"
+      }
+    }
+  ]
+```
+
+This configuration would result in two service registrations:
+
+```
+curl -X GET http://localhost:8500/v1/catalog/service/my-app-custom-name
+...
+"ServiceName": "my-app-custom-name",
+"ServiceTags": [
+  "marathon",
+  "common-tag",
+  "marathon-task:my-new-app.6a95bb03-6ad3-11e6-beaf-080027a7aca0"
+],
+"ServicePort": 31292,
+...
+
+curl -X GET http://localhost:8500/v1/catalog/service/my-app-other-name
+...
+"ServiceName": "my-app-other-name",
+"ServiceTags": [
+  "marathon",
+  "common-tag",
+  "specific-tag",
+  "marathon-task:my-new-app.6a95bb03-6ad3-11e6-beaf-080027a7aca0"
+],
+"ServicePort": 31293,
+...
+``` 
+
+If any port definition contains the `consul` label, then advanced configuration mode is enabled. As a result, only the ports 
+containing this label are registered, under the name specified as the label's value – with empty value resolved to default name.
+Names don't have to be unique – you can have multiple registrations under the same name, but on different ports, 
+perhaps with different tags. Note that the `consul` label still needs to be present in the top-level application labels, even
+though its value won't have any effect.
+
+Tags configured in the top-level application labels will be added to all registrations. Tags configured in the port definition 
+labels will be added only to corresponding registrations.
+
+All registrations share the same `marathon-task` tag.
+
+## Migration to version 1.x.x
+
+Until 1.x.x marathon-consul would register services in Consul with registration id equal to related Marathon task id. Since 1.x.x registration ids are different and
+an additional tag, `marathon-task`, is added to each registration.
+
+If you update marathon-consul from version 0.x.x to 1.x.x, expect the synchronization phase during the first startup to 
+reregister all healthy services managed by marathon-consul to the new format. Unhealthy services will get deregistered in the process.
+
+## Known limitations
 
 The following section describes known limitations in `marathon-consul`.
 

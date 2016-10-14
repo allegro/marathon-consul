@@ -7,26 +7,22 @@ import (
 	"github.com/allegro/marathon-consul/apps"
 )
 
-var (
-	ErrNoEvent = errors.New("no event")
-)
-
 type Event interface {
 	Apps() []*apps.App
 	GetType() string
 }
 
-type BaseEvent struct {
+type baseEvent struct {
 	Type string `json:"eventType"`
 }
 
 func EventType(jsonBlob []byte) (string, error) {
-	event := BaseEvent{}
+	event := baseEvent{}
 	err := json.Unmarshal(jsonBlob, &event)
 	if err != nil {
 		return "", err
 	} else if event.Type == "" {
-		return "", ErrNoEvent
+		return "", errors.New("no event")
 	} else {
 		return event.Type, nil
 	}

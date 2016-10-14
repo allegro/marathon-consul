@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"fmt"
+	"errors"
 	"net"
 )
 
@@ -15,5 +15,5 @@ func HostToIPv4(host string) (net.IP, error) {
 			return IP, nil
 		}
 	}
-	return nil, fmt.Errorf("Could not resolve host to IPv4")
+	return nil, errors.New("Could not resolve host to IPv4")
 }

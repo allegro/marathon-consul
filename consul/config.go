@@ -2,7 +2,7 @@ package consul
 
 import "time"
 
-type ConsulConfig struct {
+type Config struct {
 	Auth                   Auth
 	Port                   string
 	SslEnabled             bool
@@ -15,6 +15,7 @@ type ConsulConfig struct {
 	RequestRetries         uint32
 	AgentFailuresTolerance uint32
 	ConsulNameSeparator    string
+	IgnoredHealthChecks    string
 }
 
 type Auth struct {

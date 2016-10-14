@@ -1,113 +1,168 @@
 package consul
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/allegro/marathon-consul/apps"
+	"github.com/allegro/marathon-consul/service"
 	consulapi "github.com/hashicorp/consul/api"
 )
 
-type ConsulStub struct {
+// TODO this should be a service registry stub in the service package, requires abstracting from AgentServiceRegistration
+type Stub struct {
 	sync.RWMutex
-	services         map[apps.TaskId]*consulapi.AgentServiceRegistration
-	ErrorServices    map[apps.TaskId]error
-	ErrorGetServices map[string]error
-	consul           *Consul
+	services                   map[service.ServiceId]*consulapi.AgentServiceRegistration
+	failGetServicesForNames    map[string]bool
+	failRegisterForIDs         map[apps.TaskID]bool
+	failDeregisterByTaskForIDs map[apps.TaskID]bool
+	failDeregisterForIDs       map[service.ServiceId]bool
+	consul                     *Consul
 }
 
-func NewConsulStub() *ConsulStub {
+func NewConsulStub() *Stub {
 	return NewConsulStubWithTag("marathon")
 }
 
-func NewConsulStubWithTag(tag string) *ConsulStub {
-	return &ConsulStub{
-		services:         make(map[apps.TaskId]*consulapi.AgentServiceRegistration),
-		ErrorServices:    make(map[apps.TaskId]error),
-		ErrorGetServices: make(map[string]error),
-		consul:           New(ConsulConfig{Tag: tag, ConsulNameSeparator: "."}),
+func NewConsulStubWithTag(tag string) *Stub {
+	return &Stub{
+		services:                   make(map[service.ServiceId]*consulapi.AgentServiceRegistration),
+		failGetServicesForNames:    make(map[string]bool),
+		failRegisterForIDs:         make(map[apps.TaskID]bool),
+		failDeregisterByTaskForIDs: make(map[apps.TaskID]bool),
+		failDeregisterForIDs:       make(map[service.ServiceId]bool),
+		consul:                     New(Config{Tag: tag, ConsulNameSeparator: "."}),
 	}
 }
 
-func (c *ConsulStub) GetAllServices() ([]*consulapi.CatalogService, error) {
+func (c *Stub) GetAllServices() ([]*service.Service, error) {
 	c.RLock()
 	defer c.RUnlock()
-	var catalog []*consulapi.CatalogService
+	var allServices []*service.Service
 	for _, s := range c.services {
-		catalog = append(catalog, &consulapi.CatalogService{
-			Address:        s.Address,
-			ServiceAddress: s.Address,
-			ServicePort:    s.Port,
-			ServiceTags:    s.Tags,
-			ServiceID:      s.ID,
-			ServiceName:    s.Name,
+		allServices = append(allServices, &service.Service{
+			ID:   service.ServiceId(s.ID),
+			Name: s.Name,
+			Tags: s.Tags,
+			RegisteringAgentAddress: s.Address,
 		})
 	}
-	return catalog, nil
+	return allServices, nil
 }
 
-func (c *ConsulStub) GetServices(name string) ([]*consulapi.CatalogService, error) {
+func (c *Stub) FailGetServicesForName(failOnName string) {
+	c.failGetServicesForNames[failOnName] = true
+}
+
+func (c *Stub) FailRegisterForID(taskID apps.TaskID) {
+	c.failRegisterForIDs[taskID] = true
+}
+
+func (c *Stub) FailDeregisterByTaskForID(taskID apps.TaskID) {
+	c.failDeregisterByTaskForIDs[taskID] = true
+}
+
+func (c *Stub) FailDeregisterForID(serviceID service.ServiceId) {
+	c.failDeregisterForIDs[serviceID] = true
+}
+
+func (c *Stub) GetServices(name string) ([]*service.Service, error) {
 	c.RLock()
 	defer c.RUnlock()
-	if err, ok := c.ErrorGetServices[name]; ok {
-		return nil, err
+	if _, ok := c.failGetServicesForNames[name]; ok {
+		return nil, fmt.Errorf("Consul stub programmed to fail when getting services for name %s", name)
 	}
-	var catalog []*consulapi.CatalogService
+	var services []*service.Service
 	for _, s := range c.services {
 		if s.Name == name && contains(s.Tags, c.consul.config.Tag) {
-			catalog = append(catalog, &consulapi.CatalogService{
-				Address:        s.Address,
-				ServiceAddress: s.Address,
-				ServicePort:    s.Port,
-				ServiceTags:    s.Tags,
-				ServiceID:      s.ID,
-				ServiceName:    s.Name,
+			services = append(services, &service.Service{
+				ID:   service.ServiceId(s.ID),
+				Name: s.Name,
+				Tags: s.Tags,
+				RegisteringAgentAddress: s.Address,
 			})
 		}
 	}
-	return catalog, nil
+	return services, nil
 }
 
-func (c *ConsulStub) Register(task *apps.Task, app *apps.App) error {
+func (c *Stub) Register(task *apps.Task, app *apps.App) error {
 	c.Lock()
 	defer c.Unlock()
-	if err, ok := c.ErrorServices[task.ID]; ok {
+	if _, ok := c.failRegisterForIDs[task.ID]; ok {
+		return fmt.Errorf("Consul stub programmed to fail when registering task of id %s", task.ID.String())
+	}
+	serviceRegistrations, err := c.consul.marathonTaskToConsulServices(task, app)
+	if err != nil {
 		return err
-	} else {
-		service, err := c.consul.marathonTaskToConsulService(task, app)
-		if err != nil {
-			return err
+	}
+	for _, r := range serviceRegistrations {
+		c.services[service.ServiceId(r.ID)] = r
+	}
+	return nil
+}
+
+func (c *Stub) RegisterWithoutMarathonTaskTag(task *apps.Task, app *apps.App) {
+	c.Lock()
+	defer c.Unlock()
+	for _, intent := range app.RegistrationIntents(task, c.consul.config.ConsulNameSeparator) {
+		serviceRegistration := consulapi.AgentServiceRegistration{
+			ID:      task.ID.String(),
+			Name:    intent.Name,
+			Port:    intent.Port,
+			Address: task.Host,
+			Tags:    intent.Tags,
+			Checks:  consulapi.AgentServiceChecks{},
 		}
-		c.services[task.ID] = service
-		return nil
+		c.services[service.ServiceId(serviceRegistration.ID)] = &serviceRegistration
 	}
 }
 
-func (c *ConsulStub) ServiceName(app *apps.App) string {
-	return c.consul.ServiceName(app)
-}
-
-func (c *ConsulStub) Deregister(serviceId apps.TaskId, agent string) error {
+func (c *Stub) RegisterOnlyFirstRegistrationIntent(task *apps.Task, app *apps.App) {
 	c.Lock()
 	defer c.Unlock()
-	if err, ok := c.ErrorServices[serviceId]; ok {
-		return err
-	} else {
-		delete(c.services, serviceId)
-		return nil
-	}
+	serviceRegistrations, _ := c.consul.marathonTaskToConsulServices(task, app)
+	c.services[service.ServiceId(serviceRegistrations[0].ID)] = serviceRegistrations[0]
 }
 
-func (c *ConsulStub) RegisteredServicesIds() []string {
-	c.RLock()
-	defer c.RUnlock()
+func (c *Stub) DeregisterByTask(taskID apps.TaskID) error {
+	c.Lock()
+	defer c.Unlock()
+	if _, ok := c.failDeregisterByTaskForIDs[taskID]; ok {
+		return fmt.Errorf("Consul stub programmed to fail when deregistering task of id %s", taskID.String())
+	}
+	for _, x := range c.servicesMatchingTask(taskID) {
+		delete(c.services, service.ServiceId(x.ID))
+	}
+	return nil
+}
+
+func (c *Stub) Deregister(toDeregister *service.Service) error {
+	c.Lock()
+	defer c.Unlock()
+	if _, ok := c.failDeregisterForIDs[toDeregister.ID]; ok {
+		return fmt.Errorf("Consul stub programmed to fail when deregistering service of id %s", toDeregister.ID)
+	}
+	delete(c.services, toDeregister.ID)
+	return nil
+}
+
+func (c *Stub) servicesMatchingTask(taskID apps.TaskID) []*consulapi.AgentServiceRegistration {
+	matching := []*consulapi.AgentServiceRegistration{}
+	for _, s := range c.services {
+		if s.ID == taskID.String() || contains(s.Tags, fmt.Sprintf("marathon-task:%s", taskID.String())) {
+			matching = append(matching, s)
+		}
+	}
+	return matching
+}
+
+func (c *Stub) RegisteredTaskIDs() []apps.TaskID {
 	services, _ := c.GetAllServices()
-	servicesIds := []string{}
-	for _, consulService := range services {
-		servicesIds = append(servicesIds, consulService.ServiceID)
+	taskIds := []apps.TaskID{}
+	for _, s := range services {
+		taskID, _ := s.TaskId()
+		taskIds = append(taskIds, taskID)
 	}
-	return servicesIds
-}
-
-func (c *ConsulStub) GetAgent(agentAddress string) (*consulapi.Client, error) {
-	return nil, nil
+	return taskIds
 }

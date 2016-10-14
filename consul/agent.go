@@ -9,10 +9,9 @@ import (
 )
 
 type Agent struct {
-	Client        *consulapi.Client
-	IP            string
-	failures      uint32
-	failureMetric string
+	Client   *consulapi.Client
+	IP       string
+	failures uint32
 }
 
 func (a *Agent) IncFailures() uint32 {

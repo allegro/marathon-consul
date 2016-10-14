@@ -7,20 +7,22 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
-	service "github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
-	consul "github.com/hashicorp/consul/api"
+	"github.com/allegro/marathon-consul/service"
 )
 
 type Sync struct {
-	config   Config
-	marathon marathon.Marathoner
-	service  service.ConsulServices
+	config              Config
+	marathon            marathon.Marathoner
+	serviceRegistry     service.ServiceRegistry
+	syncStartedListener startedListener
 }
 
-func New(config Config, marathon marathon.Marathoner, service service.ConsulServices) *Sync {
-	return &Sync{config, marathon, service}
+type startedListener func(apps []*apps.App)
+
+func New(config Config, marathon marathon.Marathoner, serviceRegistry service.ServiceRegistry, syncStartedListener startedListener) *Sync {
+	return &Sync{config, marathon, serviceRegistry, syncStartedListener}
 }
 
 func (s *Sync) StartSyncServicesJob() *time.Ticker {
@@ -37,14 +39,13 @@ func (s *Sync) StartSyncServicesJob() *time.Ticker {
 
 	ticker := time.NewTicker(s.config.Interval)
 	go func() {
-		s.SyncServices()
+		if err := s.SyncServices(); err != nil {
+			log.WithError(err).Error("An error occured while performing sync")
+		}
 		for {
-			select {
-			case <-ticker.C:
-				err := s.SyncServices()
-				if err != nil {
-					log.WithError(err).Error("An error occured while performing sync")
-				}
+			<-ticker.C
+			if err := s.SyncServices(); err != nil {
+				log.WithError(err).Error("An error occured while performing sync")
 			}
 		}
 	}()
@@ -68,15 +69,15 @@ func (s *Sync) syncServices() error {
 		return fmt.Errorf("Can't get Marathon apps: %v", err)
 	}
 
-	s.addAgentNodes(apps)
+	s.syncStartedListener(apps)
 
-	services, err := s.service.GetAllServices()
+	services, err := s.serviceRegistry.GetAllServices()
 	if err != nil {
 		return fmt.Errorf("Can't get Consul services: %v", err)
 	}
 
-	s.deregisterConsulServicesNotFoundInMarathon(apps, services)
 	s.registerAppTasksNotFoundInConsul(apps, services)
+	s.deregisterConsulServicesNotFoundInMarathon(apps, services)
 
 	log.Info("Syncing services finished")
 	return nil
@@ -114,60 +115,56 @@ func (s *Sync) resolveHostname() error {
 	return nil
 }
 
-func (s *Sync) addAgentNodes(apps []*apps.App) {
-	nodes := make(map[string]struct{})
-	var exists struct{}
-	for _, app := range apps {
-		if !app.IsConsulApp() {
-			continue
+func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.App, services []*service.Service) {
+	runningTasks := s.marathonTaskIdsSet(marathonApps)
+	for _, service := range services {
+		taskIDInTag, err := service.TaskId()
+		taskIDNotFoundInTag := err != nil
+		if taskIDNotFoundInTag {
+			log.WithField("Id", service.ID).WithError(err).
+				Warn("Couldn't extract marathon task id, deregistering since sync should have reregistered it already")
 		}
-		for _, task := range app.Tasks {
-			nodes[task.Host] = exists
-		}
-	}
-	for node := range nodes {
-		_, err := s.service.GetAgent(node)
-		if err != nil {
-			log.WithError(err).WithField("Node", node).Error("Can't add agent node")
-		}
-	}
-}
 
-func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.App, consulServices []*consul.CatalogService) {
-	marathonTaskIdsSet := s.marathonTaskIdsSet(marathonApps)
-	for _, service := range consulServices {
-		serviceId := apps.TaskId(service.ServiceID)
-		if _, ok := marathonTaskIdsSet[serviceId]; !ok {
-			err := s.service.Deregister(serviceId, service.Address)
+		if _, isRunning := runningTasks[taskIDInTag]; !isRunning || taskIDNotFoundInTag {
+			err := s.serviceRegistry.Deregister(service)
 			if err != nil {
 				log.WithError(err).WithFields(log.Fields{
-					"Id":      service.ServiceID,
-					"Address": service.Address,
+					"Id":      service.ID,
+					"Address": service.RegisteringAgentAddress,
 				}).Error("Can't deregister service")
 			}
 		} else {
-			log.WithField("Id", service.ServiceID).Debug("Service is running")
+			log.WithField("Id", service.ID).Debug("Service is running")
 		}
 	}
 }
 
-func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, consulServices []*consul.CatalogService) {
-	consulServicesIdsSet := s.consulServiceIdsSet(consulServices)
+func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, services []*service.Service) {
+	registrationsUnderTaskIds := s.taskIdsInConsulServices(services)
 	for _, app := range marathonApps {
 		if !app.IsConsulApp() {
 			log.WithField("Id", app.ID).Debug("Not a Consul app, skipping registration")
 			continue
 		}
+		expectedRegistrations := app.RegistrationIntentsNumber()
 		for _, task := range app.Tasks {
-			if _, ok := consulServicesIdsSet[task.ID]; !ok {
+			registrations := registrationsUnderTaskIds[task.ID]
+			if registrations < expectedRegistrations {
+				if registrations != 0 {
+					log.WithField("Id", task.ID).WithField("HasRegistrations", registrations).
+						WithField("ExpectedRegistrations", expectedRegistrations).Info("Registering missing service registrations")
+				}
 				if task.IsHealthy() {
-					err := s.service.Register(&task, app)
+					err := s.serviceRegistry.Register(&task, app)
 					if err != nil {
 						log.WithError(err).WithField("Id", task.ID).Error("Can't register task")
 					}
 				} else {
 					log.WithField("Id", task.ID).Debug("Task is not healthy. Not Registering")
 				}
+			} else if registrations > expectedRegistrations {
+				log.WithField("Id", task.ID).WithField("HasRegistrations", registrations).
+					WithField("ExpectedRegistrations", expectedRegistrations).Warn("Skipping task with excess registrations")
 			} else {
 				log.WithField("Id", task.ID).Debug("Task already registered in Consul")
 			}
@@ -175,17 +172,18 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, consul
 	}
 }
 
-func (s *Sync) consulServiceIdsSet(services []*consul.CatalogService) map[apps.TaskId]struct{} {
-	servicesSet := make(map[apps.TaskId]struct{})
-	var exists struct{}
+func (s *Sync) taskIdsInConsulServices(services []*service.Service) map[apps.TaskID]int {
+	serviceCounters := make(map[apps.TaskID]int)
 	for _, service := range services {
-		servicesSet[apps.TaskId(service.ServiceID)] = exists
+		if taskID, err := service.TaskId(); err == nil {
+			serviceCounters[taskID]++
+		}
 	}
-	return servicesSet
+	return serviceCounters
 }
 
-func (s *Sync) marathonTaskIdsSet(marathonApps []*apps.App) map[apps.TaskId]struct{} {
-	tasksSet := make(map[apps.TaskId]struct{})
+func (s *Sync) marathonTaskIdsSet(marathonApps []*apps.App) map[apps.TaskID]struct{} {
+	tasksSet := make(map[apps.TaskID]struct{})
 	var exists struct{}
 	for _, app := range marathonApps {
 		for _, task := range app.Tasks {
