@@ -5,19 +5,20 @@ SOURCEDIR = $(CURRENT_DIR)
 SOURCES := $(shell find $(SOURCEDIR) -name '*.go')
 VERSION=$(shell cat .goxc.json | python -c "import json,sys;obj=json.load(sys.stdin);print obj['PackageVersion'];")
 TEMPDIR := $(shell mktemp -d)
+LD_FLAGS=-ldflags '-w' -ldflags "-X main.VERSION=$(VERSION)"
 
-all: deps build
+all: build
 
 deps:
 	@./install_consul.sh
 
 build: deps test
 	@mkdir -p bin/
-	go build -o bin/marathon-consul
+	go build $(LD_FLAGS) -o bin/marathon-consul
 
 build-linux: deps test
 	@mkdir -p bin/
-	CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w' -o bin/marathon-consul
+	CGO_ENABLED=0 GOOS=linux go build -a -tags netgo $(LD_FLAGS) -o bin/marathon-consul
 
 docker: build-linux
 	docker build -t allegro/marathon-consul .
