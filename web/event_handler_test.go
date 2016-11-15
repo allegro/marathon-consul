@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/allegro/marathon-consul/apps"
@@ -15,12 +14,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWebHandler_NotHandleUnknownEventType(t *testing.T) {
+const maxEventSize = 4096
+
+func TestWebHandler_DropUnknownEventType(t *testing.T) {
 	t.Parallel()
 
 	// given
 	queue := make(chan event)
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	stopChan := newEventHandler(0, nil, nil, queue).start()
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":"test_event"}`)))
 
@@ -30,14 +31,14 @@ func TestWebHandler_NotHandleUnknownEventType(t *testing.T) {
 	stopChan <- stopEvent{}
 
 	// then
-	assertAccepted(t, recorder)
+	assertDropped(t, recorder)
 }
 
-func TestWebHandler_HandleRadderError(t *testing.T) {
+func TestWebHandler_HandleReadderError(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := newWebHandler(nil)
+	handler := newWebHandler(nil, maxEventSize)
 	req, _ := http.NewRequest("POST", "/events", BadReader{})
 
 	// when
@@ -45,15 +46,31 @@ func TestWebHandler_HandleRadderError(t *testing.T) {
 	handler.Handle(recorder, req)
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
+	assert.Equal(t, 200, recorder.Code)
 	assert.Equal(t, "Some error\n", recorder.Body.String())
 }
 
-func TestWebHandler_HandleEmptyBody(t *testing.T) {
+func TestWebHandler_DropBigBody(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := newWebHandler(nil)
+	handler := newWebHandler(nil, maxEventSize)
+	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer(make([]byte, 4097)))
+
+	// when
+	recorder := httptest.NewRecorder()
+	handler.Handle(recorder, req)
+
+	// then
+	assert.Equal(t, 200, recorder.Code)
+	assert.Equal(t, "http: request body too large\n", recorder.Body.String())
+}
+
+func TestWebHandler_DropEmptyBody(t *testing.T) {
+	t.Parallel()
+
+	// given
+	handler := newWebHandler(nil, maxEventSize)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte{}))
 
 	// when
@@ -61,15 +78,14 @@ func TestWebHandler_HandleEmptyBody(t *testing.T) {
 	handler.Handle(recorder, req)
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "unexpected end of JSON input\n", recorder.Body.String())
+	assertDropped(t, recorder)
 }
 
-func TestWebHandler_NotHandleMalformedEventType(t *testing.T) {
+func TestWebHandler_DropMalformedEventType(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := newWebHandler(nil)
+	handler := newWebHandler(nil, maxEventSize)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{eventType:"test_event"}`)))
 
 	// when
@@ -77,31 +93,14 @@ func TestWebHandler_NotHandleMalformedEventType(t *testing.T) {
 	handler.Handle(recorder, req)
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "invalid character 'e' looking for beginning of object key string\n", recorder.Body.String())
+	assertDropped(t, recorder)
 }
 
-func TestWebHandler_HandleMalformedEventType(t *testing.T) {
+func TestWebHandler_DropInvalidEventType(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := newWebHandler(nil)
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{eventType:"test_event"}`)))
-
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-
-	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "invalid character 'e' looking for beginning of object key string\n", recorder.Body.String())
-}
-
-func TestWebHandler_NotHandleInvalidEventType(t *testing.T) {
-	t.Parallel()
-
-	// given
-	handler := newWebHandler(nil)
+	handler := newWebHandler(nil, maxEventSize)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":[1,2]}`)))
 
 	// when
@@ -109,18 +108,16 @@ func TestWebHandler_NotHandleInvalidEventType(t *testing.T) {
 	handler.Handle(recorder, req)
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
-
-	assert.True(t, strings.HasPrefix(recorder.Body.String(), "json: cannot unmarshal array"))
+	assertDropped(t, recorder)
 
 }
 
-func TestWebHandler_HandleAppInvalidBody(t *testing.T) {
+func TestWebHandler_DropAppInvalidBody(t *testing.T) {
 	t.Parallel()
 
 	// given
 	queue := make(chan event)
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	stopChan := newEventHandler(0, nil, nil, queue).start()
 	body := `{"type":  "app_terminated_event", "appID": 123}`
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
@@ -131,8 +128,7 @@ func TestWebHandler_HandleAppInvalidBody(t *testing.T) {
 	stopChan <- stopEvent{}
 
 	// then
-	assert.Equal(t, 400, recorder.Code)
-	assert.Equal(t, "no event\n", recorder.Body.String())
+	assertDropped(t, recorder)
 }
 
 func TestWebHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
@@ -140,7 +136,7 @@ func TestWebHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
 
 	// given
 	queue := make(chan event)
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	stopChan := newEventHandler(0, nil, nil, queue).start()
 	body := `{
 	  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
@@ -172,7 +168,7 @@ func TestWebHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 	services := consul.NewConsulStub()
 	queue := make(chan event)
 	stopChan := newEventHandler(0, services, nil, queue).start()
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	ignoredTaskStatuses := []string{"TASK_STAGING", "TASK_STARTING", "TASK_RUNNING", "unknown"}
 	for _, taskStatus := range ignoredTaskStatuses {
 		body := `{
@@ -215,7 +211,7 @@ func TestWebHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 		}
 		queue := make(chan event)
 		stopChan := newEventHandler(0, service, nil, queue).start()
-		handler := newWebHandler(queue)
+		handler := newWebHandler(queue, maxEventSize)
 		body := `{
 		  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
 		  "taskId":"` + app.Tasks[1].ID.String() + `",
@@ -256,7 +252,7 @@ func TestWebHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testing
 	service.FailDeregisterByTaskForID("task.1")
 	queue := make(chan event)
 	stopChan := newEventHandler(0, service, nil, queue).start()
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	body := `{
 	  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
 	  "taskId":"task.1",
@@ -291,7 +287,7 @@ func TestWebHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.T)
 	service := consul.NewConsulStub()
 	queue := make(chan event)
 	stopChan := newEventHandler(0, service, nil, queue).start()
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
 	for _, taskStatus := range taskStatuses {
 		body := `{
@@ -329,7 +325,7 @@ func TestWebHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *testin
 	marathon := marathon.MarathonerStubForApps(app)
 	queue := make(chan event)
 	stopChan := newEventHandler(0, nil, marathon, queue).start()
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
@@ -399,7 +395,7 @@ func TestWebHandler_NotHandleHealthStatusEventForTaskWithNotAllHealthChecksPasse
 	marathon := marathon.MarathonerStubForApps(app)
 	queue := make(chan event)
 	stopChan := newEventHandler(0, nil, marathon, queue).start()
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
@@ -422,7 +418,7 @@ func TestWebHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *testin
 	marathon := marathon.MarathonerStubForApps(app)
 	queue := make(chan event)
 	stopChan := newEventHandler(0, nil, marathon, queue).start()
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	body := healthStatusChangeEventForTask("/test/app.0")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
@@ -442,7 +438,7 @@ func TestWebHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.T) {
 	// given
 	queue := make(chan event)
 	stopChan := newEventHandler(0, nil, nil, queue).start()
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	body := `{
 	  "appId":"/test/app",
 	  "taskId":"test_app.1",
@@ -468,7 +464,7 @@ func TestWebHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T) {
 	// given
 	queue := make(chan event)
 	stopChan := newEventHandler(0, nil, nil, queue).start()
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	body := `{
 	  "appId":"/test/app",
 	  "taskId":"test_app.1",
@@ -496,7 +492,7 @@ func TestWebHandler_HandleHealthStatusEventReturn202WhenMarathonReturnedError(t 
 	marathon := marathon.MarathonerStubForApps(app)
 	queue := make(chan event)
 	stopChan := newEventHandler(0, nil, marathon, queue).start()
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	body := `{
 	  "appId":"unknown",
 	  "taskId":"unknown.1",
@@ -525,7 +521,7 @@ func TestWebHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.T)
 	marathon := marathon.MarathonerStubForApps(app)
 	queue := make(chan event)
 	stopChan := newEventHandler(0, nil, marathon, queue).start()
-	handler := newWebHandler(queue)
+	handler := newWebHandler(queue, maxEventSize)
 	body := healthStatusChangeEventForTask("unknown.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
@@ -539,19 +535,9 @@ func TestWebHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.T)
 	assert.True(t, marathon.Interactions())
 }
 
-func newConsulStubWithApplicationsTasksRegistered(applications ...*apps.App) *consul.Stub {
-	service := consul.NewConsulStub()
-	for _, app := range applications {
-		for _, task := range app.Tasks {
-			service.Register(&task, app)
-		}
-	}
-	return service
-}
-
 type BadReader struct{}
 
-func (r BadReader) Read(p []byte) (n int, err error) {
+func (r BadReader) Read(p []byte) (int, error) {
 	return 0, errors.New("Some error")
 }
 
@@ -569,4 +555,8 @@ func healthStatusChangeEventForTask(taskID string) string {
 func assertAccepted(t *testing.T, recorder *httptest.ResponseRecorder) {
 	assert.Equal(t, 202, recorder.Code)
 	assert.Equal(t, "OK\n", recorder.Body.String())
+}
+
+func assertDropped(t *testing.T, recorder *httptest.ResponseRecorder) {
+	assert.Equal(t, 200, recorder.Code)
 }

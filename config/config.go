@@ -78,6 +78,7 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "Accept connections at this address")
 	flag.IntVar(&config.Web.QueueSize, "events-queue-size", 1000, "Size of events queue")
 	flag.IntVar(&config.Web.WorkersCount, "workers-pool-size", 10, "Number of concurrent workers processing events")
+	flag.Int64Var(&config.Web.MaxEventSize, "event-max-size", 4096, "Maximum size of event to process (bytes)")
 
 	// Sync
 	flag.BoolVar(&config.Sync.Enabled, "sync-enabled", true, "Enable Marathon-consul scheduled sync")

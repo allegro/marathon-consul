@@ -18,7 +18,7 @@ func NewHandler(config Config, marathon marathon.Marathoner, serviceOperations s
 		handler := newEventHandler(i, serviceOperations, marathon, eventQueue)
 		stopChannels[i] = handler.start()
 	}
-	return newWebHandler(eventQueue).Handle, stop(stopChannels)
+	return newWebHandler(eventQueue, config.MaxEventSize).Handle, stop(stopChannels)
 }
 
 func stop(channels []chan<- stopEvent) Stop {

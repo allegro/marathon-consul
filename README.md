@@ -191,6 +191,7 @@ consul-tag                  | `marathon`      | Common tag name added to every s
 consul-timeout              | `3s`            | Time limit for requests made by the Consul HTTP client. A Timeout of zero means no timeout
 consul-token                |                 | The Consul ACL token
 events-queue-size           | `1000`          | Size of events queue
+event-max-size              | `4096`          | Maximum size of event to process (bytes)
 listen                      | `:4000`         | Accept connections at this address
 log-file                    |                 | Save logs to file (e.g.: `/var/log/marathon-consul.log`). If empty logs are published to STDERR
 log-format                  | `text`          |  Log format: JSON, text

@@ -21,7 +21,8 @@
   "Web": {
     "Listen": ":4000",
     "QueueSize": 1000,
-    "WorkersCount": 10
+    "WorkersCount": 10,
+    "MaxEventSize": 4096
   },
   "Sync": {
     "Enabled": true,
