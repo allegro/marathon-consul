@@ -76,8 +76,9 @@ func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 	case "health_status_changed_event":
 		return fh.handleHealthStatusEvent(body)
 	default:
-		log.WithField("EventType", eventType).Debug("Not handled event type")
-		return nil
+		err := fmt.Errorf("Unsuported event type: %s", eventType)
+		log.WithError(err).WithField("EventType", eventType).Error("This should never happen. Not handled event type")
+		return err
 	}
 }
 

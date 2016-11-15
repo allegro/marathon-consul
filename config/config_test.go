@@ -105,6 +105,7 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			Listen:       ":4000",
 			QueueSize:    1000,
 			WorkersCount: 10,
+			MaxEventSize: 4096,
 		},
 		Sync: sync.Config{
 			Interval: 15 * time.Minute,
