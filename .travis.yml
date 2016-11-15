@@ -12,7 +12,7 @@ before_install:
 script:
   - make deps
   - gometalinter --install
-  - gometalinter ./... --deadline 120s --vendor -D dupl -D gotype -D errcheck -D gas -D golint -E gofmt
+  - gometalinter ./... --deadline 720s --vendor -D dupl -D gotype -D errcheck -D gas -D golint -E gofmt
   - go test -coverprofile=apps.coverprofile ./apps
   - go test -coverprofile=config.coverprofile ./config
   - go test -coverprofile=consul.coverprofile ./consul
