@@ -3,27 +3,42 @@ package events
 import (
 	"encoding/json"
 	"errors"
-
-	"github.com/allegro/marathon-consul/apps"
+	"strings"
+	"time"
 )
 
-type Event interface {
-	Apps() []*apps.App
-	GetType() string
+type Timestamp struct {
+	time.Time
 }
 
-type baseEvent struct {
-	Type string `json:"eventType"`
+func (t *Timestamp) UnmarshalJSON(b []byte) (err error) {
+	s := strings.Trim(string(b), "\"")
+	if s == "null" {
+		t.Time = time.Time{}
+		return
+	}
+	t.Time, err = time.Parse(time.RFC3339Nano, s)
+	return
 }
 
-func EventType(jsonBlob []byte) (string, error) {
-	event := baseEvent{}
+func (t *Timestamp) String() string {
+	return t.Format(time.RFC3339Nano)
+}
+
+type Event struct {
+	Type      string    `json:"eventType"`
+	Timestamp Timestamp `json:"timestamp"`
+}
+
+func ParseEvent(jsonBlob []byte) (Event, error) {
+	event := Event{}
 	err := json.Unmarshal(jsonBlob, &event)
 	if err != nil {
-		return "", err
+		return Event{}, err
 	} else if event.Type == "" {
-		return "", errors.New("no event")
-	} else {
-		return event.Type, nil
+		return Event{}, errors.New("Missing event type")
+	} else if event.Timestamp.Unix() == (time.Time{}).Unix() {
+		return Event{}, errors.New("Missing timestamp")
 	}
+	return event, nil
 }

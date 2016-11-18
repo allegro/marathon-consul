@@ -113,6 +113,7 @@ func (m Marathon) get(url string) ([]byte, error) {
 		return nil, err
 	}
 	request.Header.Add("Accept", "application/json")
+	request.Header.Set("User-Agent", "Marathon-Consul")
 
 	log.WithFields(log.Fields{
 		"Uri":      request.URL.RequestURI(),
