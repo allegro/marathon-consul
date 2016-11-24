@@ -24,6 +24,7 @@ type Event struct {
 func parseEvent(reader *bufio.Reader) (Event, error) {
 	e := Event{}
 	for dispatch := false; !dispatch; {
+		//TODO: Use scanner use ReadLine
 		line, err := reader.ReadBytes('\n')
 		if err == io.EOF {
 			dispatch = e.parseLine(line)

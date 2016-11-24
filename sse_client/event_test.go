@@ -7,9 +7,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"strings"
 )
 
-func TestErrors_shouldParseLongDataField(t *testing.T) {
+func TestParseEvent_shouldParseLongDataField(t *testing.T) {
 	t.Parallel()
 	// given
 	data := make([]byte, 10*1024*1024)
@@ -28,7 +29,7 @@ func TestErrors_shouldParseLongDataField(t *testing.T) {
 	assert.Equal(t, string(data), string(event.Data))
 }
 
-func TestErrors_shouldReturnErrOnEOFWhenEventIsNotReady(t *testing.T) {
+func TestParseEvent_shouldReturnErrOnEOFWhenEventIsNotReady(t *testing.T) {
 	t.Parallel()
 	// given
 	events := bufio.NewReader(bytes.NewReader([]byte{}))
@@ -45,12 +46,14 @@ func TestParseEvent(t *testing.T) {
 		stream   string
 		expected []Event
 	}{
-		{`data: YHOO
+		{`: No Event`, []Event{}},
+		{`: Multiline data
+data: YHOO
 data: +2
 data: 10
 
 `, []Event{{Data: b("YHOO\n+2\n10\n")}}},
-		{`: test stream
+		{`: Test stream
 
 data: first event
 id: 1
@@ -65,7 +68,7 @@ data: third event
 				{Data: b("second event\n")},
 				{Data: b("third event\n")},
 			}},
-		{`:The following stream fires just one event:
+		{`: Stream fires just one event
 data
 
 data
@@ -74,7 +77,7 @@ data
 data: xyz
 `,
 			[]Event{{Data: b("xyz\n")}}},
-		{`: The following stream fires two identical events:
+		{`: Stream fires two identical events
 data:test
 
 data: test
@@ -83,7 +86,7 @@ data: test
 				{Data: b("test\n")},
 				{Data: b("test\n")},
 			}},
-		{`: The Full Event
+		{`: Full Event
 event: Ionizing
 event: radiation
 id: U+2622
@@ -99,17 +102,19 @@ Radioactive waste...
 			}},
 	}
 	for _, tc := range testCases {
-		events := bufio.NewReader(bytes.NewReader(b(tc.stream)))
-		for _, e := range tc.expected {
-			event, err := parseEvent(events)
-			if err != io.EOF {
-				assert.NoError(t, err)
+		t.Run(strings.Split(tc.stream, "\n")[0], func(t *testing.T) {
+			events := bufio.NewReader(bytes.NewReader(b(tc.stream)))
+			for _, e := range tc.expected {
+				event, err := parseEvent(events)
+				if err != io.EOF {
+					assert.NoError(t, err)
+				}
+				assertEqual(t, e, event)
 			}
-			assertEqual(t, e, event)
-		}
-		event, err := parseEvent(events)
-		assert.EqualError(t, err, "Unexpected EOF")
-		assertEqual(t, Event{}, event)
+			event, err := parseEvent(events)
+			assert.EqualError(t, err, "Unexpected EOF")
+			assertEqual(t, Event{}, event)
+		})
 	}
 }
 
