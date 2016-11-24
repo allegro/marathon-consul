@@ -54,12 +54,10 @@ func (c client) Open() error {
 		reader := bufio.NewReader(response.Body)
 		for {
 			e, err := parseEvent(reader)
-			if err == io.EOF {
-				c.onMessage(e)
-				c.onError(err)
-				return
-			}
 			if err != nil {
+				if err == io.EOF {
+					c.onMessage(e)
+				}
 				c.onError(err)
 				return
 			}
