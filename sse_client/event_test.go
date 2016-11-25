@@ -53,6 +53,8 @@ data: +2
 data: 10
 
 `, []Event{{Data: b("YHOO\n+2\n10\n")}}},
+		//TODO: Handle this case
+		//{": Multiline CRLF/CR/LF\r\ndata:YHOO\rdata:+2\ndata:10\n", []Event{{Data: b("YHOO\n+2\n10\n")}}},
 		{`: Test stream
 
 data: first event

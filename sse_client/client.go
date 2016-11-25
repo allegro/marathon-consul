@@ -26,19 +26,20 @@ type client struct {
 }
 
 func NewEventSource(url *url.URL, httpClient *http.Client, onMessage func(Event), onError func(error)) (*client, error) {
-	ctx, cancel := context.WithCancel(context.Background())
 	req, err := http.NewRequest(http.MethodGet, url.String(), nil)
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	req = req.WithContext(ctx)
+	req.Header.Add("Accept", "text/event-stream")
 	return &client{
 		request:   req,
 		client:    httpClient,
 		onMessage: onMessage,
 		onError:   onError,
 		close:     cancel,
-	}, err
+	}, nil
 }
 
 func (c client) Open() error {
