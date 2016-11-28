@@ -30,15 +30,12 @@ func TestEventSource_IntegrationTest(t *testing.T) {
 
 	// when
 	u, _ := url.Parse(server.URL + "/v2/events")
-	es, err := NewEventSource(u, client, onMessage, onError)
-
-	// then
-	assert.NoError(t, err)
+	es := NewEventSource(u, client, onMessage, onError)
 
 	// when
 	dataChan <- "uno"
 	dataChan <- "duo"
-	err = es.Open()
+	es.Open()
 
 	e := <-eventChan
 	assert.Equal(t, "uno\n", string(e.Data))
@@ -49,16 +46,15 @@ func TestEventSource_IntegrationTest(t *testing.T) {
 	closeChan <- struct{}{}
 
 	// then
-	err = <-errorChan
+	err := <-errorChan
 	assert.EqualError(t, err, "Unexpected EOF")
 
 	// when
 	dataChan <- "tre"
 	dataChan <- "quatro"
-	err = es.Open()
+	es.Open()
 
 	// then
-	assert.NoError(t, err)
 	e = <-eventChan
 	assert.Equal(t, "tre\n", string(e.Data))
 	e = <-eventChan
