@@ -128,6 +128,31 @@ func TestParseEvent(t *testing.T) {
 	}
 }
 
+func BenchmarkParseEvent(b *testing.B) {
+	event := []byte(`: Full Event
+event: some event type
+id: some event id
+data: first data line......................................
+data: second data line.....................................
+data: third data line......................................
+retry: 10
+
+`)
+	var err error
+	var e Event
+	for i := 0; i < b.N; i++ {
+		events := bufio.NewReader(bytes.NewReader(event))
+		e, err = parseEvent(events)
+	}
+	assert.NoError(b, err)
+	assert.Equal(b, e, Event{
+		ID:             "some event id",
+		Event:          "some event type",
+		ReconnectDelay: 10,
+		Data:           []byte("first data line......................................\nsecond data line.....................................\nthird data line......................................\n"),
+	})
+}
+
 func assertEqual(t *testing.T, expected, actual Event) {
 	assert.Equal(t, expected.Event, actual.Event)
 	assert.Equal(t, expected.ID, actual.ID)
