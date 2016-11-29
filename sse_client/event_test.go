@@ -41,21 +41,20 @@ func TestParseEvent_shouldReturnErrOnEOFWhenEventIsNotReady(t *testing.T) {
 	assert.EqualError(t, err, "Unexpected EOF")
 }
 
-func TestParseEvent(t *testing.T) {
-	testCases := []struct {
-		stream   string
-		expected []Event
-	}{
-		{`: No Event`, []Event{}},
-		{`: Multiline data
+var testCases = []struct {
+	stream   string
+	expected []Event
+}{
+	{`: No Event`, []Event{}},
+	{`: Multiline data
 data: YHOO
 data: +2
 data: 10
 
 `, []Event{{Data: b("YHOO\n+2\n10\n")}}},
-		//TODO: Handle this case
-		//{": Multiline CRLF/CR/LF\r\ndata:YHOO\rdata:+2\ndata:10\n", []Event{{Data: b("YHOO\n+2\n10\n")}}},
-		{`: Test stream
+	//TODO: Handle this case
+	//{": Multiline CRLF/CR/LF\r\ndata:YHOO\rdata:+2\ndata:10\n", []Event{{Data: b("YHOO\n+2\n10\n")}}},
+	{`: Test stream
 
 data: first event
 id: 1
@@ -65,12 +64,12 @@ id
 
 data: third event
 `,
-			[]Event{
-				{ID: "1", Data: b("first event\n")},
-				{Data: b("second event\n")},
-				{Data: b("third event\n")},
-			}},
-		{`: Stream fires just one event
+		[]Event{
+			{ID: "1", Data: b("first event\n")},
+			{Data: b("second event\n")},
+			{Data: b("third event\n")},
+		}},
+	{`: Stream fires just one event
 data
 
 data
@@ -78,17 +77,24 @@ data
 
 data: xyz
 `,
-			[]Event{{Data: b("xyz\n")}}},
-		{`: Stream fires two identical events
+		[]Event{{Data: b("xyz\n")}}},
+	{`: Stream fires just one event
+data: xyz
+
+(0x9f2f00,0xc420014700)
+
+`,
+		[]Event{{Data: b("xyz\n")}}},
+	{`: Stream fires two identical events
 data:test
 
 data: test
 `,
-			[]Event{
-				{Data: b("test\n")},
-				{Data: b("test\n")},
-			}},
-		{`: Full Event
+		[]Event{
+			{Data: b("test\n")},
+			{Data: b("test\n")},
+		}},
+	{`: Full Event
 event: Ionizing
 event: radiation
 id: U+2622
@@ -99,10 +105,12 @@ warn: RADIOACTIVE
 retry: 10
 Radioactive waste...
 `,
-			[]Event{
-				{ID: "U+2622", Event: "radiation", Data: b("╔═╗\n║☢║\n╚═╝\n"), ReconnectDelay: 10},
-			}},
-	}
+		[]Event{
+			{ID: "U+2622", Event: "radiation", Data: b("╔═╗\n║☢║\n╚═╝\n"), ReconnectDelay: 10},
+		}},
+}
+
+func TestParseEvent(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(strings.Split(tc.stream, "\n")[0], func(t *testing.T) {
 			events := bufio.NewReader(bytes.NewReader(b(tc.stream)))

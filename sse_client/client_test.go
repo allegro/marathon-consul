@@ -12,63 +12,88 @@ import (
 
 func TestEventSource_IntegrationTest(t *testing.T) {
 	t.Parallel()
-	// given
-	closeChan := make(chan struct{})
-	dataChan := make(chan string, 2)
-	server, transport := stubServer("/v2/events", dataChan, closeChan)
-	defer server.Close()
-	client := http.DefaultClient
-	client.Transport = transport
-	eventChan := make(chan Event, 2)
-	errorChan := make(chan error, 2)
-	onMessage := func(e Event) {
-		eventChan <- e
-	}
-	onError := func(e error) {
-		errorChan <- e
-	}
+	f := fixture()
 
-	// when
-	u, _ := url.Parse(server.URL + "/v2/events")
-	es := NewEventSource(u, client, onMessage, onError)
+	t.Run("Client opens connection and reads events", func(t *testing.T) {
+		// when
+		f.send("uno")
+		f.send("duo")
+		f.eventSource.Open()
+		// then
+		assert.Equal(t, "uno\n", string(f.event().Data))
+		assert.Equal(t, "duo\n", string(f.event().Data))
+	})
 
-	// when
-	dataChan <- "uno"
-	dataChan <- "duo"
-	es.Open()
+	t.Run("Server closes connection", func(t *testing.T) {
+		// when
+		f.closeResponse()
+		// then
+		assert.EqualError(t, f.err(), "Unexpected EOF")
+	})
 
-	e := <-eventChan
-	assert.Equal(t, "uno\n", string(e.Data))
-	e = <-eventChan
-	assert.Equal(t, "duo\n", string(e.Data))
+	t.Run("Client reopens closed connection", func(t *testing.T) {
+		// when
+		f.send("tre")
+		f.send("quatro")
+		f.eventSource.Open()
+		// then
+		assert.Equal(t, "tre\n", string(f.event().Data))
+		assert.Equal(t, "quatro\n", string(f.event().Data))
+	})
 
-	// when
-	closeChan <- struct{}{}
-
-	// then
-	err := <-errorChan
-	assert.EqualError(t, err, "Unexpected EOF")
-
-	// when
-	dataChan <- "tre"
-	dataChan <- "quatro"
-	es.Open()
-
-	// then
-	e = <-eventChan
-	assert.Equal(t, "tre\n", string(e.Data))
-	e = <-eventChan
-	assert.Equal(t, "quatro\n", string(e.Data))
-
-	// when
-	es.Close()
-
-	// then
-	err = <-errorChan
-	assert.EqualError(t, err, "net/http: request canceled")
+	t.Run("Client closes connection", func(t *testing.T) {
+		// when
+		f.eventSource.Close()
+		// then
+		assert.EqualError(t, f.err(), "net/http: request canceled")
+	})
 
 	// cleanup
-	closeChan <- struct{}{}
+	f.closeResponse()
+}
+
+type testFixture struct {
+	eventSource EventSource
+	server      *httptest.Server
+	closeChan   chan struct{}
+	dataChan    chan string
+	eventChan   chan Event
+	errorChan   chan error
+}
+
+func (f *testFixture) send(data string) {
+	f.dataChan <- data
+}
+
+func (f *testFixture) event() Event {
+	return <-f.eventChan
+}
+
+func (f *testFixture) err() error {
+	return <-f.errorChan
+}
+
+func (f *testFixture) closeResponse() {
+	f.closeChan <- struct{}{}
+}
+
+func fixture() (f testFixture) {
+	f.closeChan = make(chan struct{})
+	f.dataChan = make(chan string, 2)
+	client := http.DefaultClient
+	f.server, client.Transport = stubServer("/v2/events", f.dataChan, f.closeChan)
+	f.eventChan = make(chan Event, 2)
+	f.errorChan = make(chan error, 2)
+	onMessage := func(e Event) {
+		f.eventChan <- e
+	}
+	onError := func(e error) {
+		f.errorChan <- e
+	}
+
+	u, _ := url.Parse(f.server.URL + "/v2/events")
+	f.eventSource = NewEventSource(u, client, onMessage, onError)
+	return f
 }
 
 // http://keighl.com/post/mocking-http-responses-in-golang/

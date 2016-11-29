@@ -18,7 +18,7 @@ type EventSource interface {
 type client struct {
 	request   *http.Request
 	client    *http.Client
-	close     func()
+	close     context.CancelFunc
 	onMessage func(Event)
 	onError   func(error)
 }

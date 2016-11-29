@@ -48,9 +48,10 @@ func parseEvent(reader *bufio.Reader) (Event, error) {
 // Reference implementation: https://github.com/WebKit/webkit/blob/9f191f/Source/WebCore/page/EventSource.cpp#L272-L363
 func (e *Event) parseLine(line []byte) bool {
 
-	line = bytes.TrimSuffix(line, []byte{'\r', '\n'})
-	line = bytes.TrimSuffix(line, []byte{'\r'})
 	line = bytes.TrimSuffix(line, []byte{'\n'})
+	line = bytes.TrimSuffix(line, []byte{'\r'})
+
+	//println(string(line))
 
 	//If the line is empty (a blank line)
 	if len(line) == 0 {
