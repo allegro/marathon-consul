@@ -308,11 +308,12 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 				Info(fmt.Sprintf("Ignoring health check of type %s", check.Protocol))
 			continue
 		}
-		var port int
-		if check.Port != 0 {
-			port = check.Port
-		} else {
-			port = task.Ports[check.PortIndex]
+
+		port, err := getHealthCheckPort(check, *task)
+		if err != nil {
+			log.WithField("Id", task.AppID.String()).WithField("Address", serviceAddress).WithError(err).
+				Warn(fmt.Sprintf("Ignoring health check of type %s", check.Protocol))
+			continue
 		}
 
 		consulCheck := consulapi.AgentServiceCheck{
@@ -346,6 +347,22 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 		}
 	}
 	return checks
+}
+
+func getHealthCheckPort(check apps.HealthCheck, task apps.Task) (int, error) {
+	port := 0
+	if check.Port != 0 {
+		port = check.Port
+	} else if check.PortIndex >= 0 && check.PortIndex < len(task.Ports) {
+		port = task.Ports[check.PortIndex]
+	} else {
+		return 0, fmt.Errorf("Port index (%d) out of bounds should from range [0,%d)", check.PortIndex, len(task.Ports))
+	}
+
+	if port < 1 || port > 65535 {
+		return 0, fmt.Errorf("Port %d is invalid", port)
+	}
+	return port, nil
 }
 
 func (c *Consul) getIgnoredHealthCheckTypes() []string {
