@@ -34,8 +34,7 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	sync := sync.New(config.Sync, remote, consulInstance, consulInstance.AddAgentsFromApps)
-	go sync.StartSyncServicesJob()
+	sync.New(config.Sync, remote, consulInstance, consulInstance.AddAgentsFromApps).StartSyncServicesJob()
 
 	handler, stop := web.NewHandler(config.Web, remote, consulInstance)
 	defer stop()

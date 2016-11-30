@@ -31,11 +31,10 @@ func TestSyncJob_ShouldSyncOnLeadership(t *testing.T) {
 	}, marathon, services, noopSyncStartedListener)
 
 	// when
-	ticker := sync.StartSyncServicesJob()
+	sync.StartSyncServicesJob()
 
 	// then
 	<-time.After(15 * time.Millisecond)
-	ticker.Stop()
 	assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID.String()))
 }
 
@@ -52,10 +51,9 @@ func TestSyncJob_ShouldNotSyncWhenDisabled(t *testing.T) {
 	}, marathon, services, noopSyncStartedListener)
 
 	// when
-	ticker := sync.StartSyncServicesJob()
+	sync.StartSyncServicesJob()
 
 	// then
-	assert.Nil(t, ticker)
 	<-time.After(15 * time.Millisecond)
 	assert.Equal(t, 0, services.RegistrationsCount(app.Tasks[0].ID.String()))
 }
@@ -73,11 +71,10 @@ func TestSyncJob_ShouldDefaultLeaderConfigurationToResolvedHostname(t *testing.T
 	}, marathon, services, noopSyncStartedListener)
 
 	// when
-	ticker := sync.StartSyncServicesJob()
+	sync.StartSyncServicesJob()
 
 	// then
 	<-time.After(15 * time.Millisecond)
-	ticker.Stop()
 	assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID.String()))
 }
 
@@ -90,10 +87,9 @@ func TestSyncServices_ShouldNotSyncOnNoForceNorLeaderSpecified(t *testing.T) {
 	sync := New(Config{}, marathon, services, noopSyncStartedListener)
 
 	// when
-	ticker := sync.StartSyncServicesJob()
+	sync.StartSyncServicesJob()
 
 	// then
-	assert.Nil(t, ticker)
 	assert.Zero(t, services.RegistrationsCount(app.Tasks[0].ID.String()))
 }
 

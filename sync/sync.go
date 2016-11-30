@@ -25,10 +25,10 @@ func New(config Config, marathon marathon.Marathoner, serviceRegistry service.Se
 	return &Sync{config, marathon, serviceRegistry, syncStartedListener}
 }
 
-func (s *Sync) StartSyncServicesJob() *time.Ticker {
+func (s *Sync) StartSyncServicesJob() {
 	if !s.config.Enabled {
 		log.Info("Marathon-consul sync disabled")
-		return nil
+		return
 	}
 
 	log.WithFields(log.Fields{
@@ -42,14 +42,13 @@ func (s *Sync) StartSyncServicesJob() *time.Ticker {
 		if err := s.SyncServices(); err != nil {
 			log.WithError(err).Error("An error occured while performing sync")
 		}
-		for {
-			<-ticker.C
+		for range ticker.C {
 			if err := s.SyncServices(); err != nil {
 				log.WithError(err).Error("An error occured while performing sync")
 			}
 		}
 	}()
-	return ticker
+	return
 }
 
 func (s *Sync) SyncServices() error {
