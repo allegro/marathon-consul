@@ -14,6 +14,7 @@ import (
 
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/service"
+	timeutil "github.com/allegro/marathon-consul/time"
 )
 
 var noopSyncStartedListener = func(apps []*apps.App) {}
@@ -26,7 +27,7 @@ func TestSyncJob_ShouldSyncOnLeadership(t *testing.T) {
 	services := newConsulServicesMock()
 	sync := New(Config{
 		Enabled:  true,
-		Interval: 10 * time.Millisecond,
+		Interval: timeutil.Interval{Duration: 10 * time.Millisecond},
 		Leader:   "current.leader:8080",
 	}, marathon, services, noopSyncStartedListener)
 
@@ -46,7 +47,7 @@ func TestSyncJob_ShouldNotSyncWhenDisabled(t *testing.T) {
 	services := newConsulServicesMock()
 	sync := New(Config{
 		Enabled:  false,
-		Interval: 10 * time.Millisecond,
+		Interval: timeutil.Interval{Duration: 10 * time.Millisecond},
 		Leader:   "current.leader:8080",
 	}, marathon, services, noopSyncStartedListener)
 
@@ -67,7 +68,7 @@ func TestSyncJob_ShouldDefaultLeaderConfigurationToResolvedHostname(t *testing.T
 	services := newConsulServicesMock()
 	sync := New(Config{
 		Enabled:  true,
-		Interval: 10 * time.Millisecond,
+		Interval: timeutil.Interval{Duration: 10 * time.Millisecond},
 	}, marathon, services, noopSyncStartedListener)
 
 	// when

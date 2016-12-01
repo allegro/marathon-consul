@@ -49,14 +49,14 @@ func Init(cfg Config) error {
 	switch cfg.Target {
 	case "stdout":
 		log.Info("Sending metrics to stdout")
-		return initStdout(cfg.Interval)
+		return initStdout(cfg.Interval.Duration)
 	case "graphite":
 		if cfg.Addr == "" {
 			return errors.New("metrics: graphite addr missing")
 		}
 
 		log.Infof("Sending metrics to Graphite on %s as %q", cfg.Addr, pfx)
-		return initGraphite(cfg.Addr, cfg.Interval)
+		return initGraphite(cfg.Addr, cfg.Interval.Duration)
 	case "":
 		log.Infof("Metrics disabled")
 		return nil

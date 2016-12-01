@@ -7,6 +7,7 @@ import (
 
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/service"
+	timeutil "github.com/allegro/marathon-consul/time"
 	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,7 @@ func TestGetAgent_FullConfig(t *testing.T) {
 
 	// given
 	agents := NewAgents(&Config{Token: "token", SslEnabled: true,
-		Auth: Auth{Enabled: true, Username: "", Password: ""}, Timeout: time.Second})
+		Auth: Auth{Enabled: true, Username: "", Password: ""}, Timeout: timeutil.Interval{Duration: time.Second}})
 
 	// when
 	agent, err := agents.GetAgent("127.23.23.23")
@@ -651,7 +652,7 @@ func TestAddAgentsFromApp(t *testing.T) {
 
 	// create consul without any agents in cache
 	consul := New(Config{
-		Timeout:             10 * time.Millisecond,
+		Timeout:             timeutil.Interval{Duration: 10 * time.Millisecond},
 		Port:                fmt.Sprintf("%d", server.Config.Ports.HTTP),
 		ConsulNameSeparator: ".",
 		Tag:                 "marathon",

@@ -1,10 +1,10 @@
 package sync
 
-import "time"
+import "github.com/allegro/marathon-consul/time"
 
 type Config struct {
 	Enabled  bool
 	Force    bool
-	Interval time.Duration
+	Interval time.Interval
 	Leader   string
 }

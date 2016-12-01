@@ -37,7 +37,7 @@ func (s *Sync) StartSyncServicesJob() {
 		"Force":    s.config.Force,
 	}).Info("Marathon-consul sync job started")
 
-	ticker := time.NewTicker(s.config.Interval)
+	ticker := time.NewTicker(s.config.Interval.Duration)
 	go func() {
 		if err := s.SyncServices(); err != nil {
 			log.WithError(err).Error("An error occured while performing sync")

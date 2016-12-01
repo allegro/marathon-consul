@@ -1,6 +1,6 @@
 package consul
 
-import "time"
+import "github.com/allegro/marathon-consul/time"
 
 type Config struct {
 	Auth                   Auth
@@ -11,7 +11,7 @@ type Config struct {
 	SslCaCert              string
 	Token                  string
 	Tag                    string
-	Timeout                time.Duration
+	Timeout                time.Interval
 	RequestRetries         uint32
 	AgentFailuresTolerance uint32
 	ConsulNameSeparator    string

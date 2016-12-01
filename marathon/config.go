@@ -1,6 +1,6 @@
 package marathon
 
-import "time"
+import "github.com/allegro/marathon-consul/time"
 
 type Config struct {
 	Location  string
@@ -8,5 +8,5 @@ type Config struct {
 	Username  string
 	Password  string
 	VerifySsl bool
-	Timeout   time.Duration
+	Timeout   time.Interval
 }

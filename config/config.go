@@ -68,7 +68,7 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Consul.SslCaCert, "consul-ssl-ca-cert", "", "Path to a CA certificate file, containing one or more CA certificates to use to validate the certificate sent by the Consul server to us")
 	flag.StringVar(&config.Consul.Token, "consul-token", "", "The Consul ACL token")
 	flag.StringVar(&config.Consul.Tag, "consul-tag", "marathon", "Common tag name added to every service registered in Consul, should be unique for every Marathon-cluster connected to Consul")
-	flag.DurationVar(&config.Consul.Timeout, "consul-timeout", 3*time.Second, "Time limit for requests made by the Consul HTTP client. A Timeout of zero means no timeout")
+	flag.DurationVar(&config.Consul.Timeout.Duration, "consul-timeout", 3*time.Second, "Time limit for requests made by the Consul HTTP client. A Timeout of zero means no timeout")
 	flag.Uint32Var(&config.Consul.AgentFailuresTolerance, "consul-max-agent-failures", 3, "Max number of consecutive request failures for agent before removal from cache")
 	flag.Uint32Var(&config.Consul.RequestRetries, "consul-get-services-retry", 3, "Number of retries on failure when performing requests to Consul. Each retry uses different cached agent")
 	flag.StringVar(&config.Consul.ConsulNameSeparator, "consul-name-separator", ".", "Separator used to create default service name for Consul")
@@ -82,7 +82,7 @@ func (config *Config) parseFlags() {
 
 	// Sync
 	flag.BoolVar(&config.Sync.Enabled, "sync-enabled", true, "Enable Marathon-consul scheduled sync")
-	flag.DurationVar(&config.Sync.Interval, "sync-interval", 15*time.Minute, "Marathon-consul sync interval")
+	flag.DurationVar(&config.Sync.Interval.Duration, "sync-interval", 15*time.Minute, "Marathon-consul sync interval")
 	flag.StringVar(&config.Sync.Leader, "sync-leader", "", "Marathon cluster-wide node name (defaults to <hostname>:8080), the sync will run only if the specified node is the current Marathon-leader")
 	flag.BoolVar(&config.Sync.Force, "sync-force", false, "Force leadership-independent Marathon-consul sync (run always)")
 
@@ -92,12 +92,12 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Marathon.Username, "marathon-username", "", "Marathon username for basic auth")
 	flag.StringVar(&config.Marathon.Password, "marathon-password", "", "Marathon password for basic auth")
 	flag.BoolVar(&config.Marathon.VerifySsl, "marathon-ssl-verify", true, "Verify certificates when connecting via SSL")
-	flag.DurationVar(&config.Marathon.Timeout, "marathon-timeout", 30*time.Second, "Time limit for requests made by the Marathon HTTP client. A Timeout of zero means no timeout")
+	flag.DurationVar(&config.Marathon.Timeout.Duration, "marathon-timeout", 30*time.Second, "Time limit for requests made by the Marathon HTTP client. A Timeout of zero means no timeout")
 
 	// Metrics
 	flag.StringVar(&config.Metrics.Target, "metrics-target", "stdout", "Metrics destination stdout or graphite (empty string disables metrics)")
 	flag.StringVar(&config.Metrics.Prefix, "metrics-prefix", "default", "Metrics prefix (default is resolved to <hostname>.<app_name>")
-	flag.DurationVar(&config.Metrics.Interval, "metrics-interval", 30*time.Second, "Metrics reporting interval")
+	flag.DurationVar(&config.Metrics.Interval.Duration, "metrics-interval", 30*time.Second, "Metrics reporting interval")
 	flag.StringVar(&config.Metrics.Addr, "metrics-location", "", "Graphite URL (used when metrics-target is set to graphite)")
 
 	// Log

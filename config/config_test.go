@@ -10,6 +10,7 @@ import (
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/sync"
+	timeutil "github.com/allegro/marathon-consul/time"
 	"github.com/allegro/marathon-consul/web"
 	"github.com/stretchr/testify/assert"
 )
@@ -96,7 +97,7 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			SslCaCert:              "",
 			Token:                  "",
 			Tag:                    "marathon",
-			Timeout:                3 * time.Second,
+			Timeout:                timeutil.Interval{Duration: 3 * time.Second},
 			RequestRetries:         5,
 			AgentFailuresTolerance: 3,
 			ConsulNameSeparator:    ".",
@@ -108,7 +109,7 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			MaxEventSize: 4096,
 		},
 		Sync: sync.Config{
-			Interval: 15 * time.Minute,
+			Interval: timeutil.Interval{Duration: 15 * time.Minute},
 			Enabled:  true,
 			Leader:   "",
 			Force:    false,
@@ -118,10 +119,10 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			Username:  "",
 			Password:  "",
 			VerifySsl: true,
-			Timeout:   30 * time.Second},
+			Timeout:   timeutil.Interval{Duration: 30 * time.Second}},
 		Metrics: metrics.Config{Target: "stdout",
 			Prefix:   "default",
-			Interval: 30 * time.Second,
+			Interval: timeutil.Interval{Duration: 30 * time.Second},
 			Addr:     ""},
 		Log: struct{ Level, Format, File string }{
 			Level:  "info",
