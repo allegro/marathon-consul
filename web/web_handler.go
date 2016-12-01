@@ -48,21 +48,23 @@ func (h *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		eventType, err := events.EventType(body)
+		e, err := events.ParseEvent(body)
 		if err != nil {
 			drop(err, w)
 			return
 		}
 
-		log.WithField("EventType", eventType).Debug("Received event")
-		metrics.Mark("events.requests." + eventType)
+		metrics.Mark("events.requests." + e.Type)
+		delay := time.Now().Unix() - e.Timestamp.Unix()
+		metrics.UpdateGauge("events.requests.delay.current", delay)
+		log.WithFields(log.Fields{"EventType": e.Type, "OriginalTimestamp": e.Timestamp.String()}).Debug("Received event")
 
-		if eventType != statusUpdateEventType && eventType != healthStatusChangedEventType {
-			drop(fmt.Errorf("%s is not supported", eventType), w)
+		if e.Type != statusUpdateEventType && e.Type != healthStatusChangedEventType {
+			drop(fmt.Errorf("%s is not supported", e.Type), w)
 			return
 		}
 
-		h.eventQueue <- event{eventType: eventType, body: body, timestamp: time.Now()}
+		h.eventQueue <- event{eventType: e.Type, body: body, timestamp: time.Now()}
 		accept(w)
 
 	})
