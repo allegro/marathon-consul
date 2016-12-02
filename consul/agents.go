@@ -34,7 +34,7 @@ func NewAgents(config *Config) *ConcurrentAgents {
 				InsecureSkipVerify: !config.SslVerify,
 			},
 		},
-		Timeout: config.Timeout,
+		Timeout: config.Timeout.Duration,
 	}
 	return &ConcurrentAgents{
 		agents: make(map[string]*Agent),

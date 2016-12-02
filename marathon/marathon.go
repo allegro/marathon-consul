@@ -51,7 +51,7 @@ func New(config Config) (*Marathon, error) {
 		Auth:     auth,
 		client: &http.Client{
 			Transport: transport,
-			Timeout:   config.Timeout,
+			Timeout:   config.Timeout.Duration,
 		},
 	}, nil
 }

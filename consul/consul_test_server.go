@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	timeutil "github.com/allegro/marathon-consul/time"
 	"github.com/hashicorp/consul/testutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -61,7 +62,7 @@ func FailingClient() *Consul {
 
 func consulClientAtAddress(host string, port int) *Consul {
 	config := Config{
-		Timeout:             10 * time.Millisecond,
+		Timeout:             timeutil.Interval{Duration: 10 * time.Millisecond},
 		Port:                fmt.Sprintf("%d", port),
 		ConsulNameSeparator: ".",
 	}

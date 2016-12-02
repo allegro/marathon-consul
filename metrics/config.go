@@ -1,10 +1,10 @@
 package metrics
 
-import "time"
+import "github.com/allegro/marathon-consul/time"
 
 type Config struct {
 	Target   string
 	Prefix   string
-	Interval time.Duration
+	Interval time.Interval
 	Addr     string
 }

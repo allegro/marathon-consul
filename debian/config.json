@@ -13,7 +13,7 @@
     "SslCaCert": "",
     "Token": "",
     "Tag": "marathon",
-    "Timeout": 3000000000,
+    "Timeout": "3s",
     "AgentFailuresTolerance": 3,
     "RequestRetries": 5,
     "IgnoredHealthChecks": ""
@@ -26,7 +26,7 @@
   },
   "Sync": {
     "Enabled": true,
-    "Interval": 900000000000,
+    "Interval": "15m0s",
     "Leader": "",
     "Force": false
   },
@@ -36,12 +36,12 @@
     "Username": "",
     "Password": "",
     "VerifySsl": true,
-    "Timeout": 30000000000
+    "Timeout": "30s"
   },
   "Metrics": {
     "Target": "stdout",
     "Prefix": "default",
-    "Interval": 30000000000,
+    "Interval": "30s",
     "Addr": ""
   },
   "Log": {
