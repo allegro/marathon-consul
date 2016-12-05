@@ -693,7 +693,7 @@ func TestGetIgnoredHealthCheckTypes(t *testing.T) {
 		consul := New(Config{IgnoredHealthChecks: types.config})
 
 		// then
-		assert.Equal(t, types.parsed, consul.getIgnoredHealthCheckTypes())
+		assert.Equal(t, types.parsed, consul.ignoredHealthCheckTypes)
 	}
 }
 
