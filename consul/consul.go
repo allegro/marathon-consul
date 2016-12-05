@@ -15,16 +15,18 @@ import (
 )
 
 type Consul struct {
-	agents Agents
-	config Config
+	agents                  Agents
+	config                  Config
+	ignoredHealthCheckTypes []string
 }
 
 type ServicesProvider func(agent *consulapi.Client) ([]*service.Service, error)
 
 func New(config Config) *Consul {
 	return &Consul{
-		agents: NewAgents(&config),
-		config: config,
+		agents:                  NewAgents(&config),
+		config:                  config,
+		ignoredHealthCheckTypes: ignoredHealthCheckTypesFromRawConfigEntry(config.IgnoredHealthChecks),
 	}
 }
 
@@ -300,10 +302,8 @@ func (c *Consul) serviceID(task *apps.Task, name string, port int) string {
 
 func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.HealthCheck, serviceAddress string) consulapi.AgentServiceChecks {
 	var checks = make(consulapi.AgentServiceChecks, 0, len(healthChecks))
-
-	ignoredHealthCheckTypes := c.getIgnoredHealthCheckTypes()
 	for _, check := range healthChecks {
-		if contains(ignoredHealthCheckTypes, check.Protocol) {
+		if contains(c.ignoredHealthCheckTypes, check.Protocol) {
 			log.WithField("Id", task.AppID.String()).WithField("Address", serviceAddress).
 				Info(fmt.Sprintf("Ignoring health check of type %s", check.Protocol))
 			continue
@@ -365,9 +365,9 @@ func getHealthCheckPort(check apps.HealthCheck, task apps.Task) (int, error) {
 	return port, nil
 }
 
-func (c *Consul) getIgnoredHealthCheckTypes() []string {
+func ignoredHealthCheckTypesFromRawConfigEntry(raw string) []string {
 	ignoredTypes := make([]string, 0)
-	for _, ignoredType := range strings.Split(strings.ToUpper(c.config.IgnoredHealthChecks), ",") {
+	for _, ignoredType := range strings.Split(strings.ToUpper(raw), ",") {
 		var ignoredType = strings.TrimSpace(ignoredType)
 		if ignoredType != "" {
 			ignoredTypes = append(ignoredTypes, ignoredType)
