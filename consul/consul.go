@@ -323,9 +323,13 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 		}
 
 		switch check.Protocol {
-		case "HTTP", "HTTPS":
+		case "HTTP", "HTTPS", "MESOS_HTTP", "MESOS_HTTPS":
 			if parsedURL, err := url.ParseRequestURI(check.Path); err == nil {
-				parsedURL.Scheme = strings.ToLower(check.Protocol)
+				if check.Protocol == "HTTP" || check.Protocol == "MESOS_HTTP" {
+					parsedURL.Scheme = "http"
+				} else {
+					parsedURL.Scheme = "https"
+				}
 				parsedURL.Host = fmt.Sprintf("%s:%d", serviceAddress, port)
 				consulCheck.HTTP = parsedURL.String()
 				checks = append(checks, &consulCheck)
@@ -335,7 +339,7 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 					WithField("Address", serviceAddress).
 					Warn(fmt.Sprintf("Could not parse provided path: %s", check.Path))
 			}
-		case "TCP":
+		case "TCP", "MESOS_TCP":
 			consulCheck.TCP = fmt.Sprintf("%s:%d", serviceAddress, port)
 			checks = append(checks, &consulCheck)
 		case "COMMAND":
