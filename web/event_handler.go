@@ -147,7 +147,7 @@ func (fh *eventHandler) handleStatusEvent(body []byte) error {
 	}).Info("Got StatusEvent")
 
 	switch task.TaskStatus {
-	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST":
+	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLING", "TASK_KILLED", "TASK_LOST":
 		return fh.deregister(task.ID)
 	default:
 		log.WithFields(log.Fields{
