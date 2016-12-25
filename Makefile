@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 PACKAGES=$(shell go list ./... | grep -v /vendor/)
 TESTARGS?=-race
 CURRENT_DIR = $(shell pwd)
@@ -26,6 +28,13 @@ docker: build-linux
 test: deps $(SOURCES)
 	PATH=$(CURRENT_DIR)/bin:$(PATH) go test $(PACKAGES) $(TESTARGS)
 	go vet $(PACKAGES)
+
+gometalint-exists:
+	@which gometalinter > /dev/null || \
+	(echo >&2 "gometalinter must be installed on the system. See https://github.com/alecthomas/gometalinter")
+
+check: gometalint-exists $(SOURCES)
+	gometalinter . --deadline  720s --vendor -D dupl -D gotype -D errcheck -D gas -D golint -E gofmt
 
 FPM-exists:
 	@fpm -v || \
@@ -58,5 +67,8 @@ bump:
 	goxc bump
 	git add .goxc.json
 	git commit -m "Bumped version"
+
+format:
+	go fmt $(PACKAGES)
 
 .PHONY: all build test xcompile package dist

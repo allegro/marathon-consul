@@ -64,7 +64,11 @@ func (h *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h.eventQueue <- event{eventType: e.Type, body: body, timestamp: time.Now()}
+		select {
+		case h.eventQueue <- event{eventType: e.Type, body: body, timestamp: time.Now()}:
+		default:
+			metrics.Mark("events.queue.drop")
+		}
 		accept(w)
 
 	})
