@@ -20,7 +20,7 @@ func TestWebHandler_DropUnknownEventType(t *testing.T) {
 	t.Parallel()
 
 	// given
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	handler := newWebHandler(queue, maxEventSize)
 	stopChan := newEventHandler(0, nil, nil, queue).start()
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":"test_event"}`)))
@@ -116,7 +116,7 @@ func TestWebHandler_DropAppInvalidBody(t *testing.T) {
 	t.Parallel()
 
 	// given
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	handler := newWebHandler(queue, maxEventSize)
 	stopChan := newEventHandler(0, nil, nil, queue).start()
 	body := `{"type":  "app_terminated_event", "appID": 123}`
@@ -135,7 +135,7 @@ func TestWebHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
 	t.Parallel()
 
 	// given
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	handler := newWebHandler(queue, maxEventSize)
 	stopChan := newEventHandler(0, nil, nil, queue).start()
 	body := `{
@@ -166,7 +166,7 @@ func TestWebHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 
 	// given
 	services := consul.NewConsulStub()
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	stopChan := newEventHandler(0, services, nil, queue).start()
 	handler := newWebHandler(queue, maxEventSize)
 	ignoredTaskStatuses := []string{"TASK_STAGING", "TASK_STARTING", "TASK_RUNNING", "unknown"}
@@ -209,7 +209,7 @@ func TestWebHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 		for _, task := range app.Tasks {
 			service.Register(&task, app)
 		}
-		queue := make(chan event)
+		queue := make(chan event, 10)
 		stopChan := newEventHandler(0, service, nil, queue).start()
 		handler := newWebHandler(queue, maxEventSize)
 		body := `{
@@ -250,7 +250,7 @@ func TestWebHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testing
 	// given
 	service := consul.NewConsulStub()
 	service.FailDeregisterByTaskForID("task.1")
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	stopChan := newEventHandler(0, service, nil, queue).start()
 	handler := newWebHandler(queue, maxEventSize)
 	body := `{
@@ -285,7 +285,7 @@ func TestWebHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.T)
 	// given
 	app := NonConsulApp("/test/app", 3)
 	service := consul.NewConsulStub()
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	stopChan := newEventHandler(0, service, nil, queue).start()
 	handler := newWebHandler(queue, maxEventSize)
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
@@ -323,7 +323,7 @@ func TestWebHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *testin
 	// given
 	app := NonConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	stopChan := newEventHandler(0, nil, marathon, queue).start()
 	handler := newWebHandler(queue, maxEventSize)
 	body := healthStatusChangeEventForTask("test_app.1")
@@ -346,7 +346,7 @@ func TestWebHandler_HandleHealthStatusEvent(t *testing.T) {
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
-	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
+	handle, stop := NewHandler(Config{WorkersCount: 1, QueueSize: 10}, marathon, service)
 	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
@@ -371,7 +371,7 @@ func TestWebHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing.T
 	marathon := marathon.MarathonerStubForApps(app)
 	service := consul.NewConsulStub()
 	service.FailRegisterForID(app.Tasks[1].ID)
-	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
+	handle, stop := NewHandler(Config{WorkersCount: 1, QueueSize: 10}, marathon, service)
 	body := healthStatusChangeEventForTask("test_app.1")
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
@@ -393,7 +393,7 @@ func TestWebHandler_NotHandleHealthStatusEventForTaskWithNotAllHealthChecksPasse
 	app := ConsulApp("/test/app", 3)
 	app.Tasks[1].HealthCheckResults = []apps.HealthCheckResult{{Alive: true}, {Alive: false}}
 	marathon := marathon.MarathonerStubForApps(app)
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	stopChan := newEventHandler(0, nil, marathon, queue).start()
 	handler := newWebHandler(queue, maxEventSize)
 	body := healthStatusChangeEventForTask("test_app.1")
@@ -416,7 +416,7 @@ func TestWebHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *testin
 	app := ConsulApp("/test/app", 1)
 	app.Tasks[0].HealthCheckResults = []apps.HealthCheckResult{}
 	marathon := marathon.MarathonerStubForApps(app)
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	stopChan := newEventHandler(0, nil, marathon, queue).start()
 	handler := newWebHandler(queue, maxEventSize)
 	body := healthStatusChangeEventForTask("/test/app.0")
@@ -436,7 +436,7 @@ func TestWebHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.T) {
 	t.Parallel()
 
 	// given
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	stopChan := newEventHandler(0, nil, nil, queue).start()
 	handler := newWebHandler(queue, maxEventSize)
 	body := `{
@@ -462,7 +462,7 @@ func TestWebHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T) {
 	t.Parallel()
 
 	// given
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	stopChan := newEventHandler(0, nil, nil, queue).start()
 	handler := newWebHandler(queue, maxEventSize)
 	body := `{
@@ -490,7 +490,7 @@ func TestWebHandler_HandleHealthStatusEventReturn202WhenMarathonReturnedError(t 
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	stopChan := newEventHandler(0, nil, marathon, queue).start()
 	handler := newWebHandler(queue, maxEventSize)
 	body := `{
@@ -519,7 +519,7 @@ func TestWebHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.T)
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
-	queue := make(chan event)
+	queue := make(chan event, 10)
 	stopChan := newEventHandler(0, nil, marathon, queue).start()
 	handler := newWebHandler(queue, maxEventSize)
 	body := healthStatusChangeEventForTask("unknown.1")
