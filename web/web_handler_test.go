@@ -140,9 +140,39 @@ func TestWebHandler_DropUnknownEventType(t *testing.T) {
 	assertDropped(t, recorder)
 }
 
+func TestWebHandler_DropWhenEventQueueIsFull(t *testing.T) {
+	t.Parallel()
+
+	// given
+	body := []byte(`{
+                  "eventType":"status_update_event",
+                  "timestamp":"2015-12-07T09:33:40.898Z"
+                }`)
+
+	queue := make(chan event, 1)
+	handler := newWebHandler(queue, maxEventSize)
+	req1, _ := http.NewRequest("POST", "/events", bytes.NewBuffer(body))
+	req2, _ := http.NewRequest("POST", "/events", bytes.NewBuffer(body))
+	recorder1 := httptest.NewRecorder()
+	recorder2 := httptest.NewRecorder()
+
+	// when
+	handler.Handle(recorder1, req1)
+	handler.Handle(recorder2, req2)
+
+	// then
+	assertAccepted(t, recorder1)
+	assertQueueFull(t, recorder2)
+}
+
 func assertAccepted(t *testing.T, recorder *httptest.ResponseRecorder) {
 	assert.Equal(t, 202, recorder.Code)
 	assert.Equal(t, "OK\n", recorder.Body.String())
+}
+
+func assertQueueFull(t *testing.T, recorder *httptest.ResponseRecorder) {
+	assert.Equal(t, 200, recorder.Code)
+	assert.Equal(t, "Event queue full\n", recorder.Body.String())
 }
 
 func assertDropped(t *testing.T, recorder *httptest.ResponseRecorder) {
