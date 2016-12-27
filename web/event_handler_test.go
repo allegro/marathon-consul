@@ -1,144 +1,42 @@
 package web
 
 import (
-	"bytes"
 	"errors"
-	"net/http"
-	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
+	"github.com/allegro/marathon-consul/service"
 	. "github.com/allegro/marathon-consul/utils"
 	"github.com/stretchr/testify/assert"
 )
 
-const maxEventSize = 4096
+type handlerStubs struct {
+	serviceRegistry service.ServiceRegistry
+	marathon        marathon.Marathoner
+}
 
-func TestWebHandler_DropUnknownEventType(t *testing.T) {
-	t.Parallel()
-
-	// given
+// Creates eventHandler and returns nonbuffered event queue that has to be used to send events to handler and
+// function that can be used as a synchronization point to wait until previous event has been processed.
+// Under the hood synchronization function simply sends a stop signal to the handlers stopChan.
+func testEventHandler(stubs handlerStubs) (chan<- event, func()) {
 	queue := make(chan event)
-	handler := newWebHandler(queue, maxEventSize)
-	stopChan := newEventHandler(0, nil, nil, queue).start()
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":"test_event"}`)))
+	awaitChan := newEventHandler(0, stubs.serviceRegistry, stubs.marathon, queue).start()
 
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	stopChan <- stopEvent{}
-
-	// then
-	assertDropped(t, recorder)
+	return queue, func() { awaitChan <- stopEvent{} }
 }
 
-func TestWebHandler_HandleReadderError(t *testing.T) {
+func TestEventHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
 	t.Parallel()
 
 	// given
-	handler := newWebHandler(nil, maxEventSize)
-	req, _ := http.NewRequest("POST", "/events", BadReader{})
+	serviceRegistry := consul.NewConsulStub()
+	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry})
 
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-
-	// then
-	assert.Equal(t, 200, recorder.Code)
-	assert.Equal(t, "Some error\n", recorder.Body.String())
-}
-
-func TestWebHandler_DropBigBody(t *testing.T) {
-	t.Parallel()
-
-	// given
-	handler := newWebHandler(nil, maxEventSize)
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer(make([]byte, 4097)))
-
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-
-	// then
-	assert.Equal(t, 200, recorder.Code)
-	assert.Equal(t, "http: request body too large\n", recorder.Body.String())
-}
-
-func TestWebHandler_DropEmptyBody(t *testing.T) {
-	t.Parallel()
-
-	// given
-	handler := newWebHandler(nil, maxEventSize)
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte{}))
-
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-
-	// then
-	assertDropped(t, recorder)
-}
-
-func TestWebHandler_DropMalformedEventType(t *testing.T) {
-	t.Parallel()
-
-	// given
-	handler := newWebHandler(nil, maxEventSize)
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{eventType:"test_event"}`)))
-
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-
-	// then
-	assertDropped(t, recorder)
-}
-
-func TestWebHandler_DropInvalidEventType(t *testing.T) {
-	t.Parallel()
-
-	// given
-	handler := newWebHandler(nil, maxEventSize)
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(`{"eventType":[1,2]}`)))
-
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-
-	// then
-	assertDropped(t, recorder)
-
-}
-
-func TestWebHandler_DropAppInvalidBody(t *testing.T) {
-	t.Parallel()
-
-	// given
-	queue := make(chan event)
-	handler := newWebHandler(queue, maxEventSize)
-	stopChan := newEventHandler(0, nil, nil, queue).start()
-	body := `{"type":  "app_terminated_event", "appID": 123}`
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
-
-	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	stopChan <- stopEvent{}
-
-	// then
-	assertDropped(t, recorder)
-}
-
-func TestWebHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
-	t.Parallel()
-
-	// given
-	queue := make(chan event)
-	handler := newWebHandler(queue, maxEventSize)
-	stopChan := newEventHandler(0, nil, nil, queue).start()
-	body := `{
+	body := []byte(`{
 	  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
 	  "taskId":"python_simple.4a7e99d0-9cc1-11e5-b4d8-0a0027000004",
 	  "taskStatus":"TASK_KILLED",
@@ -149,29 +47,26 @@ func TestWebHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
 	  "version":"2015-12-07T09:02:48.981Z",
 	  "eventType":"status_update_event",
 	  "timestamp":"2015-12-07T09:02:49.934Z"
-	}`
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+	}`)
 
 	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	stopChan <- stopEvent{}
+	queue <- event{eventType: "status_update_event", timestamp: time.Now(), body: body}
+	awaitFunc()
 
 	// then
-	assertAccepted(t, recorder)
+	assert.Empty(t, serviceRegistry.RegisteredTaskIDs("test_app"))
 }
 
-func TestWebHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
+func TestEventHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 	t.Parallel()
 
 	// given
-	services := consul.NewConsulStub()
-	queue := make(chan event)
-	stopChan := newEventHandler(0, services, nil, queue).start()
-	handler := newWebHandler(queue, maxEventSize)
+	serviceRegistry := consul.NewConsulStub()
+	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry})
+
 	ignoredTaskStatuses := []string{"TASK_STAGING", "TASK_STARTING", "TASK_RUNNING", "unknown"}
 	for _, taskStatus := range ignoredTaskStatuses {
-		body := `{
+		body := []byte(`{
 		  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
 		  "taskId":"python_simple.4a7e99d0-9cc1-11e5-b4d8-0a0027000004",
 		  "taskStatus":"` + taskStatus + `",
@@ -184,40 +79,42 @@ func TestWebHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 		  "version":"2015-12-07T09:02:48.981Z",
 		  "eventType":"status_update_event",
 		  "timestamp":"2015-12-07T09:02:49.934Z"
-		}`
-		req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+		}`)
 
 		// when
-		recorder := httptest.NewRecorder()
-		handler.Handle(recorder, req)
-		stopChan <- stopEvent{}
+		queue <- event{eventType: "status_update_event", timestamp: time.Now(), body: body}
+		awaitFunc()
 
 		// then
-		assert.Equal(t, 202, recorder.Code)
-		assert.Equal(t, "OK\n", recorder.Body.String())
-		assert.Empty(t, services.RegisteredTaskIDs())
+		assert.Empty(t, serviceRegistry.RegisteredTaskIDs("test_app"))
 	}
 }
 
-func TestWebHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
+func TestEventHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 	t.Parallel()
+
+	// given
+	serviceRegistry := consul.NewConsulStub()
+
+	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry})
+
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
-	for _, taskStatus := range taskStatuses {
+	for index, taskStatus := range taskStatuses {
 		// given
-		app := ConsulApp("/test/app", 3)
-		service := consul.NewConsulStub()
+		appId := "/test/app" + strconv.Itoa(index)
+		serviceName := "test.app" + strconv.Itoa(index)
+
+		app := ConsulApp(appId, 3)
 		for _, task := range app.Tasks {
-			service.Register(&task, app)
+			serviceRegistry.Register(&task, app)
 		}
-		queue := make(chan event)
-		stopChan := newEventHandler(0, service, nil, queue).start()
-		handler := newWebHandler(queue, maxEventSize)
-		body := `{
+
+		body := []byte(`{
 		  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
 		  "taskId":"` + app.Tasks[1].ID.String() + `",
 		  "taskStatus":"` + taskStatus + `",
 		  "message":"Command terminated with signal Terminated",
-		  "appId":"/test/app",
+		  "appId":"` + appId + `",
 		  "host":"localhost",
 		  "ports":[
 			31372
@@ -225,18 +122,14 @@ func TestWebHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 		  "version":"2015-12-07T09:02:48.981Z",
 		  "eventType":"status_update_event",
 		  "timestamp":"2015-12-07T09:33:40.898Z"
-		}`
-		req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+		}`)
 
 		// when
-		recorder := httptest.NewRecorder()
-		handler.Handle(recorder, req)
-		stopChan <- stopEvent{}
-		taskIds := service.RegisteredTaskIDs()
+		queue <- event{eventType: "status_update_event", timestamp: time.Now(), body: body}
+		awaitFunc()
 
 		// then
-		assert.Equal(t, 202, recorder.Code)
-		assert.Equal(t, "OK\n", recorder.Body.String())
+		taskIds := serviceRegistry.RegisteredTaskIDs(serviceName)
 		assert.Len(t, taskIds, 2)
 		assert.NotContains(t, taskIds, app.Tasks[1].ID)
 		assert.Contains(t, taskIds, app.Tasks[0].ID)
@@ -244,16 +137,16 @@ func TestWebHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 	}
 }
 
-func TestWebHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testing.T) {
+func TestEventHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testing.T) {
 	t.Parallel()
 
 	// given
-	service := consul.NewConsulStub()
-	service.FailDeregisterByTaskForID("task.1")
-	queue := make(chan event)
-	stopChan := newEventHandler(0, service, nil, queue).start()
-	handler := newWebHandler(queue, maxEventSize)
-	body := `{
+	serviceRegistry := consul.NewConsulStub()
+	serviceRegistry.FailDeregisterByTaskForID("task.1")
+
+	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry})
+
+	body := []byte(`{
 	  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
 	  "taskId":"task.1",
 	  "taskStatus":"TASK_KILLED",
@@ -266,31 +159,29 @@ func TestWebHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testing
 	  "version":"2015-12-07T09:02:48.981Z",
 	  "eventType":"status_update_event",
 	  "timestamp":"2015-12-07T09:33:40.898Z"
-	}`
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+	}`)
 
 	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	stopChan <- stopEvent{}
+	queue <- event{eventType: "status_update_event", timestamp: time.Now(), body: body}
+	awaitFunc()
 
 	// then
-	assertAccepted(t, recorder)
-	assert.Empty(t, service.RegisteredTaskIDs())
+	assert.Empty(t, serviceRegistry.RegisteredTaskIDs("test_app"))
 }
 
-func TestWebHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.T) {
+func TestEventHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := NonConsulApp("/test/app", 3)
-	service := consul.NewConsulStub()
-	queue := make(chan event)
-	stopChan := newEventHandler(0, service, nil, queue).start()
-	handler := newWebHandler(queue, maxEventSize)
+	marathon := marathon.MarathonerStubForApps(app)
+	serviceRegistry := consul.NewConsulStub()
+
+	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry, marathon: marathon})
+
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
 	for _, taskStatus := range taskStatuses {
-		body := `{
+		body := []byte(`{
 		  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
 		  "taskId":"` + app.Tasks[1].ID.String() + `",
 		  "taskStatus":"` + taskStatus + `",
@@ -303,235 +194,214 @@ func TestWebHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.T)
 		  "version":"2015-12-07T09:02:48.981Z",
 		  "eventType":"status_update_event",
 		  "timestamp":"2015-12-07T09:33:40.898Z"
-		}`
-		req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+		}`)
 
 		// when
-		recorder := httptest.NewRecorder()
-		handler.Handle(recorder, req)
-		stopChan <- stopEvent{}
+		queue <- event{eventType: "status_update_event", timestamp: time.Now(), body: body}
+		awaitFunc()
 
 		// then
-		assert.Equal(t, 202, recorder.Code)
-		assert.Equal(t, "OK\n", recorder.Body.String())
+		assert.False(t, marathon.Interactions())
 	}
 }
 
-func TestWebHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *testing.T) {
+func TestEventHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := NonConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
-	queue := make(chan event)
-	stopChan := newEventHandler(0, nil, marathon, queue).start()
-	handler := newWebHandler(queue, maxEventSize)
+
+	queue, awaitFunc := testEventHandler(handlerStubs{marathon: marathon})
+
 	body := healthStatusChangeEventForTask("test_app.1")
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	stopChan <- stopEvent{}
+	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	awaitFunc()
 
 	// then
-	assertAccepted(t, recorder)
 	assert.True(t, marathon.Interactions())
 }
 
-func TestWebHandler_HandleHealthStatusEvent(t *testing.T) {
+func TestEventHandler_HandleHealthStatusEvent(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
+
 	marathon := marathon.MarathonerStubForApps(app)
-	service := consul.NewConsulStub()
-	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
+	serviceRegistry := consul.NewConsulStub()
+
+	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry, marathon: marathon})
 	body := healthStatusChangeEventForTask("test_app.1")
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
-	recorder := httptest.NewRecorder()
-	handle(recorder, req)
-	stop()
-	taskIds := service.RegisteredTaskIDs()
+	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	awaitFunc()
 
 	// then
-	assertAccepted(t, recorder)
+	taskIds := serviceRegistry.RegisteredTaskIDs("test.app")
 	assert.Len(t, taskIds, 1)
 	assert.Contains(t, taskIds, app.Tasks[1].ID)
 	assert.True(t, marathon.Interactions())
 }
 
-func TestWebHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing.T) {
+func TestEventHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
+
 	marathon := marathon.MarathonerStubForApps(app)
-	service := consul.NewConsulStub()
-	service.FailRegisterForID(app.Tasks[1].ID)
-	handle, stop := NewHandler(Config{WorkersCount: 1}, marathon, service)
+	serviceRegistry := consul.NewConsulStub()
+	serviceRegistry.FailRegisterForID(app.Tasks[1].ID)
+
+	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry, marathon: marathon})
 	body := healthStatusChangeEventForTask("test_app.1")
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
-	recorder := httptest.NewRecorder()
-	handle(recorder, req)
-	stop()
+	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	awaitFunc()
 
 	// then
-	assertAccepted(t, recorder)
-	assert.Empty(t, service.RegisteredTaskIDs())
+	assert.Empty(t, serviceRegistry.RegisteredTaskIDs("test.app"))
 	assert.True(t, marathon.Interactions())
 }
 
-func TestWebHandler_NotHandleHealthStatusEventForTaskWithNotAllHealthChecksPassed(t *testing.T) {
+func TestEventHandler_NotHandleHealthStatusEventForTaskWithNotAllHealthChecksPassed(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
 	app.Tasks[1].HealthCheckResults = []apps.HealthCheckResult{{Alive: true}, {Alive: false}}
 	marathon := marathon.MarathonerStubForApps(app)
-	queue := make(chan event)
-	stopChan := newEventHandler(0, nil, marathon, queue).start()
-	handler := newWebHandler(queue, maxEventSize)
+
+	queue, awaitFunc := testEventHandler(handlerStubs{marathon: marathon})
 	body := healthStatusChangeEventForTask("test_app.1")
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	stopChan <- stopEvent{}
+	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	awaitFunc()
 
 	// then
-	assertAccepted(t, recorder)
 	assert.True(t, marathon.Interactions())
 }
 
-func TestWebHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *testing.T) {
+func TestEventHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 1)
 	app.Tasks[0].HealthCheckResults = []apps.HealthCheckResult{}
 	marathon := marathon.MarathonerStubForApps(app)
-	queue := make(chan event)
-	stopChan := newEventHandler(0, nil, marathon, queue).start()
-	handler := newWebHandler(queue, maxEventSize)
+
+	queue, awaitFunc := testEventHandler(handlerStubs{marathon: marathon})
+
 	body := healthStatusChangeEventForTask("/test/app.0")
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	stopChan <- stopEvent{}
+	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	awaitFunc()
 
 	// then
-	assertAccepted(t, recorder)
 	assert.True(t, marathon.Interactions())
 }
 
-func TestWebHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.T) {
+func TestEventHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.T) {
 	t.Parallel()
 
 	// given
-	queue := make(chan event)
-	stopChan := newEventHandler(0, nil, nil, queue).start()
-	handler := newWebHandler(queue, maxEventSize)
-	body := `{
+	app := ConsulApp("/test/app", 1)
+	marathon := marathon.MarathonerStubForApps(app)
+
+	queue, awaitFunc := testEventHandler(handlerStubs{marathon: marathon})
+
+	body := []byte(`{
 	  "appId":"/test/app",
 	  "taskId":"test_app.1",
 	  "version":"2015-12-07T09:02:48.981Z",
 	  "alive":false,
 	  "eventType":"health_status_changed_event",
 	  "timestamp":"2015-12-07T09:33:50.069Z"
-	}`
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+	}`)
 
 	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	stopChan <- stopEvent{}
+	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	awaitFunc()
 
 	// then
-	assertAccepted(t, recorder)
+	assert.False(t, marathon.Interactions())
 }
 
-func TestWebHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T) {
+func TestEventHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T) {
 	t.Parallel()
 
 	// given
-	queue := make(chan event)
-	stopChan := newEventHandler(0, nil, nil, queue).start()
-	handler := newWebHandler(queue, maxEventSize)
-	body := `{
+	app := ConsulApp("/test/app", 1)
+	marathon := marathon.MarathonerStubForApps(app)
+
+	queue, awaitFunc := testEventHandler(handlerStubs{marathon: marathon})
+
+	body := []byte(`{
 	  "appId":"/test/app",
 	  "taskId":"test_app.1",
 	  "version":123,
 	  "alive":false,
 	  "eventType":"health_status_changed_event",
 	  "timestamp":"2015-12-07T09:33:50.069Z"
-	}`
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+	}`)
 
 	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	stopChan <- stopEvent{}
+	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	awaitFunc()
 
 	// then
-	assertAccepted(t, recorder)
+	assert.False(t, marathon.Interactions())
 }
 
-func TestWebHandler_HandleHealthStatusEventReturn202WhenMarathonReturnedError(t *testing.T) {
+func TestEventHandler_HandleHealthStatusEventReturn202WhenMarathonReturnedError(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
-	queue := make(chan event)
-	stopChan := newEventHandler(0, nil, marathon, queue).start()
-	handler := newWebHandler(queue, maxEventSize)
-	body := `{
+
+	queue, awaitFunc := testEventHandler(handlerStubs{marathon: marathon})
+
+	body := []byte(`{
 	  "appId":"unknown",
 	  "taskId":"unknown.1",
 	  "version":"2015-12-07T09:02:48.981Z",
 	  "alive":true,
 	  "eventType":"health_status_changed_event",
 	  "timestamp":"2015-12-07T09:33:50.069Z"
-	}`
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
+	}`)
 
 	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	stopChan <- stopEvent{}
+	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	awaitFunc()
 
 	// then
-	assertAccepted(t, recorder)
 	assert.True(t, marathon.Interactions())
 }
 
-func TestWebHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.T) {
+func TestEventHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.T) {
 	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
 	marathon := marathon.MarathonerStubForApps(app)
-	queue := make(chan event)
-	stopChan := newEventHandler(0, nil, marathon, queue).start()
-	handler := newWebHandler(queue, maxEventSize)
+
+	queue, awaitFunc := testEventHandler(handlerStubs{marathon: marathon})
+
 	body := healthStatusChangeEventForTask("unknown.1")
-	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer([]byte(body)))
 
 	// when
-	recorder := httptest.NewRecorder()
-	handler.Handle(recorder, req)
-	stopChan <- stopEvent{}
+	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	awaitFunc()
 
 	// then
-	assertAccepted(t, recorder)
 	assert.True(t, marathon.Interactions())
 }
 
@@ -541,22 +411,13 @@ func (r BadReader) Read(p []byte) (int, error) {
 	return 0, errors.New("Some error")
 }
 
-func healthStatusChangeEventForTask(taskID string) string {
-	return `{
+func healthStatusChangeEventForTask(taskID string) []byte {
+	return []byte(`{
 	  "appId":"/test/app",
 	  "taskId":"` + taskID + `",
 	  "version":"2015-12-07T09:02:48.981Z",
 	  "alive":true,
 	  "eventType":"health_status_changed_event",
 	  "timestamp":"2015-12-07T09:33:50.069Z"
-	}`
-}
-
-func assertAccepted(t *testing.T, recorder *httptest.ResponseRecorder) {
-	assert.Equal(t, 202, recorder.Code)
-	assert.Equal(t, "OK\n", recorder.Body.String())
-}
-
-func assertDropped(t *testing.T, recorder *httptest.ResponseRecorder) {
-	assert.Equal(t, 200, recorder.Code)
+	}`)
 }

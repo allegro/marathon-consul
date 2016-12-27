@@ -55,7 +55,17 @@ func (fh *eventHandler) start() chan<- stopEvent {
 			select {
 			case e = <-fh.eventQueue:
 				metrics.Mark(fmt.Sprintf("events.handler.%d", fh.id))
-				metrics.UpdateGauge("events.queue.len", int64(len(fh.eventQueue)))
+
+				queueLength := int64(len(fh.eventQueue))
+				metrics.UpdateGauge("events.queue.len", queueLength)
+				queueCapacity := int64(cap(fh.eventQueue))
+
+				utilization := int64(0)
+				if queueCapacity > 0 {
+					utilization = 100 * (queueLength / queueCapacity)
+				}
+				metrics.UpdateGauge("events.queue.util", utilization)
+
 				metrics.UpdateGauge("events.queue.delay_ns", time.Since(e.timestamp).Nanoseconds())
 				metrics.Time("events.processing."+e.eventType, process)
 			case <-quitChan:

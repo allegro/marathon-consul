@@ -157,8 +157,8 @@ func (c *Stub) servicesMatchingTask(taskID apps.TaskID) []*consulapi.AgentServic
 	return matching
 }
 
-func (c *Stub) RegisteredTaskIDs() []apps.TaskID {
-	services, _ := c.GetAllServices()
+func (c *Stub) RegisteredTaskIDs(serviceName string) []apps.TaskID {
+	services, _ := c.GetServices(serviceName)
 	taskIds := []apps.TaskID{}
 	for _, s := range services {
 		taskID, _ := s.TaskId()
