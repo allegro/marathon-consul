@@ -2,25 +2,27 @@ package marathon
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/allegro/marathon-consul/apps"
 )
 
 type MarathonerStub struct {
-	AppsStub     []*apps.App
-	AppStub      map[apps.AppID]*apps.App
-	TasksStub    map[apps.AppID][]*apps.Task
-	leader       string
-	interactions bool
+	AppsStub       []*apps.App
+	AppStub        map[apps.AppID]*apps.App
+	TasksStub      map[apps.AppID][]*apps.Task
+	leader         string
+	interactionsMu sync.RWMutex
+	interactions   bool
 }
 
 func (m *MarathonerStub) ConsulApps() ([]*apps.App, error) {
-	m.interactions = true
+	m.noteInteraction()
 	return m.AppsStub, nil
 }
 
 func (m *MarathonerStub) App(id apps.AppID) (*apps.App, error) {
-	m.interactions = true
+	m.noteInteraction()
 	if app, ok := m.AppStub[id]; ok {
 		return app, nil
 	}
@@ -28,7 +30,7 @@ func (m *MarathonerStub) App(id apps.AppID) (*apps.App, error) {
 }
 
 func (m *MarathonerStub) Tasks(appID apps.AppID) ([]*apps.Task, error) {
-	m.interactions = true
+	m.noteInteraction()
 	if app, ok := m.TasksStub[appID]; ok {
 		return app, nil
 	}
@@ -36,12 +38,20 @@ func (m *MarathonerStub) Tasks(appID apps.AppID) ([]*apps.Task, error) {
 }
 
 func (m *MarathonerStub) Leader() (string, error) {
-	m.interactions = true
+	m.noteInteraction()
 	return m.leader, nil
 }
 
-func (m MarathonerStub) Interactions() bool {
+func (m *MarathonerStub) Interactions() bool {
+	m.interactionsMu.RLock()
+	defer m.interactionsMu.RUnlock()
 	return m.interactions
+}
+
+func (m *MarathonerStub) noteInteraction() {
+	m.interactionsMu.Lock()
+	defer m.interactionsMu.Unlock()
+	m.interactions = true
 }
 
 func MarathonerStubWithLeaderForApps(leader string, args ...*apps.App) *MarathonerStub {
