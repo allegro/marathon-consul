@@ -2,9 +2,10 @@ package time
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	gotime "time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTimestampParsing(t *testing.T) {
