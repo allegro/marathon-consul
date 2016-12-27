@@ -1,15 +1,15 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/events"
 	"github.com/allegro/marathon-consul/metrics"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 type EventHandler struct {
@@ -64,8 +64,13 @@ func (h *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h.eventQueue <- event{eventType: e.Type, body: body, timestamp: time.Now()}
-		accept(w)
+		select {
+		case h.eventQueue <- event{eventType: e.Type, body: body, timestamp: time.Now()}:
+			accept(w)
+		default:
+			metrics.Mark("events.queue.drop")
+			drop(errors.New("Event queue full"), w)
+		}
 
 	})
 }
