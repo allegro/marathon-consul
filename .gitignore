@@ -30,3 +30,6 @@ marathon-forwarder
 
 # goxc
 .goxc.local.json
+
+# coverage
+/coverage

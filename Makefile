@@ -1,40 +1,57 @@
 SHELL := /bin/bash
+.DEFAULT_GOAL := build
 
-PACKAGES=$(shell go list ./... | grep -v /vendor/)
-TESTARGS?=-race
-CURRENT_DIR = $(shell pwd)
-SOURCEDIR = $(CURRENT_DIR)
+PACKAGES = $(shell go list ./... | grep -v /vendor/)
+
+TESTARGS ?= -race
+
+CURRENTDIR = $(shell pwd)
+SOURCEDIR = $(CURRENTDIR)
 SOURCES := $(shell find $(SOURCEDIR) -name '*.go')
 APP_SOURCES := $(shell find $(SOURCEDIR) -name '*.go' -not -path '$(SOURCEDIR)/vendor/*')
-VERSION=$(shell cat .goxc.json | python -c "import json,sys;obj=json.load(sys.stdin);print obj['PackageVersion'];")
+
+PATH := $(CURRENTDIR)/bin:$(PATH)
+
+COVERAGEDIR = $(CURRENTDIR)/coverage
+
+VERSION = $(shell cat .goxc.json | python -c "import json,sys;obj=json.load(sys.stdin);print obj['PackageVersion'];")
+
 TEMPDIR := $(shell mktemp -d)
-LD_FLAGS=-ldflags '-w' -ldflags "-X main.VERSION=$(VERSION)"
+LD_FLAGS = -ldflags '-w' -ldflags "-X main.VERSION=$(VERSION)"
+
+TEST_TARGETS = $(PACKAGES)
 
 all: build
 
 deps:
 	@./install_consul.sh
+	@mkdir -p $(COVERAGEDIR)
+	@which gover > /dev/null || \
+        (go get github.com/modocache/gover)
 
-build: deps test
+build-deps: deps format test check
 	@mkdir -p bin/
+
+build: build-deps
 	go build $(LD_FLAGS) -o bin/marathon-consul
 
-build-linux: deps test
-	@mkdir -p bin/
+build-linux: build-deps
 	CGO_ENABLED=0 GOOS=linux go build -a -tags netgo $(LD_FLAGS) -o bin/marathon-consul
 
 docker: build-linux
 	docker build -t allegro/marathon-consul .
 
-test: deps $(SOURCES)
-	PATH=$(CURRENT_DIR)/bin:$(PATH) go test $(PACKAGES) $(TESTARGS)
-	go vet $(PACKAGES)
+test: deps $(SOURCES) $(TEST_TARGETS)
+	gover $(COVERAGEDIR) $(COVERAGEDIR)/gover.coverprofile
 
-gometalint-exists:
+$(TEST_TARGETS):
+	go test -coverprofile=coverage/$(shell basename $@).coverprofile $(TESTARGS) $@
+
+check-deps: deps
 	@which gometalinter > /dev/null || \
-	(echo >&2 "gometalinter must be installed on the system. See https://github.com/alecthomas/gometalinter")
+        (go get github.com/alecthomas/gometalinter && gometalinter --install)
 
-check: gometalint-exists $(SOURCES)
+check: check-deps $(SOURCES) test
 	gometalinter . --deadline  720s --vendor -D dupl -D gotype -D errcheck -D gas -D golint -E gofmt
 
 format:
@@ -72,4 +89,4 @@ bump:
 	git add .goxc.json
 	git commit -m "Bumped version"
 
-.PHONY: all build test xcompile package dist
+.PHONY: all bump build release deb
