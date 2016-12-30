@@ -81,10 +81,10 @@ func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 	body = replaceTaskIDWithID(body)
 
 	switch eventType {
-	case "status_update_event":
+	case statusUpdateEventType:
 		return fh.handleStatusEvent(body)
-	case "health_status_changed_event":
-		return fh.handleHealthStatusEvent(body)
+	case healthStatusChangedEventType:
+		return fh.handleHealthyTask(body)
 	default:
 		err := fmt.Errorf("Unsuported event type: %s", eventType)
 		log.WithError(err).WithField("EventType", eventType).Error("This should never happen. Not handled event type")
@@ -92,42 +92,39 @@ func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 	}
 }
 
-func (fh *eventHandler) handleHealthStatusEvent(body []byte) error {
+func (fh *eventHandler) handleHealthyTask(body []byte) error {
 	taskHealthChange, err := events.ParseTaskHealthChange(body)
 	if err != nil {
 		log.WithError(err).Error("Body generated error")
 		return err
 	}
 
-	log.WithFields(
-		log.Fields{
-			"Id":         taskHealthChange.ID,
-			"TaskStatus": taskHealthChange.TaskStatus,
-		}).Info("Got HealthStatusEvent")
+	appID := taskHealthChange.AppID
+	taskID := taskHealthChange.TaskID()
+	log.WithField("Id", taskID).Info("Got HealthStatusEvent")
 
 	if !taskHealthChange.Alive {
-		log.WithField("Id", taskHealthChange.ID).Debug("Task is not alive. Not registering")
+		log.WithField("Id", taskID).Debug("Task is not alive. Not registering")
 		return nil
 	}
 
-	appID := taskHealthChange.AppID
 	app, err := fh.marathon.App(appID)
 	if err != nil {
-		log.WithField("Id", taskHealthChange.ID).WithError(err).Error("There was a problem obtaining app info")
+		log.WithField("Id", taskID).WithError(err).Error("There was a problem obtaining app info")
 		return err
 	}
 
 	if !app.IsConsulApp() {
 		err = fmt.Errorf("%s is not consul app. Missing consul label", app.ID)
-		log.WithField("Id", taskHealthChange.ID).WithError(err).Debug("Skipping app registration in Consul")
+		log.WithField("Id", taskID).WithError(err).Debug("Skipping app registration in Consul")
 		return nil
 	}
 
 	tasks := app.Tasks
 
-	task, err := findTaskByID(taskHealthChange.ID, tasks)
+	task, err := findTaskByID(taskID, tasks)
 	if err != nil {
-		log.WithField("Id", taskHealthChange.ID).WithError(err).Error("Task not found")
+		log.WithField("Id", taskID).WithError(err).Error("Task not found")
 		return err
 	}
 
