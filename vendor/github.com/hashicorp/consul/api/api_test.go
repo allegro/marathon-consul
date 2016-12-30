@@ -76,16 +76,16 @@ func TestDefaultConfig_env(t *testing.T) {
 	token := "abcd1234"
 	auth := "username:password"
 
-	os.Setenv("CONSUL_HTTP_ADDR", addr)
-	defer os.Setenv("CONSUL_HTTP_ADDR", "")
-	os.Setenv("CONSUL_HTTP_TOKEN", token)
-	defer os.Setenv("CONSUL_HTTP_TOKEN", "")
-	os.Setenv("CONSUL_HTTP_AUTH", auth)
-	defer os.Setenv("CONSUL_HTTP_AUTH", "")
-	os.Setenv("CONSUL_HTTP_SSL", "1")
-	defer os.Setenv("CONSUL_HTTP_SSL", "")
-	os.Setenv("CONSUL_HTTP_SSL_VERIFY", "0")
-	defer os.Setenv("CONSUL_HTTP_SSL_VERIFY", "")
+	os.Setenv(HTTPAddrEnvName, addr)
+	defer os.Setenv(HTTPAddrEnvName, "")
+	os.Setenv(HTTPTokenEnvName, token)
+	defer os.Setenv(HTTPTokenEnvName, "")
+	os.Setenv(HTTPAuthEnvName, auth)
+	defer os.Setenv(HTTPAuthEnvName, "")
+	os.Setenv(HTTPSSLEnvName, "1")
+	defer os.Setenv(HTTPSSLEnvName, "")
+	os.Setenv(HTTPSSLVerifyEnvName, "0")
+	defer os.Setenv(HTTPSSLVerifyEnvName, "")
 
 	for i, config := range []*Config{DefaultConfig(), DefaultNonPooledConfig()} {
 		if config.Address != addr {
@@ -306,6 +306,7 @@ func TestParseQueryMeta(t *testing.T) {
 	resp.Header.Set("X-Consul-Index", "12345")
 	resp.Header.Set("X-Consul-LastContact", "80")
 	resp.Header.Set("X-Consul-KnownLeader", "true")
+	resp.Header.Set("X-Consul-Translate-Addresses", "true")
 
 	qm := &QueryMeta{}
 	if err := parseQueryMeta(resp, qm); err != nil {
@@ -319,6 +320,9 @@ func TestParseQueryMeta(t *testing.T) {
 		t.Fatalf("Bad: %v", qm)
 	}
 	if !qm.KnownLeader {
+		t.Fatalf("Bad: %v", qm)
+	}
+	if !qm.AddressTranslationEnabled {
 		t.Fatalf("Bad: %v", qm)
 	}
 }

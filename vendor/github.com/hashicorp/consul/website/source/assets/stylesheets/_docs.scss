@@ -171,6 +171,14 @@ body.layout-intro{
   padding-left: 3%;
   padding-bottom: 80px;
 
+  .alert {
+    a {
+      color: inherit;
+      font-size: inherit;
+      font-weight: inherit;
+    }
+  }
+
   .lead{
     margin-bottom: 48px
   }
@@ -192,8 +200,15 @@ body.layout-intro{
     text-decoration: none;
   }
 
-  pre{
+  pre {
     margin: 0 0 18px;
+
+    // This will force the code to scroll horizontally on small screens
+    // instead of wrapping.
+    code {
+      overflow-wrap: normal;
+      white-space: pre;
+    }
   }
 
   a{

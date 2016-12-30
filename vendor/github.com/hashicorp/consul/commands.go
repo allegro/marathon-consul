@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/consul/command"
 	"github.com/hashicorp/consul/command/agent"
+	"github.com/hashicorp/consul/version"
 	"github.com/mitchellh/cli"
 )
 
@@ -19,10 +20,10 @@ func init() {
 	Commands = map[string]cli.CommandFactory{
 		"agent": func() (cli.Command, error) {
 			return &agent.Command{
-				Revision:          GitCommit,
-				Version:           Version,
-				VersionPrerelease: VersionPrerelease,
-				HumanVersion:      GetHumanVersion(),
+				Revision:          version.GitCommit,
+				Version:           version.Version,
+				VersionPrerelease: version.VersionPrerelease,
+				HumanVersion:      version.GetHumanVersion(),
 				Ui:                ui,
 				ShutdownCh:        make(chan struct{}),
 			}, nil
@@ -49,6 +50,30 @@ func init() {
 
 		"force-leave": func() (cli.Command, error) {
 			return &command.ForceLeaveCommand{
+				Ui: ui,
+			}, nil
+		},
+
+		"kv": func() (cli.Command, error) {
+			return &command.KVCommand{
+				Ui: ui,
+			}, nil
+		},
+
+		"kv delete": func() (cli.Command, error) {
+			return &command.KVDeleteCommand{
+				Ui: ui,
+			}, nil
+		},
+
+		"kv get": func() (cli.Command, error) {
+			return &command.KVGetCommand{
+				Ui: ui,
+			}, nil
+		},
+
+		"kv put": func() (cli.Command, error) {
+			return &command.KVPutCommand{
 				Ui: ui,
 			}, nil
 		},
@@ -103,6 +128,12 @@ func init() {
 			}, nil
 		},
 
+		"operator": func() (cli.Command, error) {
+			return &command.OperatorCommand{
+				Ui: ui,
+			}, nil
+		},
+
 		"info": func() (cli.Command, error) {
 			return &command.InfoCommand{
 				Ui: ui,
@@ -121,9 +152,33 @@ func init() {
 			}, nil
 		},
 
+		"snapshot": func() (cli.Command, error) {
+			return &command.SnapshotCommand{
+				Ui: ui,
+			}, nil
+		},
+
+		"snapshot restore": func() (cli.Command, error) {
+			return &command.SnapshotRestoreCommand{
+				Ui: ui,
+			}, nil
+		},
+
+		"snapshot save": func() (cli.Command, error) {
+			return &command.SnapshotSaveCommand{
+				Ui: ui,
+			}, nil
+		},
+
+		"snapshot inspect": func() (cli.Command, error) {
+			return &command.SnapshotInspectCommand{
+				Ui: ui,
+			}, nil
+		},
+
 		"version": func() (cli.Command, error) {
 			return &command.VersionCommand{
-				HumanVersion: GetHumanVersion(),
+				HumanVersion: version.GetHumanVersion(),
 				Ui:           ui,
 			}, nil
 		},

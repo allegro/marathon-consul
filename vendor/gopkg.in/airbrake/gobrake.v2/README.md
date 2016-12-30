@@ -1,4 +1,4 @@
-# Airbrake Golang Notifier [![Build Status](https://circleci.com/gh/airbrake/gobrake.png?circle-token=4cbcbf1a58fa8275217247351a2db7250c1ef976)](https://circleci.com/gh/airbrake/gobrake)
+# Airbrake Golang Notifier [![Build Status](https://travis-ci.org/airbrake/gobrake.svg?branch=v2)](https://travis-ci.org/airbrake/gobrake)
 
 <img src="http://f.cl.ly/items/3J3h1L05222X3o1w2l2L/golang.jpg" width=800px>
 
@@ -23,7 +23,7 @@ func init() {
 }
 
 func main() {
-	defer airbrake.WaitAndClose(5*time.Second)
+	defer airbrake.Close()
 	defer airbrake.NotifyOnPanic()
 
 	airbrake.Notify(errors.New("operation failed"), nil)

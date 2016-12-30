@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 
@@ -37,7 +38,7 @@ var _ = Describe("Notifier", func() {
 				panic(err)
 			}
 
-			sentNotice = &gobrake.Notice{}
+			sentNotice = new(gobrake.Notice)
 			err = json.Unmarshal(b, sentNotice)
 			Expect(err).To(BeNil())
 
@@ -50,20 +51,17 @@ var _ = Describe("Notifier", func() {
 		notifier.SetHost(server.URL)
 	})
 
+	AfterEach(func() {
+		Expect(notifier.Close()).NotTo(HaveOccurred())
+	})
+
 	It("reports error and backtrace", func() {
 		notify("hello", nil)
 
 		e := sentNotice.Errors[0]
 		Expect(e.Type).To(Equal("string"))
 		Expect(e.Message).To(Equal("hello"))
-		Expect(e.Backtrace[0].File).To(ContainSubstring("notifier_test.go"))
-	})
-
-	It("Notice returns proper backtrace", func() {
-		notice := notifier.Notice("hello", nil, 0)
-
-		e := notice.Errors[0]
-		Expect(e.Backtrace[0].File).To(ContainSubstring("notifier_test.go"))
+		Expect(e.Backtrace[0].File).To(Equal("[PROJECT_ROOT]/gopkg.in/airbrake/gobrake.v2/notifier_test.go"))
 	})
 
 	It("reports context, env, session and params", func() {
@@ -122,15 +120,21 @@ var _ = Describe("Notifier", func() {
 		Expect(env["h2"]).To(Equal("h2v1"))
 	})
 
-	It("collects and reports context", func() {
+	It("collects and reports some context", func() {
 		notify("hello", nil)
 
 		hostname, _ := os.Hostname()
-		wd, _ := os.Getwd()
+		gopath := os.Getenv("GOPATH")
+		gopath = filepath.SplitList(gopath)[0]
+
 		Expect(sentNotice.Context["language"]).To(Equal(runtime.Version()))
 		Expect(sentNotice.Context["os"]).To(Equal(runtime.GOOS))
 		Expect(sentNotice.Context["architecture"]).To(Equal(runtime.GOARCH))
 		Expect(sentNotice.Context["hostname"]).To(Equal(hostname))
-		Expect(sentNotice.Context["rootDirectory"]).To(Equal(wd))
+		Expect(sentNotice.Context["rootDirectory"]).To(Equal(gopath))
+	})
+
+	It("does not panic on double close", func() {
+		Expect(notifier.Close()).NotTo(HaveOccurred())
 	})
 })

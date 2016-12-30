@@ -17,6 +17,15 @@ const (
 	DefaultDC          = "dc1"
 	DefaultLANSerfPort = 8301
 	DefaultWANSerfPort = 8302
+
+	// DefaultRaftMultiplier is used as a baseline Raft configuration that
+	// will be reliable on a very basic server. See docs/guides/performance.html
+	// for information on how this value was obtained.
+	DefaultRaftMultiplier uint = 5
+
+	// MaxRaftMultiplier is a fairly arbitrary upper bound that limits the
+	// amount of performance detuning that's possible.
+	MaxRaftMultiplier uint = 10
 )
 
 var (
@@ -146,6 +155,11 @@ type Config struct {
 	// backwards compatibility as well.
 	ACLToken string
 
+	// ACLAgentToken is the default token used to make requests for the agent
+	// itself, such as for registering itself with the catalog. If not
+	// configured, the ACLToken will be used.
+	ACLAgentToken string
+
 	// ACLMasterToken is used to bootstrap the ACL system. It should be specified
 	// on the servers in the ACLDatacenter. When the leader comes online, it ensures
 	// that the Master token is available. This provides the initial token.
@@ -190,6 +204,10 @@ type Config struct {
 	// apply operations that we allow during a one second period. This is
 	// used to limit the amount of Raft bandwidth used for replication.
 	ACLReplicationApplyLimit int
+
+	// ACLEnforceVersion8 is used to gate a set of ACL policy features that
+	// are opt-in prior to Consul 0.8 and opt-out in Consul 0.8 and later.
+	ACLEnforceVersion8 bool
 
 	// TombstoneTTL is used to control how long KV tombstones are retained.
 	// This provides a window of time where the X-Consul-Index is monotonic.
@@ -314,8 +332,11 @@ func DefaultConfig() *Config {
 		CoordinateUpdateBatchSize:  128,
 		CoordinateUpdateMaxBatches: 5,
 
-		// Hold an RPC for up to 5 seconds by default
-		RPCHoldTimeout: 5 * time.Second,
+		// This holds RPCs during leader elections. For the default Raft
+		// config the election timeout is 5 seconds, so we set this a
+		// bit longer to try to cover that period. This should be more
+		// than enough when running in the high performance mode.
+		RPCHoldTimeout: 7 * time.Second,
 	}
 
 	// Increase our reap interval to 3 days instead of 24h.
@@ -333,13 +354,31 @@ func DefaultConfig() *Config {
 	// Enable interoperability with unversioned Raft library, and don't
 	// start using new ID-based features yet.
 	conf.RaftConfig.ProtocolVersion = 1
+	conf.ScaleRaft(DefaultRaftMultiplier)
 
 	// Disable shutdown on removal
 	conf.RaftConfig.ShutdownOnRemove = false
 
+	// Check every 5 seconds to see if there are enough new entries for a snapshot
+	conf.RaftConfig.SnapshotInterval = 5 * time.Second
+
 	return conf
 }
 
+// ScaleRaft sets the config to have Raft timing parameters scaled by the given
+// performance multiplier. This is done in an idempotent way so it's not tricky
+// to call this when composing configurations and potentially calling this
+// multiple times on the same structure.
+func (c *Config) ScaleRaft(raftMultRaw uint) {
+	raftMult := time.Duration(raftMultRaw)
+
+	def := raft.DefaultConfig()
+	c.RaftConfig.HeartbeatTimeout = raftMult * def.HeartbeatTimeout
+	c.RaftConfig.ElectionTimeout = raftMult * def.ElectionTimeout
+	c.RaftConfig.LeaderLeaseTimeout = raftMult * def.LeaderLeaseTimeout
+}
+
+// tlsConfig maps this config into a tlsutil config.
 func (c *Config) tlsConfig() *tlsutil.Config {
 	tlsConf := &tlsutil.Config{
 		VerifyIncoming:       c.VerifyIncoming,
@@ -353,4 +392,16 @@ func (c *Config) tlsConfig() *tlsutil.Config {
 		Domain:               c.Domain,
 	}
 	return tlsConf
+}
+
+// GetTokenForAgent returns the token the agent should use for its own internal
+// operations, such as registering itself with the catalog.
+func (c *Config) GetTokenForAgent() string {
+	if c.ACLAgentToken != "" {
+		return c.ACLAgentToken
+	} else if c.ACLToken != "" {
+		return c.ACLToken
+	} else {
+		return ""
+	}
 }

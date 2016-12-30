@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -162,15 +163,16 @@ type Server struct {
 
 // Holds the RPC endpoints
 type endpoints struct {
-	Catalog       *Catalog
-	Health        *Health
-	Status        *Status
-	KVS           *KVS
-	Session       *Session
-	Internal      *Internal
 	ACL           *ACL
+	Catalog       *Catalog
 	Coordinate    *Coordinate
+	Health        *Health
+	Internal      *Internal
+	KVS           *KVS
+	Operator      *Operator
 	PreparedQuery *PreparedQuery
+	Session       *Session
+	Status        *Status
 	Txn           *Txn
 }
 
@@ -384,7 +386,7 @@ func (s *Server) setupRaft() error {
 		s.raftInmem = store
 		stable = store
 		log = store
-		snap = raft.NewDiscardSnapshotStore()
+		snap = raft.NewInmemSnapshotStore()
 	} else {
 		// Create the base raft path.
 		path := filepath.Join(s.config.DataDir, raftState)
@@ -496,27 +498,29 @@ func (s *Server) setupRaft() error {
 // setupRPC is used to setup the RPC listener
 func (s *Server) setupRPC(tlsWrap tlsutil.DCWrapper) error {
 	// Create endpoints
-	s.endpoints.Status = &Status{s}
-	s.endpoints.Catalog = &Catalog{s}
-	s.endpoints.Health = &Health{s}
-	s.endpoints.KVS = &KVS{s}
-	s.endpoints.Session = &Session{s}
-	s.endpoints.Internal = &Internal{s}
 	s.endpoints.ACL = &ACL{s}
+	s.endpoints.Catalog = &Catalog{s}
 	s.endpoints.Coordinate = NewCoordinate(s)
+	s.endpoints.Health = &Health{s}
+	s.endpoints.Internal = &Internal{s}
+	s.endpoints.KVS = &KVS{s}
+	s.endpoints.Operator = &Operator{s}
 	s.endpoints.PreparedQuery = &PreparedQuery{s}
+	s.endpoints.Session = &Session{s}
+	s.endpoints.Status = &Status{s}
 	s.endpoints.Txn = &Txn{s}
 
 	// Register the handlers
-	s.rpcServer.Register(s.endpoints.Status)
-	s.rpcServer.Register(s.endpoints.Catalog)
-	s.rpcServer.Register(s.endpoints.Health)
-	s.rpcServer.Register(s.endpoints.KVS)
-	s.rpcServer.Register(s.endpoints.Session)
-	s.rpcServer.Register(s.endpoints.Internal)
 	s.rpcServer.Register(s.endpoints.ACL)
+	s.rpcServer.Register(s.endpoints.Catalog)
 	s.rpcServer.Register(s.endpoints.Coordinate)
+	s.rpcServer.Register(s.endpoints.Health)
+	s.rpcServer.Register(s.endpoints.Internal)
+	s.rpcServer.Register(s.endpoints.KVS)
+	s.rpcServer.Register(s.endpoints.Operator)
 	s.rpcServer.Register(s.endpoints.PreparedQuery)
+	s.rpcServer.Register(s.endpoints.Session)
+	s.rpcServer.Register(s.endpoints.Status)
 	s.rpcServer.Register(s.endpoints.Txn)
 
 	list, err := net.ListenTCP("tcp", s.config.RPCAddr)
@@ -803,6 +807,39 @@ func (s *Server) RPC(method string, args interface{}, reply interface{}) error {
 	return codec.err
 }
 
+// SnapshotRPC dispatches the given snapshot request, reading from the streaming
+// input and writing to the streaming output depending on the operation.
+func (s *Server) SnapshotRPC(args *structs.SnapshotRequest, in io.Reader, out io.Writer,
+	replyFn SnapshotReplyFn) error {
+
+	// Perform the operation.
+	var reply structs.SnapshotResponse
+	snap, err := s.dispatchSnapshotRequest(args, in, &reply)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := snap.Close(); err != nil {
+			s.logger.Printf("[ERR] consul: Failed to close snapshot: %v", err)
+		}
+	}()
+
+	// Let the caller peek at the reply.
+	if replyFn != nil {
+		if err := replyFn(&reply); err != nil {
+			return nil
+		}
+	}
+
+	// Stream the snapshot.
+	if out != nil {
+		if _, err := io.Copy(out, snap); err != nil {
+			return fmt.Errorf("failed to stream snapshot: %v", err)
+		}
+	}
+	return nil
+}
+
 // InjectEndpoint is used to substitute an endpoint for testing.
 func (s *Server) InjectEndpoint(endpoint interface{}) error {
 	s.logger.Printf("[WARN] consul: endpoint injected; this should only be used for testing")
@@ -852,7 +889,7 @@ As of Consul 0.7.0, the peers.json file is only used for recovery
 after an outage. It should be formatted as a JSON array containing the address
 and port of each Consul server in the cluster, like this:
 
-["10.1.0.1:8500","10.1.0.2:8500","10.1.0.3:8500"]
+["10.1.0.1:8300","10.1.0.2:8300","10.1.0.3:8300"]
 
 Under normal operation, the peers.json file will not be present.
 

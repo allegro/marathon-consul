@@ -17,6 +17,9 @@ func TestPreparedQuery(t *testing.T) {
 		Datacenter: "dc1",
 		Node:       "foobar",
 		Address:    "192.168.10.10",
+		TaggedAddresses: map[string]string{
+			"wan": "127.0.0.1",
+		},
 		Service: &AgentService{
 			ID:      "redis1",
 			Service: "redis",
@@ -42,6 +45,7 @@ func TestPreparedQuery(t *testing.T) {
 
 	// Create a simple prepared query.
 	def := &PreparedQueryDefinition{
+		Name: "test",
 		Service: ServiceQuery{
 			Service: "redis",
 		},
@@ -96,6 +100,9 @@ func TestPreparedQuery(t *testing.T) {
 	if len(results.Nodes) != 1 || results.Nodes[0].Node.Node != "foobar" {
 		t.Fatalf("bad: %v", results)
 	}
+	if wan, ok := results.Nodes[0].Node.TaggedAddresses["wan"]; !ok || wan != "127.0.0.1" {
+		t.Fatalf("bad: %v", results)
+	}
 
 	// Execute by name.
 	results, _, err = query.Execute("my-query", nil)
@@ -103,6 +110,9 @@ func TestPreparedQuery(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 	if len(results.Nodes) != 1 || results.Nodes[0].Node.Node != "foobar" {
+		t.Fatalf("bad: %v", results)
+	}
+	if wan, ok := results.Nodes[0].Node.TaggedAddresses["wan"]; !ok || wan != "127.0.0.1" {
 		t.Fatalf("bad: %v", results)
 	}
 

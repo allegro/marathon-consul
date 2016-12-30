@@ -41,3 +41,18 @@ All of these features are provided by leveraging [Serf](https://www.serf.io/). I
 is used as an embedded library to provide these features. From a user perspective,
 this is not important, since the abstraction should be masked by Consul. It can be useful
 however as a developer to understand how this library is leveraged.
+
+<a name="lifeguard"></a>
+## Lifeguard Enhancements
+
+SWIM makes the assumption that the local node is healthy in the sense
+that soft real-time processing of packets is possible. However, in cases
+where the local node is experiencing CPU or network exhaustion this assumption
+can be violated. The result is that the `serfHealth` check status can
+occassionally flap, resulting in false monitoring alarms, adding noise to
+telemetry, and simply causing the overall cluster to waste CPU and network
+resources diagnosing a failure that may not truly exist.
+
+Lifeguard completely resolves this issue with novel enhancements to SWIM.
+Please see the [Serf's gossip protocol guide](https://www.serf.io/docs/internals/gossip.html#lifeguard)
+section on Lifeguard for more details.

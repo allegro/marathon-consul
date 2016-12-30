@@ -129,6 +129,38 @@ func TestLogEntryWithCustomFields(t *testing.T) {
 	}
 }
 
+func TestLogEntryWithHTTPRequestFields(t *testing.T) {
+	log := logrus.New()
+	hook := newTestHook()
+	log.Hooks.Add(hook)
+
+	req, err := http.NewRequest("GET", "http://example.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	log.WithFields(logrus.Fields{
+		"user_id": "123",
+		"request": req,
+	}).Error(unintendedMsg)
+
+	select {
+	case received := <-noticeChan:
+		receivedErr := received.Errors[0]
+		if receivedErr.Message != unintendedMsg {
+			t.Errorf("Unexpected message received: %s", receivedErr.Message)
+		}
+		if received.Context["user_id"] != "123" {
+			t.Errorf("Expected message to contain Context[\"user_id\"] == \"123\" got %q", received.Context["user_id"])
+		}
+		if received.Context["url"] != "http://example.com" {
+			t.Errorf("Expected message to contain Context[\"url\"] == \"http://example.com\" got %q", received.Context["url"])
+		}
+	case <-time.After(time.Second):
+		t.Error("Timed out; no notice received by Airbrake API")
+	}
+}
+
 // Returns a new airbrakeHook with the test server proxied
 func newTestHook() *airbrakeHook {
 	// Make a http.Client with the transport

@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -46,7 +45,6 @@ func expectStatus(t *testing.T, script, status string) {
 		Script:   script,
 		Interval: 10 * time.Millisecond,
 		Logger:   log.New(os.Stderr, "", log.LstdFlags),
-		ReapLock: &sync.RWMutex{},
 	}
 	check.Start()
 	defer check.Stop()
@@ -96,7 +94,6 @@ func TestCheckMonitor_Timeout(t *testing.T) {
 		Interval: 10 * time.Millisecond,
 		Timeout:  5 * time.Millisecond,
 		Logger:   log.New(os.Stderr, "", log.LstdFlags),
-		ReapLock: &sync.RWMutex{},
 	}
 	check.Start()
 	defer check.Stop()
@@ -125,7 +122,6 @@ func TestCheckMonitor_RandomStagger(t *testing.T) {
 		Script:   "exit 0",
 		Interval: 25 * time.Millisecond,
 		Logger:   log.New(os.Stderr, "", log.LstdFlags),
-		ReapLock: &sync.RWMutex{},
 	}
 	check.Start()
 	defer check.Stop()
@@ -154,7 +150,6 @@ func TestCheckMonitor_LimitOutput(t *testing.T) {
 		Script:   "od -N 81920 /dev/urandom",
 		Interval: 25 * time.Millisecond,
 		Logger:   log.New(os.Stderr, "", log.LstdFlags),
-		ReapLock: &sync.RWMutex{},
 	}
 	check.Start()
 	defer check.Stop()
@@ -228,6 +223,19 @@ func mockHTTPServer(responseCode int) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
+func mockTLSHTTPServer(responseCode int) *httptest.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Body larger than 4k limit
+		body := bytes.Repeat([]byte{'a'}, 2*CheckBufSize)
+		w.WriteHeader(responseCode)
+		w.Write(body)
+		return
+	})
+
+	return httptest.NewTLSServer(mux)
+}
+
 func expectHTTPStatus(t *testing.T, url string, status string) {
 	mock := &MockNotify{
 		state:   make(map[types.CheckID]string),
@@ -244,21 +252,24 @@ func expectHTTPStatus(t *testing.T, url string, status string) {
 	check.Start()
 	defer check.Stop()
 
-	time.Sleep(50 * time.Millisecond)
+	testutil.WaitForResult(func() (bool, error) {
+		// Should have at least 2 updates
+		if mock.updates["foo"] < 2 {
+			return false, fmt.Errorf("should have 2 updates %v", mock.updates)
+		}
 
-	// Should have at least 2 updates
-	if mock.updates["foo"] < 2 {
-		t.Fatalf("should have 2 updates %v", mock.updates)
-	}
+		if mock.state["foo"] != status {
+			return false, fmt.Errorf("should be %v %v", status, mock.state)
+		}
 
-	if mock.state["foo"] != status {
-		t.Fatalf("should be %v %v", status, mock.state)
-	}
-
-	// Allow slightly more data than CheckBufSize, for the header
-	if n := len(mock.output["foo"]); n > (CheckBufSize + 256) {
-		t.Fatalf("output too long: %d (%d-byte limit)", n, CheckBufSize)
-	}
+		// Allow slightly more data than CheckBufSize, for the header
+		if n := len(mock.output["foo"]); n > (CheckBufSize + 256) {
+			return false, fmt.Errorf("output too long: %d (%d-byte limit)", n, CheckBufSize)
+		}
+		return true, nil
+	}, func(err error) {
+		t.Fatalf("err: %s", err)
+	})
 }
 
 func TestCheckHTTPCritical(t *testing.T) {
@@ -347,16 +358,19 @@ func TestCheckHTTPTimeout(t *testing.T) {
 	check.Start()
 	defer check.Stop()
 
-	time.Sleep(50 * time.Millisecond)
+	testutil.WaitForResult(func() (bool, error) {
+		// Should have at least 2 updates
+		if mock.updates["bar"] < 2 {
+			return false, fmt.Errorf("should have at least 2 updates %v", mock.updates)
+		}
 
-	// Should have at least 2 updates
-	if mock.updates["bar"] < 2 {
-		t.Fatalf("should have at least 2 updates %v", mock.updates)
-	}
-
-	if mock.state["bar"] != structs.HealthCritical {
-		t.Fatalf("should be critical %v", mock.state)
-	}
+		if mock.state["bar"] != structs.HealthCritical {
+			return false, fmt.Errorf("should be critical %v", mock.state)
+		}
+		return true, nil
+	}, func(err error) {
+		t.Fatalf("err: %s", err)
+	})
 }
 
 func TestCheckHTTP_disablesKeepAlives(t *testing.T) {
@@ -373,6 +387,134 @@ func TestCheckHTTP_disablesKeepAlives(t *testing.T) {
 	if !check.httpClient.Transport.(*http.Transport).DisableKeepAlives {
 		t.Fatalf("should have disabled keepalives")
 	}
+}
+
+func TestCheckHTTP_TLSSkipVerify_defaultFalse(t *testing.T) {
+	check := &CheckHTTP{
+		CheckID:  "foo",
+		HTTP:     "https://foo.bar/baz",
+		Interval: 10 * time.Second,
+		Logger:   log.New(os.Stderr, "", log.LstdFlags),
+	}
+
+	check.Start()
+	defer check.Stop()
+
+	if check.httpClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify {
+		t.Fatalf("should default to false")
+	}
+}
+
+func TestCheckHTTP_TLSSkipVerify_true_pass(t *testing.T) {
+	server := mockTLSHTTPServer(200)
+	defer server.Close()
+
+	mock := &MockNotify{
+		state:   make(map[types.CheckID]string),
+		updates: make(map[types.CheckID]int),
+		output:  make(map[types.CheckID]string),
+	}
+
+	check := &CheckHTTP{
+		Notify:        mock,
+		CheckID:       types.CheckID("skipverify_true"),
+		HTTP:          server.URL,
+		Interval:      5 * time.Millisecond,
+		Logger:        log.New(os.Stderr, "", log.LstdFlags),
+		TLSSkipVerify: true,
+	}
+
+	check.Start()
+	defer check.Stop()
+
+	if !check.httpClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify {
+		t.Fatalf("should be true")
+	}
+
+	testutil.WaitForResult(func() (bool, error) {
+		if mock.state["skipverify_true"] != structs.HealthPassing {
+			return false, fmt.Errorf("should be passing %v", mock.state)
+		}
+		return true, nil
+	}, func(err error) {
+		t.Fatalf("err: %s", err)
+	})
+}
+
+func TestCheckHTTP_TLSSkipVerify_true_fail(t *testing.T) {
+	server := mockTLSHTTPServer(500)
+	defer server.Close()
+
+	mock := &MockNotify{
+		state:   make(map[types.CheckID]string),
+		updates: make(map[types.CheckID]int),
+		output:  make(map[types.CheckID]string),
+	}
+
+	check := &CheckHTTP{
+		Notify:        mock,
+		CheckID:       types.CheckID("skipverify_true"),
+		HTTP:          server.URL,
+		Interval:      5 * time.Millisecond,
+		Logger:        log.New(os.Stderr, "", log.LstdFlags),
+		TLSSkipVerify: true,
+	}
+	check.Start()
+	defer check.Stop()
+
+	if !check.httpClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify {
+		t.Fatalf("should be true")
+	}
+
+	testutil.WaitForResult(func() (bool, error) {
+		if mock.state["skipverify_true"] != structs.HealthCritical {
+			return false, fmt.Errorf("should be critical %v", mock.state)
+		}
+		return true, nil
+	}, func(err error) {
+		t.Fatalf("err: %s", err)
+	})
+}
+
+func TestCheckHTTP_TLSSkipVerify_false(t *testing.T) {
+	server := mockTLSHTTPServer(200)
+	defer server.Close()
+
+	mock := &MockNotify{
+		state:   make(map[types.CheckID]string),
+		updates: make(map[types.CheckID]int),
+		output:  make(map[types.CheckID]string),
+	}
+
+	check := &CheckHTTP{
+		Notify:        mock,
+		CheckID:       types.CheckID("skipverify_false"),
+		HTTP:          server.URL,
+		Interval:      100 * time.Millisecond,
+		Logger:        log.New(os.Stderr, "", log.LstdFlags),
+		TLSSkipVerify: false,
+	}
+
+	check.Start()
+	defer check.Stop()
+
+	if check.httpClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify {
+		t.Fatalf("should be false")
+	}
+
+	testutil.WaitForResult(func() (bool, error) {
+		// This should fail due to an invalid SSL cert
+		if mock.state["skipverify_false"] != structs.HealthCritical {
+			return false, fmt.Errorf("should be critical %v", mock.state)
+		}
+
+		if !strings.Contains(mock.output["skipverify_false"], "certificate signed by unknown authority") {
+			return false, fmt.Errorf("should fail with certificate error %v", mock.output)
+		}
+		return true, nil
+	}, func(err error) {
+		t.Fatalf("err: %s", err)
+	})
 }
 
 func mockTCPServer(network string) net.Listener {
@@ -410,16 +552,19 @@ func expectTCPStatus(t *testing.T, tcp string, status string) {
 	check.Start()
 	defer check.Stop()
 
-	time.Sleep(50 * time.Millisecond)
+	testutil.WaitForResult(func() (bool, error) {
+		// Should have at least 2 updates
+		if mock.updates["foo"] < 2 {
+			return false, fmt.Errorf("should have 2 updates %v", mock.updates)
+		}
 
-	// Should have at least 2 updates
-	if mock.updates["foo"] < 2 {
-		t.Fatalf("should have 2 updates %v", mock.updates)
-	}
-
-	if mock.state["foo"] != status {
-		t.Fatalf("should be %v %v", status, mock.state)
-	}
+		if mock.state["foo"] != status {
+			return false, fmt.Errorf("should be %v %v", status, mock.state)
+		}
+		return true, nil
+	}, func(err error) {
+		t.Fatalf("err: %s", err)
+	})
 }
 
 func TestCheckTCPCritical(t *testing.T) {

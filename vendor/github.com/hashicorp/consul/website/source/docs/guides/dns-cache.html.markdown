@@ -20,6 +20,7 @@ for each lookup and can potentially exhaust the query throughput of a cluster.
 For this reason, Consul provides a number of tuning parameters that can
 customize how DNS queries are handled.
 
+<a name="stale"></a>
 ## Stale Reads
 
 Stale reads can be used to reduce latency and increase the throughput
@@ -38,11 +39,15 @@ which must be set to enable stale reads, and
 [`dns_config.max_stale`](/docs/agent/options.html#max_stale)
 which limits how stale results are allowed to be.
 
-By default, [`allow_stale`](/docs/agent/options.html#allow_stale) is disabled,
-meaning no stale results may be served. The default for
-[`max_stale`](/docs/agent/options.html#max_stale) is 5 seconds. This means that
-if [`allow_stale`](/docs/agent/options.html#allow_stale) is enabled, we will use
-data from any Consul server that is within 5 seconds of the leader.
+Starting from Consul 0.7, [`allow_stale`](/docs/agent/options.html#allow_stale)
+is enabled by default, using a [`max_stale`](/docs/agent/options.html#max_stale)
+value that defaults to 5 seconds, meaning that we will use data from
+any Consul server that is within 5 seconds of the leader. In Consul 0.7.1, the
+default for `max_stale` was been increased from 5 seconds to a near-indefinite
+threshold (10 years) to allow DNS queries to continue to be served in the event
+of a long outage with no leader. A new telemetry counter has also been added at
+`consul.dns.stale_queries` to track when agents serve DNS queries that are stale
+by more than 5 seconds.
 
 ## Negative Response Caching
 
@@ -60,6 +65,7 @@ client and Consul and set the cache values appropriately. In many cases
 "appropriately" simply is turning negative response caching off to get the best
 recovery time when a service becomes available again.
 
+<a name="ttl"></a>
 ## TTL Values
 
 TTL values can be set to allow DNS results to be cached downstream of Consul. Higher

@@ -349,9 +349,9 @@ func (s *StateStore) getWatchTables(method string) []string {
 		return []string{"nodes"}
 	case "Services":
 		return []string{"services"}
-	case "ServiceNodes", "NodeServices":
+	case "NodeService", "NodeServices", "ServiceNodes":
 		return []string{"nodes", "services"}
-	case "NodeChecks", "ServiceChecks", "ChecksInState":
+	case "NodeCheck", "NodeChecks", "ServiceChecks", "ChecksInState":
 		return []string{"checks"}
 	case "CheckServiceNodes", "NodeInfo", "NodeDump":
 		return []string{"nodes", "services", "checks"}
@@ -437,6 +437,12 @@ func (s *StateStore) ensureRegistrationTxn(tx *memdb.Txn, idx uint64, watches *D
 			return fmt.Errorf("failed inserting service: %s", err)
 		}
 	}
+
+	// TODO (slackpad) In Consul 0.8 ban checks that don't have the same
+	// node as the top-level registration. This is just weird to be able to
+	// update unrelated nodes' checks from in here. In 0.7.2 we banned this
+	// up in the ACL check since that's guarded behind an opt-in flag until
+	// Consul 0.8.
 
 	// Add the checks, if any.
 	if req.Check != nil {
@@ -678,9 +684,11 @@ func (s *StateStore) ensureServiceTxn(tx *memdb.Txn, idx uint64, watches *DumbWa
 		return fmt.Errorf("failed service lookup: %s", err)
 	}
 
-	// Create the service node entry and populate the indexes. We leave the
-	// address blank and fill that in on the way out during queries.
-	entry := svc.ToServiceNode(node, "")
+	// Create the service node entry and populate the indexes. Note that
+	// conversion doesn't populate any of the node-specific information
+	// (Address and TaggedAddresses). That's always populated when we read
+	// from the state store.
+	entry := svc.ToServiceNode(node)
 	if existing != nil {
 		entry.CreateIndex = existing.(*structs.ServiceNode).CreateIndex
 		entry.ModifyIndex = idx
@@ -830,19 +838,48 @@ func (s *StateStore) parseServiceNodes(tx *memdb.Txn, services structs.ServiceNo
 	var results structs.ServiceNodes
 	for _, sn := range services {
 		// Note that we have to clone here because we don't want to
-		// modify the address field on the object in the database,
+		// modify the node-related fields on the object in the database,
 		// which is what we are referencing.
-		s := sn.Clone()
+		s := sn.PartialClone()
 
-		// Fill in the address of the node.
+		// Grab the corresponding node record.
 		n, err := tx.First("nodes", "id", sn.Node)
 		if err != nil {
 			return nil, fmt.Errorf("failed node lookup: %s", err)
 		}
-		s.Address = n.(*structs.Node).Address
+
+		// Populate the node-related fields. The tagged addresses may be
+		// used by agents to perform address translation if they are
+		// configured to do that.
+		node := n.(*structs.Node)
+		s.Address = node.Address
+		s.TaggedAddresses = node.TaggedAddresses
+
 		results = append(results, s)
 	}
 	return results, nil
+}
+
+// NodeService is used to retrieve a specific service associated with the given
+// node.
+func (s *StateStore) NodeService(nodeID string, serviceID string) (uint64, *structs.NodeService, error) {
+	tx := s.db.Txn(false)
+	defer tx.Abort()
+
+	// Get the table index.
+	idx := maxIndexTxn(tx, s.getWatchTables("NodeService")...)
+
+	// Query the service
+	service, err := tx.First("services", "id", nodeID, serviceID)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed querying service for node %q: %s", nodeID, err)
+	}
+
+	if service != nil {
+		return idx, service.(*structs.ServiceNode).ToNodeService(), nil
+	} else {
+		return idx, nil, nil
+	}
 }
 
 // NodeServices is used to query service registrations by node ID.
@@ -1047,6 +1084,27 @@ func (s *StateStore) ensureCheckTxn(tx *memdb.Txn, idx uint64, watches *DumbWatc
 	return nil
 }
 
+// NodeCheck is used to retrieve a specific check associated with the given
+// node.
+func (s *StateStore) NodeCheck(nodeID string, checkID types.CheckID) (uint64, *structs.HealthCheck, error) {
+	tx := s.db.Txn(false)
+	defer tx.Abort()
+
+	// Get the table index.
+	idx := maxIndexTxn(tx, s.getWatchTables("NodeCheck")...)
+
+	// Return the check.
+	check, err := tx.First("checks", "id", nodeID, string(checkID))
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed check lookup: %s", err)
+	}
+	if check != nil {
+		return idx, check.(*structs.HealthCheck), nil
+	} else {
+		return idx, nil, nil
+	}
+}
+
 // NodeChecks is used to retrieve checks associated with the
 // given node from the state store.
 func (s *StateStore) NodeChecks(nodeID string) (uint64, structs.HealthChecks, error) {
@@ -1239,7 +1297,13 @@ func (s *StateStore) parseCheckServiceNodes(
 		return 0, nil, err
 	}
 
-	var results structs.CheckServiceNodes
+	// Special-case the zero return value to nil, since this ends up in
+	// external APIs.
+	if len(services) == 0 {
+		return idx, nil, nil
+	}
+
+	results := make(structs.CheckServiceNodes, 0, len(services))
 	for _, sn := range services {
 		// Retrieve the node.
 		n, err := tx.First("nodes", "id", sn.Node)
