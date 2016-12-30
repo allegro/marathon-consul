@@ -829,7 +829,7 @@ func TestMarathonTaskToConsulServiceMapping_IgnoredHealthcheckTypes(t *testing.T
 		HealthChecks: []apps.HealthCheck{
 			{
 				Path:                   "/api/health?with=query",
-				Protocol:               "HTTP",
+				Protocol:               "MESOS_HTTP",
 				PortIndex:              0,
 				IntervalSeconds:        60,
 				TimeoutSeconds:         20,
