@@ -53,10 +53,18 @@ const (
 	// HealthAny is special, and is used as a wild card,
 	// not as a specific state.
 	HealthAny      = "any"
-	HealthUnknown  = "unknown"
 	HealthPassing  = "passing"
 	HealthWarning  = "warning"
 	HealthCritical = "critical"
+	HealthMaint    = "maintenance"
+)
+
+const (
+	// NodeMaint is the special key set by a node in maintenance mode.
+	NodeMaint = "_node_maintenance"
+
+	// ServiceMaintPrefix is the prefix for a service in maintenance mode.
+	ServiceMaintPrefix = "_service_maintenance:"
 )
 
 func ValidStatus(s string) bool {
@@ -175,6 +183,25 @@ func (r *RegisterRequest) RequestDatacenter() string {
 	return r.Datacenter
 }
 
+// ChangesNode returns true if the given register request changes the given
+// node, which can be nil. This only looks for changes to the node record itself,
+// not any of the health checks.
+func (r *RegisterRequest) ChangesNode(node *Node) bool {
+	// This means it's creating the node.
+	if node == nil {
+		return true
+	}
+
+	// Check if any of the node-level fields are being changed.
+	if r.Node != node.Node ||
+		r.Address != node.Address ||
+		!reflect.DeepEqual(r.TaggedAddresses, node.TaggedAddresses) {
+		return true
+	}
+
+	return false
+}
+
 // DeregisterRequest is used for the Catalog.Deregister endpoint
 // to deregister a node as providing a service. If no service is
 // provided the entire node is deregistered.
@@ -260,10 +287,15 @@ type Nodes []*Node
 // Maps service name to available tags
 type Services map[string][]string
 
-// ServiceNode represents a node that is part of a service
+// ServiceNode represents a node that is part of a service. Address and
+// TaggedAddresses are node-related fields that are always empty in the state
+// store and are filled in on the way out by parseServiceNodes(). This is also
+// why PartialClone() skips them, because we know they are blank already so it
+// would be a waste of time to copy them.
 type ServiceNode struct {
 	Node                     string
 	Address                  string
+	TaggedAddresses          map[string]string
 	ServiceID                string
 	ServiceName              string
 	ServiceTags              []string
@@ -274,14 +306,16 @@ type ServiceNode struct {
 	RaftIndex
 }
 
-// Clone returns a clone of the given service node.
-func (s *ServiceNode) Clone() *ServiceNode {
+// PartialClone() returns a clone of the given service node, minus the node-
+// related fields that get filled in later, Address and TaggedAddresses.
+func (s *ServiceNode) PartialClone() *ServiceNode {
 	tags := make([]string, len(s.ServiceTags))
 	copy(tags, s.ServiceTags)
 
 	return &ServiceNode{
-		Node:                     s.Node,
-		Address:                  s.Address,
+		Node: s.Node,
+		// Skip Address, see above.
+		// Skip TaggedAddresses, see above.
 		ServiceID:                s.ServiceID,
 		ServiceName:              s.ServiceName,
 		ServiceTags:              tags,
@@ -343,10 +377,11 @@ func (s *NodeService) IsSame(other *NodeService) bool {
 }
 
 // ToServiceNode converts the given node service to a service node.
-func (s *NodeService) ToServiceNode(node, address string) *ServiceNode {
+func (s *NodeService) ToServiceNode(node string) *ServiceNode {
 	return &ServiceNode{
-		Node:                     node,
-		Address:                  address,
+		Node: node,
+		// Skip Address, see ServiceNode definition.
+		// Skip TaggedAddresses, see ServiceNode definition.
 		ServiceID:                s.ID,
 		ServiceName:              s.Service,
 		ServiceTags:              s.Tags,
@@ -405,6 +440,7 @@ func (c *HealthCheck) Clone() *HealthCheck {
 	return clone
 }
 
+// HealthChecks is a collection of HealthCheck structs.
 type HealthChecks []*HealthCheck
 
 // CheckServiceNode is used to provide the node, its service
@@ -453,7 +489,7 @@ type NodeInfo struct {
 	Address         string
 	TaggedAddresses map[string]string
 	Services        []*NodeService
-	Checks          []*HealthCheck
+	Checks          HealthChecks
 }
 
 // NodeDump is used to dump all the nodes with all their
@@ -899,10 +935,10 @@ func (r *KeyringRequest) RequestDatacenter() string {
 type KeyringResponse struct {
 	WAN        bool
 	Datacenter string
-	Messages   map[string]string
+	Messages   map[string]string `json:",omitempty"`
 	Keys       map[string]int
 	NumNodes   int
-	Error      string
+	Error      string `json:",omitempty"`
 }
 
 // KeyringResponses holds multiple responses to keyring queries. Each

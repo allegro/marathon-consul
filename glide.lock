@@ -1,16 +1,18 @@
-hash: 0cd12d8d015fdf2f8cbd95b849d82573f8745ecda2f67fac08f3f1e41a169aa4
-updated: 2016-08-17T14:32:39.027485425+02:00
+hash: 18e09188dd3e42cdbc762c42ea9981a530edb71a3d599b2f82ab884a88f0922e
+updated: 2016-12-30T14:04:18.623080854+01:00
 imports:
+- name: github.com/armon/go-metrics
+  version: 97c69685293dce4c0a2d0b19535179bbc976e4d2
 - name: github.com/armon/go-radix
   version: 4239b77079c7b5d1243b7b4736304ce8ddb6f0f2
 - name: github.com/cyberdelia/go-metrics-graphite
-  version: 7e54b5c2aa6eaff4286c44129c3def899dff528c
+  version: 39f87cc3b432bbb898d7c643c0e93cac2bc865ad
 - name: github.com/davecgh/go-spew
-  version: 2df174808ee097f90d259e432cc04442cf60be21
+  version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
   subpackages:
   - spew
 - name: github.com/hashicorp/consul
-  version: 0047f09be55fdf790263cbc088bf5ec924ffe644
+  version: a9afa0c27f484dd19fe59a80444e64e5352c4408
   subpackages:
   - api
   - testutil
@@ -28,7 +30,7 @@ imports:
   subpackages:
   - simplelru
 - name: github.com/hashicorp/hcl
-  version: d8c773c4cba11b11539e3d45f93daeaa5dcf1fa1
+  version: 80e628d796135357b3d2e33a985c666b9f35eee1
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -38,8 +40,10 @@ imports:
   - hcl/strconv
   - json/scanner
   - json/token
+- name: github.com/hashicorp/raft
+  version: 5f09c4ffdbcd2a53768e78c47717415de12b6728
 - name: github.com/hashicorp/serf
-  version: 9432bc08aa8d486e497e27f84878ebbe8c1eab66
+  version: d3a67ab21bc8a4643fa53a3633f2d951dd50c6ca
   subpackages:
   - coordinate
 - name: github.com/ogier/pflag
@@ -51,19 +55,21 @@ imports:
 - name: github.com/rcrowley/go-metrics
   version: bdb33529eca3e55eac7328e07c57012a797af602
 - name: github.com/Sirupsen/logrus
-  version: 4b6ea7319e214d98c938f12692336f7ca9348d6b
+  version: d26492970760ca5d33129d2d799e34be5c4782eb
 - name: github.com/stathat/go
   version: 74669b9f388d9d788c97399a0824adbfee78400e
 - name: github.com/stretchr/testify
-  version: f390dcf405f7b83c997eac1b06768bb9f44dec18
+  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
   subpackages:
   - assert
 - name: golang.org/x/sys
-  version: a646d33e2ee3172a661fc09bca23bb4889a41bc8
+  version: d75a52659825e75fff6158388dddc6a5b04f9ba5
   subpackages:
   - unix
 - name: gopkg.in/airbrake/gobrake.v2
-  version: 31c8ff1fb8b79a6947e6565e9a6df535f98a6b94
+  version: 668876711219e8b0206e2994bf0a59d889c775aa
 - name: gopkg.in/gemnasium/logrus-airbrake-hook.v2
-  version: 31e6fd4bd5a98d8ee7673d24bc54ec73c31810dd
-testImports: []
+  version: bfee1239d796830ca346767650cce5ba90d58c57
+testImports:
+- name: github.com/buger/jsonparser
+  version: 42b84a5caf12249d724445a0be7df0272f30b9a9

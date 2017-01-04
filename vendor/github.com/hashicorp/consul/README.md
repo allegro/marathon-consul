@@ -1,7 +1,7 @@
-# Consul [![Build Status](https://travis-ci.org/hashicorp/consul.png)](https://travis-ci.org/hashicorp/consul)
+# Consul [![Build Status](https://travis-ci.org/hashicorp/consul.svg?branch=master)](https://travis-ci.org/hashicorp/consul) [![Join the chat at https://gitter.im/hashicorp-consul/Lobby](https://badges.gitter.im/hashicorp-consul/Lobby.svg)](https://gitter.im/hashicorp-consul/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 * Website: https://www.consul.io
-* IRC: `#consul` on Freenode
+* Chat: [Gitter](https://gitter.im/hashicorp-consul/Lobby)
 * Mailing list: [Google Groups](https://groups.google.com/group/consul-tool/)
 
 Consul is a tool for service discovery and configuration. Consul is
@@ -25,8 +25,7 @@ Consul provides several key features:
 * **Multi-Datacenter** - Consul is built to be datacenter aware, and can
   support any number of regions without complex configuration.
 
-Consul runs on Linux, Mac OS X, and Windows. It is recommended to run the
-Consul servers only on Linux, however.
+Consul runs on Linux, Mac OS X, FreeBSD, Solaris, and Windows.
 
 ## Quick Start
 
@@ -43,7 +42,7 @@ https://www.consul.io/docs
 ## Developing Consul
 
 If you wish to work on Consul itself, you'll first need [Go](https://golang.org)
-installed (version 1.6+ is _required_). Make sure you have Go properly installed,
+installed (version 1.7+ is _required_). Make sure you have Go properly installed,
 including setting up your [GOPATH](https://golang.org/doc/code.html#GOPATH).
 
 Next, clone this repository into `$GOPATH/src/github.com/hashicorp/consul` and
@@ -56,7 +55,7 @@ $ bin/consul
 ...
 ```
 
-*note: `make` will also place a copy of the binary in the first part of your $GOPATH*
+*Note: `make` will also place a copy of the binary in the first part of your `$GOPATH`.*
 
 You can run tests by typing `make test`.
 
@@ -65,7 +64,7 @@ format the code according to Go standards.
 
 ### Building Consul on Windows
 
-Make sure Go 1.6+ is installed on your system and that the Go command is in your
+Make sure Go 1.7+ is installed on your system and that the Go command is in your
 %PATH%.
 
 For building Consul on Windows, you also need to have MinGW installed.

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/consul/logger"
 	"github.com/hashicorp/consul/testutil"
 	"github.com/mitchellh/cli"
 )
@@ -126,6 +127,8 @@ func TestReadCliConfig(t *testing.T) {
 				"-data-dir", tmpDir,
 				"-node", `"a"`,
 				"-advertise-wan", "1.2.3.4",
+				"-serf-wan-bind", "4.3.2.1",
+				"-serf-lan-bind", "4.3.2.2",
 			},
 			ShutdownCh: shutdownCh,
 			Ui:         new(cli.MockUi),
@@ -135,9 +138,15 @@ func TestReadCliConfig(t *testing.T) {
 		if config.AdvertiseAddrWan != "1.2.3.4" {
 			t.Fatalf("expected -advertise-addr-wan 1.2.3.4 got %s", config.AdvertiseAddrWan)
 		}
+		if config.SerfWanBindAddr != "4.3.2.1" {
+			t.Fatalf("expected -serf-wan-bind 4.3.2.1 got %s", config.SerfWanBindAddr)
+		}
+		if config.SerfLanBindAddr != "4.3.2.2" {
+			t.Fatalf("expected -serf-lan-bind 4.3.2.2 got %s", config.SerfLanBindAddr)
+		}
 	}
 
-	// Test SkipLeaveOnInt default for server mode
+	// Test LeaveOnTerm and SkipLeaveOnInt defaults for server mode
 	{
 		ui := new(cli.MockUi)
 		cmd := &Command{
@@ -157,12 +166,15 @@ func TestReadCliConfig(t *testing.T) {
 		if config.Server != true {
 			t.Errorf(`Expected -server to be true`)
 		}
+		if (*config.LeaveOnTerm) != false {
+			t.Errorf(`Expected LeaveOnTerm to be false in server mode`)
+		}
 		if (*config.SkipLeaveOnInt) != true {
 			t.Errorf(`Expected SkipLeaveOnInt to be true in server mode`)
 		}
 	}
 
-	// Test SkipLeaveOnInt default for client mode
+	// Test LeaveOnTerm and SkipLeaveOnInt defaults for client mode
 	{
 		ui := new(cli.MockUi)
 		cmd := &Command{
@@ -180,6 +192,9 @@ func TestReadCliConfig(t *testing.T) {
 		}
 		if config.Server != false {
 			t.Errorf(`Expected server to be false`)
+		}
+		if (*config.LeaveOnTerm) != true {
+			t.Errorf(`Expected LeaveOnTerm to be true in client mode`)
 		}
 		if *config.SkipLeaveOnInt != false {
 			t.Errorf(`Expected SkipLeaveOnInt to be false in client mode`)
@@ -260,6 +275,36 @@ func TestRetryJoinWanFail(t *testing.T) {
 	}
 }
 
+func TestDiscoverEC2Hosts(t *testing.T) {
+	if os.Getenv("AWS_REGION") == "" {
+		t.Skip("AWS_REGION not set, skipping")
+	}
+
+	if os.Getenv("AWS_ACCESS_KEY_ID") == "" {
+		t.Skip("AWS_ACCESS_KEY_ID not set, skipping")
+	}
+
+	if os.Getenv("AWS_SECRET_ACCESS_KEY") == "" {
+		t.Skip("AWS_SECRET_ACCESS_KEY not set, skipping")
+	}
+
+	c := &Config{
+		RetryJoinEC2: RetryJoinEC2{
+			Region:   os.Getenv("AWS_REGION"),
+			TagKey:   "ConsulRole",
+			TagValue: "Server",
+		},
+	}
+
+	servers, err := c.discoverEc2Hosts(&log.Logger{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(servers) != 3 {
+		t.Fatalf("bad: %v", servers)
+	}
+}
+
 func TestSetupAgent_RPCUnixSocket_FileExists(t *testing.T) {
 	conf := nextConfig()
 	tmpDir, err := ioutil.TempDir("", "consul")
@@ -293,7 +338,7 @@ func TestSetupAgent_RPCUnixSocket_FileExists(t *testing.T) {
 		Ui:         new(cli.MockUi),
 	}
 
-	logWriter := NewLogWriter(512)
+	logWriter := logger.NewLogWriter(512)
 	logOutput := new(bytes.Buffer)
 
 	// Ensure the server is created

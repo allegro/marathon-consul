@@ -68,7 +68,7 @@ type DNSConfig struct {
 	// data. This gives horizontal read scalability since
 	// any Consul server can service the query instead of
 	// only the leader.
-	AllowStale bool `mapstructure:"allow_stale"`
+	AllowStale *bool `mapstructure:"allow_stale"`
 
 	// EnableTruncate is used to enable setting the truncate
 	// flag for UDP DNS queries.  This allows unmodified
@@ -104,6 +104,39 @@ type DNSConfig struct {
 	// whose health checks are in any non-passing state. By
 	// default, only nodes in a critical state are excluded.
 	OnlyPassing bool `mapstructure:"only_passing"`
+
+	// DisableCompression is used to control whether DNS responses are
+	// compressed. In Consul 0.7 this was turned on by default and this
+	// config was added as an opt-out.
+	DisableCompression bool `mapstructure:"disable_compression"`
+
+	// RecursorTimeout specifies the timeout in seconds
+	// for Consul's internal dns client used for recursion.
+	// This value is used for the connection, read and write timeout.
+	// Default: 2s
+	RecursorTimeout    time.Duration `mapstructure:"-"`
+	RecursorTimeoutRaw string        `mapstructure:"recursor_timeout" json:"-"`
+}
+
+// RetryJoinEC2 is used to configure discovery of instances via Amazon's EC2 api
+type RetryJoinEC2 struct {
+	// The AWS region to look for instances in
+	Region string `mapstructure:"region"`
+
+	// The tag key and value to use when filtering instances
+	TagKey   string `mapstructure:"tag_key"`
+	TagValue string `mapstructure:"tag_value"`
+
+	// The AWS credentials to use for making requests to EC2
+	AccessKeyID     string `mapstructure:"access_key_id"`
+	SecretAccessKey string `mapstructure:"secret_access_key"`
+}
+
+// Performance is used to tune the performance of Consul's subsystems.
+type Performance struct {
+	// RaftMultiplier is an integer multiplier used to scale Raft timing
+	// parameters: HeartbeatTimeout, ElectionTimeout, and LeaderLeaseTimeout.
+	RaftMultiplier uint `mapstructure:"raft_multiplier"`
 }
 
 // Telemetry is the telemetry configuration for the server
@@ -147,7 +180,7 @@ type Telemetry struct {
 	// CirconusAPIToken is a valid API Token used to create/manage check. If provided,
 	// metric management is enabled.
 	// Default: none
-	CirconusAPIToken string `mapstructure:"circonus_api_token"`
+	CirconusAPIToken string `mapstructure:"circonus_api_token" json:"-"`
 	// CirconusAPIApp is an app name associated with API token.
 	// Default: "consul"
 	CirconusAPIApp string `mapstructure:"circonus_api_app"`
@@ -180,6 +213,13 @@ type Telemetry struct {
 	// narrow down the search results when neither a Submission URL or Check ID is provided.
 	// Default: service:app (e.g. service:consul)
 	CirconusCheckSearchTag string `mapstructure:"circonus_check_search_tag"`
+	// CirconusCheckTags is a comma separated list of tags to apply to the check. Note that
+	// the value of CirconusCheckSearchTag will always be added to the check.
+	// Default: none
+	CirconusCheckTags string `mapstructure:"circonus_check_tags"`
+	// CirconusCheckDisplayName is the name for the check which will be displayed in the Circonus UI.
+	// Default: value of CirconusCheckInstanceID
+	CirconusCheckDisplayName string `mapstructure:"circonus_check_display_name"`
 	// CirconusBrokerID is an explicit broker to use when creating a new check. The numeric portion
 	// of broker._cid. If metric management is enabled and neither a Submission URL nor Check ID
 	// is provided, an attempt will be made to search for an existing check using Instance ID and
@@ -200,9 +240,12 @@ type Telemetry struct {
 // Some of this is configurable as CLI flags, but most must
 // be set using a configuration file.
 type Config struct {
-	// DevMode enables a fast-path mode of opertaion to bring up an in-memory
+	// DevMode enables a fast-path mode of operation to bring up an in-memory
 	// server with minimal configuration. Useful for developing Consul.
 	DevMode bool `mapstructure:"-"`
+
+	// Performance is used to tune the performance of Consul's subsystems.
+	Performance Performance `mapstructure:"performance"`
 
 	// Bootstrap is used to bring up the first Consul server, and
 	// permits that node to elect itself leader
@@ -257,6 +300,18 @@ type Config struct {
 	// services (Gossip, Server RPC)
 	BindAddr string `mapstructure:"bind_addr"`
 
+	// SerfWanBindAddr is used to control the address we bind to.
+	// If not specified, the first private IP we find is used.
+	// This controls the address we use for cluster facing
+	// services (Gossip) Serf
+	SerfWanBindAddr string `mapstructure:"serf_wan_bind"`
+
+	// SerfLanBindAddr is used to control the address we bind to.
+	// If not specified, the first private IP we find is used.
+	// This controls the address we use for cluster facing
+	// services (Gossip) Serf
+	SerfLanBindAddr string `mapstructure:"serf_lan_bind"`
+
 	// AdvertiseAddr is the address we use for advertising our Serf,
 	// and Consul RPC IP. If not specified, bind address is used.
 	AdvertiseAddr string `mapstructure:"advertise_addr"`
@@ -288,8 +343,9 @@ type Config struct {
 	TaggedAddresses map[string]string
 
 	// LeaveOnTerm controls if Serf does a graceful leave when receiving
-	// the TERM signal. Defaults false. This can be changed on reload.
-	LeaveOnTerm bool `mapstructure:"leave_on_terminate"`
+	// the TERM signal. Defaults true on clients, false on servers. This can
+	// be changed on reload.
+	LeaveOnTerm *bool `mapstructure:"leave_on_terminate"`
 
 	// SkipLeaveOnInt controls if Serf skips a graceful leave when
 	// receiving the INT signal. Defaults false on clients, true on
@@ -362,6 +418,9 @@ type Config struct {
 	RetryInterval    time.Duration `mapstructure:"-" json:"-"`
 	RetryIntervalRaw string        `mapstructure:"retry_interval"`
 
+	// RetryJoinEC2 configuration
+	RetryJoinEC2 RetryJoinEC2 `mapstructure:"retry_join_ec2"`
+
 	// RetryJoinWan is a list of addresses to join -wan with retry enabled.
 	RetryJoinWan []string `mapstructure:"retry_join_wan"`
 
@@ -417,9 +476,27 @@ type Config struct {
 	CheckUpdateInterval    time.Duration `mapstructure:"-"`
 	CheckUpdateIntervalRaw string        `mapstructure:"check_update_interval" json:"-"`
 
+	// CheckReapInterval controls the interval on which we will look for
+	// failed checks and reap their associated services, if so configured.
+	CheckReapInterval time.Duration `mapstructure:"-"`
+
+	// CheckDeregisterIntervalMin is the smallest allowed interval to set
+	// a check's DeregisterCriticalServiceAfter value to.
+	CheckDeregisterIntervalMin time.Duration `mapstructure:"-"`
+
 	// ACLToken is the default token used to make requests if a per-request
 	// token is not provided. If not configured the 'anonymous' token is used.
 	ACLToken string `mapstructure:"acl_token" json:"-"`
+
+	// ACLAgentMasterToken is a special token that has full read and write
+	// privileges for this agent, and can be used to call agent endpoints
+	// when no servers are available.
+	ACLAgentMasterToken string `mapstructure:"acl_agent_master_token" json:"-"`
+
+	// ACLAgentToken is the default token used to make requests for the agent
+	// itself, such as for registering itself with the catalog. If not
+	// configured, the 'acl_token' will be used.
+	ACLAgentToken string `mapstructure:"acl_agent_token" json:"-"`
 
 	// ACLMasterToken is used to bootstrap the ACL system. It should be specified
 	// on the servers in the ACLDatacenter. When the leader comes online, it ensures
@@ -442,9 +519,15 @@ type Config struct {
 	// white-lists.
 	ACLDefaultPolicy string `mapstructure:"acl_default_policy"`
 
+	// ACLDisabledTTL is used by clients to determine how long they will
+	// wait to check again with the servers if they discover ACLs are not
+	// enabled.
+	ACLDisabledTTL time.Duration `mapstructure:"-"`
+
 	// ACLDownPolicy is used to control the ACL interaction when we cannot
 	// reach the ACLDatacenter and the token is not in the cache.
 	// There are two modes:
+	//   * allow - Allow all requests
 	//   * deny - Deny all requests
 	//   * extend-cache - Ignore the cache expiration, and allow cached
 	//                    ACL's to be used to service requests. This
@@ -457,6 +540,10 @@ type Config struct {
 	// also enables replication. Replication is only available in datacenters
 	// other than the ACLDatacenter.
 	ACLReplicationToken string `mapstructure:"acl_replication_token" json:"-"`
+
+	// ACLEnforceVersion8 is used to gate a set of ACL policy features that
+	// are opt-in prior to Consul 0.8 and opt-out in Consul 0.8 and later.
+	ACLEnforceVersion8 *bool `mapstructure:"acl_enforce_version_8"`
 
 	// Watches are used to monitor various endpoints and to invoke a
 	// handler to act appropriately. These are managed entirely in the
@@ -546,12 +633,6 @@ type Config struct {
 	// Minimum Session TTL
 	SessionTTLMin    time.Duration `mapstructure:"-"`
 	SessionTTLMinRaw string        `mapstructure:"session_ttl_min"`
-
-	// Reap controls automatic reaping of child processes, useful if running
-	// as PID 1 in a Docker container. This defaults to nil which will make
-	// Consul reap only if it detects it's running as PID 1. If non-nil,
-	// then this will be used to decide if reaping is enabled.
-	Reap *bool `mapstructure:"reap"`
 }
 
 // Bool is used to initialize bool pointers in struct literals.
@@ -621,17 +702,21 @@ func DefaultConfig() *Config {
 			Server:  8300,
 		},
 		DNSConfig: DNSConfig{
-			UDPAnswerLimit: 3,
-			MaxStale:       5 * time.Second,
+			AllowStale:      Bool(true),
+			UDPAnswerLimit:  3,
+			MaxStale:        10 * 365 * 24 * time.Hour,
+			RecursorTimeout: 2 * time.Second,
 		},
 		Telemetry: Telemetry{
 			StatsitePrefix: "consul",
 		},
-		SyslogFacility:      "LOCAL0",
-		Protocol:            consul.ProtocolVersion2Compatible,
-		CheckUpdateInterval: 5 * time.Minute,
-		AEInterval:          time.Minute,
-		DisableCoordinates:  false,
+		SyslogFacility:             "LOCAL0",
+		Protocol:                   consul.ProtocolVersion2Compatible,
+		CheckUpdateInterval:        5 * time.Minute,
+		CheckDeregisterIntervalMin: time.Minute,
+		CheckReapInterval:          30 * time.Second,
+		AEInterval:                 time.Minute,
+		DisableCoordinates:         false,
 
 		// SyncCoordinateRateTarget is set based on the rate that we want
 		// the server to handle as an aggregate across the entire cluster.
@@ -640,11 +725,13 @@ func DefaultConfig() *Config {
 		SyncCoordinateRateTarget:  64.0, // updates / second
 		SyncCoordinateIntervalMin: 15 * time.Second,
 
-		ACLTTL:           30 * time.Second,
-		ACLDownPolicy:    "extend-cache",
-		ACLDefaultPolicy: "allow",
-		RetryInterval:    30 * time.Second,
-		RetryIntervalWan: 30 * time.Second,
+		ACLTTL:             30 * time.Second,
+		ACLDownPolicy:      "extend-cache",
+		ACLDefaultPolicy:   "allow",
+		ACLDisabledTTL:     120 * time.Second,
+		ACLEnforceVersion8: Bool(false),
+		RetryInterval:      30 * time.Second,
+		RetryIntervalWan:   30 * time.Second,
 	}
 }
 
@@ -684,6 +771,18 @@ func (c *Config) ClientListener(override string, port int) (net.Addr, error) {
 		return nil, fmt.Errorf("Failed to parse IP: %v", addr)
 	}
 	return &net.TCPAddr{IP: ip, Port: port}, nil
+}
+
+// GetTokenForAgent returns the token the agent should use for its own internal
+// operations, such as registering itself with the catalog.
+func (c *Config) GetTokenForAgent() string {
+	if c.ACLAgentToken != "" {
+		return c.ACLAgentToken
+	} else if c.ACLToken != "" {
+		return c.ACLToken
+	} else {
+		return ""
+	}
 }
 
 // DecodeConfig reads the configuration from the given reader in JSON
@@ -813,6 +912,14 @@ func DecodeConfig(r io.Reader) (*Config, error) {
 		result.DNSConfig.MaxStale = dur
 	}
 
+	if raw := result.DNSConfig.RecursorTimeoutRaw; raw != "" {
+		dur, err := time.ParseDuration(raw)
+		if err != nil {
+			return nil, fmt.Errorf("RecursorTimeout invalid: %v", err)
+		}
+		result.DNSConfig.RecursorTimeout = dur
+	}
+
 	if len(result.DNSConfig.ServiceTTLRaw) != 0 {
 		if result.DNSConfig.ServiceTTL == nil {
 			result.DNSConfig.ServiceTTL = make(map[string]time.Duration)
@@ -894,6 +1001,12 @@ func DecodeConfig(r io.Reader) (*Config, error) {
 	}
 
 	if result.AdvertiseAddrs.SerfLanRaw != "" {
+		ipStr, err := parseSingleIPTemplate(result.AdvertiseAddrs.SerfLanRaw)
+		if err != nil {
+			return nil, fmt.Errorf("Serf Advertise LAN address resolution failed: %v", err)
+		}
+		result.AdvertiseAddrs.SerfLanRaw = ipStr
+
 		addr, err := net.ResolveTCPAddr("tcp", result.AdvertiseAddrs.SerfLanRaw)
 		if err != nil {
 			return nil, fmt.Errorf("AdvertiseAddrs.SerfLan is invalid: %v", err)
@@ -902,6 +1015,12 @@ func DecodeConfig(r io.Reader) (*Config, error) {
 	}
 
 	if result.AdvertiseAddrs.SerfWanRaw != "" {
+		ipStr, err := parseSingleIPTemplate(result.AdvertiseAddrs.SerfWanRaw)
+		if err != nil {
+			return nil, fmt.Errorf("Serf Advertise WAN address resolution failed: %v", err)
+		}
+		result.AdvertiseAddrs.SerfWanRaw = ipStr
+
 		addr, err := net.ResolveTCPAddr("tcp", result.AdvertiseAddrs.SerfWanRaw)
 		if err != nil {
 			return nil, fmt.Errorf("AdvertiseAddrs.SerfWan is invalid: %v", err)
@@ -910,11 +1029,22 @@ func DecodeConfig(r io.Reader) (*Config, error) {
 	}
 
 	if result.AdvertiseAddrs.RPCRaw != "" {
+		ipStr, err := parseSingleIPTemplate(result.AdvertiseAddrs.RPCRaw)
+		if err != nil {
+			return nil, fmt.Errorf("RPC Advertise address resolution failed: %v", err)
+		}
+		result.AdvertiseAddrs.RPCRaw = ipStr
+
 		addr, err := net.ResolveTCPAddr("tcp", result.AdvertiseAddrs.RPCRaw)
 		if err != nil {
 			return nil, fmt.Errorf("AdvertiseAddrs.RPC is invalid: %v", err)
 		}
 		result.AdvertiseAddrs.RPC = addr
+	}
+
+	// Enforce the max Raft multiplier.
+	if result.Performance.RaftMultiplier > consul.MaxRaftMultiplier {
+		return nil, fmt.Errorf("Performance.RaftMultiplier must be <= %d", consul.MaxRaftMultiplier)
 	}
 
 	return &result, nil
@@ -970,6 +1100,7 @@ AFTER_FIX:
 
 func FixupCheckType(raw interface{}) error {
 	var ttlKey, intervalKey, timeoutKey string
+	const deregisterKey = "DeregisterCriticalServiceAfter"
 
 	// Handle decoding of time durations
 	rawMap, ok := raw.(map[string]interface{})
@@ -985,12 +1116,18 @@ func FixupCheckType(raw interface{}) error {
 			intervalKey = k
 		case "timeout":
 			timeoutKey = k
+		case "deregister_critical_service_after":
+			rawMap[deregisterKey] = v
+			delete(rawMap, k)
 		case "service_id":
 			rawMap["serviceid"] = v
-			delete(rawMap, "service_id")
+			delete(rawMap, k)
 		case "docker_container_id":
 			rawMap["DockerContainerID"] = v
-			delete(rawMap, "docker_container_id")
+			delete(rawMap, k)
+		case "tls_skip_verify":
+			rawMap["TLSSkipVerify"] = v
+			delete(rawMap, k)
 		}
 	}
 
@@ -1027,6 +1164,17 @@ func FixupCheckType(raw interface{}) error {
 		}
 	}
 
+	if deregister, ok := rawMap[deregisterKey]; ok {
+		timeoutS, ok := deregister.(string)
+		if ok {
+			if dur, err := time.ParseDuration(timeoutS); err != nil {
+				return err
+			} else {
+				rawMap[deregisterKey] = dur
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -1054,6 +1202,11 @@ func DecodeCheckDefinition(raw interface{}) (*CheckDefinition, error) {
 // configuration.
 func MergeConfig(a, b *Config) *Config {
 	var result Config = *a
+
+	// Propagate non-default performance settings
+	if b.Performance.RaftMultiplier > 0 {
+		result.Performance.RaftMultiplier = b.Performance.RaftMultiplier
+	}
 
 	// Copy the strings if they're set
 	if b.Bootstrap {
@@ -1101,6 +1254,12 @@ func MergeConfig(a, b *Config) *Config {
 	if b.AdvertiseAddrWan != "" {
 		result.AdvertiseAddrWan = b.AdvertiseAddrWan
 	}
+	if b.SerfWanBindAddr != "" {
+		result.SerfWanBindAddr = b.SerfWanBindAddr
+	}
+	if b.SerfLanBindAddr != "" {
+		result.SerfLanBindAddr = b.SerfLanBindAddr
+	}
 	if b.TranslateWanAddrs == true {
 		result.TranslateWanAddrs = true
 	}
@@ -1119,8 +1278,8 @@ func MergeConfig(a, b *Config) *Config {
 	if b.Server == true {
 		result.Server = b.Server
 	}
-	if b.LeaveOnTerm == true {
-		result.LeaveOnTerm = true
+	if b.LeaveOnTerm != nil {
+		result.LeaveOnTerm = b.LeaveOnTerm
 	}
 	if b.SkipLeaveOnInt != nil {
 		result.SkipLeaveOnInt = b.SkipLeaveOnInt
@@ -1169,6 +1328,12 @@ func MergeConfig(a, b *Config) *Config {
 	}
 	if b.Telemetry.CirconusCheckSearchTag != "" {
 		result.Telemetry.CirconusCheckSearchTag = b.Telemetry.CirconusCheckSearchTag
+	}
+	if b.Telemetry.CirconusCheckDisplayName != "" {
+		result.Telemetry.CirconusCheckDisplayName = b.Telemetry.CirconusCheckDisplayName
+	}
+	if b.Telemetry.CirconusCheckTags != "" {
+		result.Telemetry.CirconusCheckTags = b.Telemetry.CirconusCheckTags
 	}
 	if b.Telemetry.CirconusBrokerID != "" {
 		result.Telemetry.CirconusBrokerID = b.Telemetry.CirconusBrokerID
@@ -1260,6 +1425,21 @@ func MergeConfig(a, b *Config) *Config {
 	if b.RetryInterval != 0 {
 		result.RetryInterval = b.RetryInterval
 	}
+	if b.RetryJoinEC2.AccessKeyID != "" {
+		result.RetryJoinEC2.AccessKeyID = b.RetryJoinEC2.AccessKeyID
+	}
+	if b.RetryJoinEC2.SecretAccessKey != "" {
+		result.RetryJoinEC2.SecretAccessKey = b.RetryJoinEC2.SecretAccessKey
+	}
+	if b.RetryJoinEC2.Region != "" {
+		result.RetryJoinEC2.Region = b.RetryJoinEC2.Region
+	}
+	if b.RetryJoinEC2.TagKey != "" {
+		result.RetryJoinEC2.TagKey = b.RetryJoinEC2.TagKey
+	}
+	if b.RetryJoinEC2.TagValue != "" {
+		result.RetryJoinEC2.TagValue = b.RetryJoinEC2.TagValue
+	}
 	if b.RetryMaxAttemptsWan != 0 {
 		result.RetryMaxAttemptsWan = b.RetryMaxAttemptsWan
 	}
@@ -1285,8 +1465,8 @@ func MergeConfig(a, b *Config) *Config {
 			result.DNSConfig.ServiceTTL[service] = dur
 		}
 	}
-	if b.DNSConfig.AllowStale {
-		result.DNSConfig.AllowStale = true
+	if b.DNSConfig.AllowStale != nil {
+		result.DNSConfig.AllowStale = b.DNSConfig.AllowStale
 	}
 	if b.DNSConfig.UDPAnswerLimit != 0 {
 		result.DNSConfig.UDPAnswerLimit = b.DNSConfig.UDPAnswerLimit
@@ -1300,6 +1480,12 @@ func MergeConfig(a, b *Config) *Config {
 	if b.DNSConfig.OnlyPassing {
 		result.DNSConfig.OnlyPassing = true
 	}
+	if b.DNSConfig.DisableCompression {
+		result.DNSConfig.DisableCompression = true
+	}
+	if b.DNSConfig.RecursorTimeout != 0 {
+		result.DNSConfig.RecursorTimeout = b.DNSConfig.RecursorTimeout
+	}
 	if b.CheckUpdateIntervalRaw != "" || b.CheckUpdateInterval != 0 {
 		result.CheckUpdateInterval = b.CheckUpdateInterval
 	}
@@ -1308,6 +1494,12 @@ func MergeConfig(a, b *Config) *Config {
 	}
 	if b.ACLToken != "" {
 		result.ACLToken = b.ACLToken
+	}
+	if b.ACLAgentMasterToken != "" {
+		result.ACLAgentMasterToken = b.ACLAgentMasterToken
+	}
+	if b.ACLAgentToken != "" {
+		result.ACLAgentToken = b.ACLAgentToken
 	}
 	if b.ACLMasterToken != "" {
 		result.ACLMasterToken = b.ACLMasterToken
@@ -1327,6 +1519,9 @@ func MergeConfig(a, b *Config) *Config {
 	}
 	if b.ACLReplicationToken != "" {
 		result.ACLReplicationToken = b.ACLReplicationToken
+	}
+	if b.ACLEnforceVersion8 != nil {
+		result.ACLEnforceVersion8 = b.ACLEnforceVersion8
 	}
 	if len(b.Watches) != 0 {
 		result.Watches = append(result.Watches, b.Watches...)
@@ -1402,10 +1597,6 @@ func MergeConfig(a, b *Config) *Config {
 	result.RetryJoinWan = make([]string, 0, len(a.RetryJoinWan)+len(b.RetryJoinWan))
 	result.RetryJoinWan = append(result.RetryJoinWan, a.RetryJoinWan...)
 	result.RetryJoinWan = append(result.RetryJoinWan, b.RetryJoinWan...)
-
-	if b.Reap != nil {
-		result.Reap = b.Reap
-	}
 
 	return &result
 }

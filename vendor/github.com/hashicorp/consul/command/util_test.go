@@ -2,16 +2,21 @@ package command
 
 import (
 	"fmt"
-	"github.com/hashicorp/consul/command/agent"
-	"github.com/hashicorp/consul/consul"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"net"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/consul/command/agent"
+	"github.com/hashicorp/consul/consul"
+	"github.com/hashicorp/consul/logger"
+	"github.com/mitchellh/cli"
 )
 
 var offset uint64
@@ -42,13 +47,22 @@ func testAgent(t *testing.T) *agentWrapper {
 	return testAgentWithConfig(t, func(c *agent.Config) {})
 }
 
+func testAgentWithAPIClient(t *testing.T) (*agentWrapper, *api.Client) {
+	agent := testAgentWithConfig(t, func(c *agent.Config) {})
+	client, err := api.NewClient(&api.Config{Address: agent.httpAddr})
+	if err != nil {
+		t.Fatalf("consul client: %#v", err)
+	}
+	return agent, client
+}
+
 func testAgentWithConfig(t *testing.T, cb func(c *agent.Config)) *agentWrapper {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
 
-	lw := agent.NewLogWriter(512)
+	lw := logger.NewLogWriter(512)
 	mult := io.MultiWriter(os.Stderr, lw)
 
 	conf := nextConfig()
@@ -60,7 +74,7 @@ func testAgentWithConfig(t *testing.T, cb func(c *agent.Config)) *agentWrapper {
 	}
 	conf.DataDir = dir
 
-	a, err := agent.Create(conf, lw)
+	a, err := agent.Create(conf, lw, nil, nil)
 	if err != nil {
 		os.RemoveAll(dir)
 		t.Fatalf(fmt.Sprintf("err: %v", err))
@@ -125,4 +139,10 @@ func nextConfig() *agent.Config {
 	cons.RaftConfig.ElectionTimeout = 40 * time.Millisecond
 
 	return conf
+}
+
+func assertNoTabs(t *testing.T, c cli.Command) {
+	if strings.ContainsRune(c.Help(), '\t') {
+		t.Errorf("%#v help output contains tabs", c)
+	}
 }

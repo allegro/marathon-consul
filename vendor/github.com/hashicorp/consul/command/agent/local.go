@@ -18,16 +18,12 @@ import (
 const (
 	syncStaggerIntv = 3 * time.Second
 	syncRetryIntv   = 15 * time.Second
-
-	// permissionDenied is returned when an ACL based rejection happens
-	permissionDenied = "Permission denied"
 )
 
 // syncStatus is used to represent the difference between
 // the local and remote state, and if action needs to be taken
 type syncStatus struct {
-	remoteDelete bool // Should this be deleted from the server
-	inSync       bool // Is this in sync with the server
+	inSync bool // Is this in sync with the server
 }
 
 // localState is used to represent the node's services,
@@ -57,9 +53,10 @@ type localState struct {
 	serviceTokens map[string]string
 
 	// Checks tracks the local checks
-	checks      map[types.CheckID]*structs.HealthCheck
-	checkStatus map[types.CheckID]syncStatus
-	checkTokens map[types.CheckID]string
+	checks            map[types.CheckID]*structs.HealthCheck
+	checkStatus       map[types.CheckID]syncStatus
+	checkTokens       map[types.CheckID]string
+	checkCriticalTime map[types.CheckID]time.Time
 
 	// Used to track checks that are being deferred
 	deferCheck map[types.CheckID]*time.Timer
@@ -83,6 +80,7 @@ func (l *localState) Init(config *Config, logger *log.Logger) {
 	l.checks = make(map[types.CheckID]*structs.HealthCheck)
 	l.checkStatus = make(map[types.CheckID]syncStatus)
 	l.checkTokens = make(map[types.CheckID]string)
+	l.checkCriticalTime = make(map[types.CheckID]time.Time)
 	l.deferCheck = make(map[types.CheckID]*time.Timer)
 	l.consulCh = make(chan struct{}, 1)
 	l.triggerCh = make(chan struct{}, 1)
@@ -169,14 +167,20 @@ func (l *localState) AddService(service *structs.NodeService, token string) {
 
 // RemoveService is used to remove a service entry from the local state.
 // The agent will make a best effort to ensure it is deregistered
-func (l *localState) RemoveService(serviceID string) {
+func (l *localState) RemoveService(serviceID string) error {
 	l.Lock()
 	defer l.Unlock()
 
-	delete(l.services, serviceID)
-	delete(l.serviceTokens, serviceID)
-	l.serviceStatus[serviceID] = syncStatus{remoteDelete: true}
-	l.changeMade()
+	if _, ok := l.services[serviceID]; ok {
+		delete(l.services, serviceID)
+		delete(l.serviceTokens, serviceID)
+		l.serviceStatus[serviceID] = syncStatus{inSync: false}
+		l.changeMade()
+	} else {
+		return fmt.Errorf("Service does not exist")
+	}
+
+	return nil
 }
 
 // Services returns the locally registered services that the
@@ -222,6 +226,7 @@ func (l *localState) AddCheck(check *structs.HealthCheck, token string) {
 	l.checks[check.CheckID] = check
 	l.checkStatus[check.CheckID] = syncStatus{}
 	l.checkTokens[check.CheckID] = token
+	delete(l.checkCriticalTime, check.CheckID)
 	l.changeMade()
 }
 
@@ -233,7 +238,8 @@ func (l *localState) RemoveCheck(checkID types.CheckID) {
 
 	delete(l.checks, checkID)
 	delete(l.checkTokens, checkID)
-	l.checkStatus[checkID] = syncStatus{remoteDelete: true}
+	delete(l.checkCriticalTime, checkID)
+	l.checkStatus[checkID] = syncStatus{inSync: false}
 	l.changeMade()
 }
 
@@ -245,6 +251,17 @@ func (l *localState) UpdateCheck(checkID types.CheckID, status, output string) {
 	check, ok := l.checks[checkID]
 	if !ok {
 		return
+	}
+
+	// Update the critical time tracking (this doesn't cause a server updates
+	// so we can always keep this up to date).
+	if status == structs.HealthCritical {
+		_, wasCritical := l.checkCriticalTime[checkID]
+		if !wasCritical {
+			l.checkCriticalTime[checkID] = time.Now()
+		}
+	} else {
+		delete(l.checkCriticalTime, checkID)
 	}
 
 	// Do nothing if update is idempotent
@@ -291,6 +308,34 @@ func (l *localState) Checks() map[types.CheckID]*structs.HealthCheck {
 	for checkID, check := range l.checks {
 		checks[checkID] = check
 	}
+	return checks
+}
+
+// CriticalCheck is used to return the duration a check has been critical along
+// with its associated health check.
+type CriticalCheck struct {
+	CriticalFor time.Duration
+	Check       *structs.HealthCheck
+}
+
+// CriticalChecks returns locally registered health checks that the agent is
+// aware of and are being kept in sync with the server, and that are in a
+// critical state. This also returns information about how long each check has
+// been critical.
+func (l *localState) CriticalChecks() map[types.CheckID]CriticalCheck {
+	checks := make(map[types.CheckID]CriticalCheck)
+
+	l.RLock()
+	defer l.RUnlock()
+
+	now := time.Now()
+	for checkID, criticalTime := range l.checkCriticalTime {
+		checks[checkID] = CriticalCheck{
+			CriticalFor: now.Sub(criticalTime),
+			Check:       l.checks[checkID],
+		}
+	}
+
 	return checks
 }
 
@@ -352,7 +397,7 @@ func (l *localState) setSyncState() error {
 	req := structs.NodeSpecificRequest{
 		Datacenter:   l.config.Datacenter,
 		Node:         l.config.NodeName,
-		QueryOptions: structs.QueryOptions{Token: l.config.ACLToken},
+		QueryOptions: structs.QueryOptions{Token: l.config.GetTokenForAgent()},
 	}
 	var out1 structs.IndexedNodeServices
 	var out2 structs.IndexedHealthChecks
@@ -391,7 +436,7 @@ func (l *localState) setSyncState() error {
 		// If we don't have the service locally, deregister it
 		existing, ok := l.services[id]
 		if !ok {
-			l.serviceStatus[id] = syncStatus{remoteDelete: true}
+			l.serviceStatus[id] = syncStatus{inSync: false}
 			continue
 		}
 
@@ -429,7 +474,7 @@ func (l *localState) setSyncState() error {
 			if id == consul.SerfCheckID {
 				continue
 			}
-			l.checkStatus[id] = syncStatus{remoteDelete: true}
+			l.checkStatus[id] = syncStatus{inSync: false}
 			continue
 		}
 
@@ -478,7 +523,7 @@ func (l *localState) syncChanges() error {
 
 	// Sync the services
 	for id, status := range l.serviceStatus {
-		if status.remoteDelete {
+		if _, ok := l.services[id]; !ok {
 			if err := l.deleteService(id); err != nil {
 				return err
 			}
@@ -493,7 +538,7 @@ func (l *localState) syncChanges() error {
 
 	// Sync the checks
 	for id, status := range l.checkStatus {
-		if status.remoteDelete {
+		if _, ok := l.checks[id]; !ok {
 			if err := l.deleteCheck(id); err != nil {
 				return err
 			}
@@ -546,7 +591,7 @@ func (l *localState) deleteService(id string) error {
 	return err
 }
 
-// deleteCheck is used to delete a service from the server
+// deleteCheck is used to delete a check from the server
 func (l *localState) deleteCheck(id types.CheckID) error {
 	if id == "" {
 		return fmt.Errorf("CheckID missing")
@@ -661,7 +706,7 @@ func (l *localState) syncNodeInfo() error {
 		Node:            l.config.NodeName,
 		Address:         l.config.AdvertiseAddr,
 		TaggedAddresses: l.config.TaggedAddresses,
-		WriteRequest:    structs.WriteRequest{Token: l.config.ACLToken},
+		WriteRequest:    structs.WriteRequest{Token: l.config.GetTokenForAgent()},
 	}
 	var out struct{}
 	err := l.iface.RPC("Catalog.Register", &req, &out)

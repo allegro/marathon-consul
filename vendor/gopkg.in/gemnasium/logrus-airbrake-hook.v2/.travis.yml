@@ -1,8 +1,10 @@
 language: go
 go:
-  - 1.3
-  - 1.4
-  - 1.5
+  - 1.6
+  - 1.7
   - tip
 install:
-  - go get -t ./...
+  - mkdir -p $HOME/gopath/src/gopkg.in/gemnasium
+  - mv $HOME/gopath/src/github.com/gemnasium/logrus-airbrake-hook $HOME/gopath/src/gopkg.in/gemnasium/logrus-airbrake-hook.v2
+  - cd $HOME/gopath/src/gopkg.in/gemnasium/logrus-airbrake-hook.v2
+  - go get -t

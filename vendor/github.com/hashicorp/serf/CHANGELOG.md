@@ -1,8 +1,23 @@
-## 0.7.1 (UNRELEASED)
+## 0.8.1 (UNRELEASED)
+
+IMPROVEMENTS:
+
+ * Added the ability to tune the broadcast timeout, which might be necessary in very large clusters that experience very large, simultaneous changes to the cluster. [GH-412]
+ * Added a checksum to UDP gossip messages to guard against packet corruption. [GH-432]
+
+## 0.8 (September 14, 2016)
+
+FEATURES:
+
+ * **Lifeguard Updates:** Implemented a new set of feedback controls for the gossip layer that help prevent degraded nodes that can't meet the soft real-time requirements from erroneously causing flapping in other, healthy nodes. This feature tunes itself automatically and requires no configuration. [GH-394]
 
 IMRPOVEMENTS:
 
+ * Modified management of intents to be per-node to avoid intent queue overflow errors in large clusters. [GH-402]
+ * Joins based on a DNS lookup will use TCP and attempt to join with the full list of returned addresses. [GH-387]
  * Serf's Go dependencies are now vendored using govendor. [GH-383]
+ * Updated all of Serf's dependencies. [GH-387] [GH-401]
+ * Moved dist build into a Docker container. [GH-409]
 
 BUG FIXES:
 

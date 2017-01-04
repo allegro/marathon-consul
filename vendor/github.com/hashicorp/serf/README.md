@@ -1,7 +1,7 @@
-# Serf
+# Serf [![Build Status](https://travis-ci.org/hashicorp/serf.png)](https://travis-ci.org/hashicorp/serf) [![Join the chat at https://gitter.im/hashicorp-serf/Lobby](https://badges.gitter.im/hashicorp-serf/Lobby.svg)](https://gitter.im/hashicorp-serf/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 * Website: https://www.serf.io
-* IRC: `#serfdom` on Freenode
+* Chat: [Gitter](https://gitter.im/hashicorp-serf/Lobby)
 * Mailing list: [Google Groups](https://groups.google.com/group/serfdom/)
 
 Serf is a decentralized solution for service discovery and orchestration
@@ -118,4 +118,4 @@ the Serf library should only need to include `github.com/hashicorp/serf`.
 Tests can be run by typing `make test`.
 
 If you make any changes to the code, run `make format` in order to automatically
-format the code according to Go standards.
+format the code according to Go [standards](https://golang.org/doc/effective_go.html#formatting).

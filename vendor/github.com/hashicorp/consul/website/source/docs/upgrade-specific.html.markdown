@@ -14,7 +14,71 @@ details provided for their upgrades as a result of new features or changed
 behavior. This page is used to document those details separately from the
 standard upgrade flow.
 
+## Consul 0.7.1
+
+#### Child Process Reaping
+
+Child process reaping support has been removed, along with the `reap` configuration option. Reaping is also done via [dumb-init](https://github.com/Yelp/dumb-init) in the [Consul Docker image](https://github.com/hashicorp/docker-consul), so removing it from Consul itself simplifies the code and eases future maintainence for Consul. If you are running Consul as PID 1 in a container you will need to arrange for a wrapper process to reap child processes.
+
+#### DNS Resiliency Defaults
+
+The default for [`max_stale`](/docs/agent/options.html#max_stale) was been increased from 5 seconds to a near-indefinite threshold (10 years) to allow DNS queries to continue to be served in the event of a long outage with no leader. A new telemetry counter was added at `consul.dns.stale_queries` to track when agents serve DNS queries that are stale by more than 5 seconds.
+
 ## Consul 0.7
+
+Consul version 0.7 is a very large release with many important changes. Changes
+to be aware of during an upgrade are categorized below.
+
+#### Performance Timing Defaults and Tuning
+
+Consul 0.7 now defaults the DNS configuration to allow for stale queries by defaulting
+[`allow_stale`](/docs/agent/options.html#allow_stale) to true for better utilization
+of available servers. If you want to retain the previous behavior, set the following
+configuration:
+
+```javascript
+{
+  "dns_config": {
+    "allow_stale": false
+  }
+}
+```
+
+Consul also 0.7 introduced support for tuning Raft performance using a new
+[performance configuration block](/docs/agent/options.html#performance). Also,
+the default Raft timing is set to a lower-performance mode suitable for
+[minimal Consul servers](/docs/guides/performance.html#minumum).
+
+To continue to use the high-performance settings that were the default prior to
+Consul 0.7 (recommended for production servers), add the following configuration
+to all Consul servers when upgrading:
+
+```javascript
+{
+  "performance": {
+    "raft_multiplier": 1
+  }
+}
+```
+
+See the [Server Performance](/docs/guides/performance.html) guide for more details.
+
+#### Leave-Related Configuration Defaults
+
+The default behavior of [`leave_on_terminate`](/docs/agent/options.html#leave_on_terminate)
+and [`skip_leave_on_interrupt`](/docs/agent/options.html#skip_leave_on_interrupt)
+are now dependent on whether or not the agent is acting as a server or client:
+
+* For servers, `leave_on_terminate` defaults to "false" and `skip_leave_on_interrupt`
+defaults to "true".
+
+* For clients, `leave_on_terminate` defaults to "true" and `skip_leave_on_interrupt`
+defaults to "false".
+
+These defaults are designed to be safer for servers so that you must explicitly
+configure them to leave the cluster. This also results in a better experience for
+clients, especially in cloud environments where they may be created and destroyed
+often and users prefer not to wait for the 72 hour reap time for cleanup.
 
 #### Dropped Support for Protocol Version 1
 
@@ -26,17 +90,41 @@ to upgrade all agents to a newer version of Consul before upgrading to Consul
 #### Prepared Query Changes
 
 Consul version 0.7 adds a feature which allows prepared queries to store a
-["Near" parameter](/docs/agent/http/query.html#near) in the query definition
+[`Near` parameter](/docs/agent/http/query.html#near) in the query definition
 itself. This feature enables using the distance sorting features of prepared
 queries without explicitly providing the node to sort near in requests, but
 requires the agent servicing a request to send additional information about
 itself to the Consul servers when executing the prepared query. Agents prior
-to 0.7.0 do not send this information, which means they are unable to properly
+to 0.7 do not send this information, which means they are unable to properly
 execute prepared queries configured with a `Near` parameter. Similarly, any
-server nodes prior to version 0.7.0 are unable to store the `Near` parameter,
+server nodes prior to version 0.7 are unable to store the `Near` parameter,
 making them unable to properly serve requests for prepared queries using the
-feature. It is recommended that all agents be running version 0.7.0 prior to
+feature. It is recommended that all agents be running version 0.7 prior to
 using this feature.
+
+#### WAN Address Translation in HTTP Endpoints
+
+Consul version 0.7 added support for translating WAN addresses in certain
+[HTTP endpoints](/docs/agent/options.html#translate_wan_addrs). The servers
+and the agents need to be running version 0.7 or later in order to use this
+feature.
+
+These translated addresses could break HTTP endpoint consumers that are
+expecting local addresses, so a new [`X-Consul-Translate-Addresses`](/docs/agent/http.html#translate_header)
+header was added to allow clients to detect if translation is enabled for HTTP
+responses. A "lan" tag was added to `TaggedAddresses` for clients that need
+the local address regardless of translation.
+
+#### Outage Recovery and `peers.json` Changes
+
+The `peers.json` file is no longer present by default and is only used when
+performing recovery. This file will be deleted after Consul starts and ingests
+the file. Consul 0.7 also uses a new, automatically-created raft/peers.info file
+to avoid ingesting the `peers.json` file on the first start after upgrading (the
+`peers.json` file is simply deleted on the first start after upgrading).
+
+Please be sure to review the [Outage Recovery Guide](/docs/guides/outage.html)
+before upgrading for more details.
 
 ## Consul 0.6.4
 
@@ -99,9 +187,10 @@ which require it:
         policy = "read"
     }
 
-Note that the agent's [`acl_token`](/docs/agent/options.html#acl_token) is used
-when the DNS interface is queried, so be sure that token has sufficient
-privileges to return the DNS records you expect to retrieve from it.
+When the DNS interface is queried, the agent's
+[`acl_token`](/docs/agent/options.html#acl_token) is used, so be sure
+that token has sufficient privileges to return the DNS records you
+expect to retrieve from it.
 
 * Event and keyring ACLs
 
