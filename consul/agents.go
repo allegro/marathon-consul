@@ -2,7 +2,9 @@ package consul
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -27,12 +29,43 @@ type ConcurrentAgents struct {
 }
 
 func NewAgents(config *Config) *ConcurrentAgents {
+	tlsClientConfig := &tls.Config{
+		InsecureSkipVerify: !config.SslVerify,
+	}
+
+	if config.SslEnabled {
+
+		if config.SslCert != "" {
+			log.Debug("Enabling SSL cert")
+
+			cert, err := tls.LoadX509KeyPair(config.SslCert, config.SslCert)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			tlsClientConfig.Certificates = []tls.Certificate{cert}
+		}
+
+		if config.SslCaCert != "" {
+			log.Debug("Enabling SSL CA certs")
+
+			caCert, err := ioutil.ReadFile(config.SslCaCert)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(caCert)
+
+			tlsClientConfig.RootCAs = caCertPool
+		}
+
+	}
+
 	client := &http.Client{
 		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: !config.SslVerify,
-			},
+			Proxy:           http.ProxyFromEnvironment,
+			TLSClientConfig: tlsClientConfig,
 		},
 		Timeout: config.Timeout.Duration,
 	}
