@@ -24,7 +24,6 @@ TEST_TARGETS = $(PACKAGES)
 all: build
 
 deps:
-	@./install_consul.sh
 	@mkdir -p $(COVERAGEDIR)
 	@which gover > /dev/null || \
         (go get github.com/modocache/gover)
