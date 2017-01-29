@@ -62,7 +62,7 @@ func FailingClient() *Consul {
 
 func consulClientAtAddress(host string, port int) *Consul {
 	config := Config{
-		Timeout:             timeutil.Interval{Duration: 10 * time.Millisecond},
+		Timeout:             timeutil.Interval{Duration: 10 * time.Second},
 		Port:                fmt.Sprintf("%d", port),
 		ConsulNameSeparator: ".",
 	}
