@@ -331,36 +331,26 @@ func TestRegistrationIntent_MultipleIntentsViaPortDefinitionIfMultipleContainCon
 	assert.Equal(t, []string{"common-tag", "second-tag"}, intents[1].Tags)
 }
 
-func TestRegistrationIntentsNumber_NotConsulApp(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &App{
-		ID: "id",
+func TestRegistrationIntentsNumber(t *testing.T) {
+	for _, tc := range registrationIntentsNumberTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.expected, tc.given.RegistrationIntentsNumber())
+		})
 	}
-
-	// expect
-	assert.Equal(t, 0, app.RegistrationIntentsNumber())
 }
 
-func TestRegistrationIntentsNumber_NoPortDefinitions(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &App{
+var registrationIntentsNumberTestCases = []struct {
+	name     string
+	given    App
+	expected int
+}{
+	{"Not a consul app", App{ID: "id"}, 0},
+	{"No port definitions", App{
 		ID:     "id",
 		Labels: map[string]string{"consul": ""},
-	}
-
-	// expect
-	assert.Equal(t, 1, app.RegistrationIntentsNumber())
-}
-
-func TestRegistrationIntentsNumber_SinglePortDefinitions(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &App{
+	}, 1},
+	{"Single port definition", App{
 		ID:     "id",
 		Labels: map[string]string{"consul": ""},
 		PortDefinitions: []PortDefinition{
@@ -368,17 +358,8 @@ func TestRegistrationIntentsNumber_SinglePortDefinitions(t *testing.T) {
 				Labels: map[string]string{"consul": ""},
 			},
 		},
-	}
-
-	// expect
-	assert.Equal(t, 1, app.RegistrationIntentsNumber())
-}
-
-func TestRegistrationIntentsNumber_MultiplePortDefinitions(t *testing.T) {
-	t.Parallel()
-
-	// given
-	app := &App{
+	}, 1},
+	{"Multiple port definitions", App{
 		ID:     "id",
 		Labels: map[string]string{"consul": ""},
 		PortDefinitions: []PortDefinition{
@@ -389,8 +370,5 @@ func TestRegistrationIntentsNumber_MultiplePortDefinitions(t *testing.T) {
 				Labels: map[string]string{"consul": ""},
 			},
 		},
-	}
-
-	// expect
-	assert.Equal(t, 2, app.RegistrationIntentsNumber())
+	}, 2},
 }
