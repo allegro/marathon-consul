@@ -48,7 +48,7 @@ func ParseTask(event []byte) (*Task, error) {
 	return task, err
 }
 
-func (t *Task) IsHealthy() bool {
+func (t Task) IsHealthy() bool {
 	if len(t.HealthCheckResults) < 1 {
 		return false
 	}

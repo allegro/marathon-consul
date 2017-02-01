@@ -53,12 +53,12 @@ func (id AppID) String() string {
 	return string(id)
 }
 
-func (app *App) IsConsulApp() bool {
+func (app App) IsConsulApp() bool {
 	_, ok := app.Labels[MarathonConsulLabel]
 	return ok
 }
 
-func (app *App) labelsToRawName(labels map[string]string) string {
+func (app App) labelsToRawName(labels map[string]string) string {
 	if value, ok := labels[MarathonConsulLabel]; ok && !isSpecialConsulNameValue(value) {
 		return value
 	}
@@ -89,7 +89,7 @@ type RegistrationIntent struct {
 	Tags []string
 }
 
-func (app *App) RegistrationIntentsNumber() int {
+func (app App) RegistrationIntentsNumber() int {
 	if !app.IsConsulApp() {
 		return 0
 	}
@@ -102,12 +102,12 @@ func (app *App) RegistrationIntentsNumber() int {
 	return len(definitions)
 }
 
-func (app *App) RegistrationIntents(task *Task, nameSeparator string) []*RegistrationIntent {
+func (app App) RegistrationIntents(task *Task, nameSeparator string) []RegistrationIntent {
 	commonTags := labelsToTags(app.Labels)
 
 	definitions := app.findConsulPortDefinitions()
 	if len(definitions) == 0 {
-		return []*RegistrationIntent{
+		return []RegistrationIntent{
 			{
 				Name: app.labelsToName(app.Labels, nameSeparator),
 				Port: task.Ports[0],
@@ -116,9 +116,9 @@ func (app *App) RegistrationIntents(task *Task, nameSeparator string) []*Registr
 		}
 	}
 
-	var intents []*RegistrationIntent
+	var intents []RegistrationIntent
 	for _, d := range definitions {
-		intents = append(intents, &RegistrationIntent{
+		intents = append(intents, RegistrationIntent{
 			Name: app.labelsToName(d.Labels, nameSeparator),
 			Port: task.Ports[d.Index],
 			Tags: append(commonTags, labelsToTags(d.Labels)...),
@@ -141,7 +141,7 @@ func labelsToTags(labels map[string]string) []string {
 	return tags
 }
 
-func (app *App) labelsToName(labels map[string]string, nameSeparator string) string {
+func (app App) labelsToName(labels map[string]string, nameSeparator string) string {
 	appConsulName := app.labelsToRawName(labels)
 	serviceName := marathonAppNameToServiceName(appConsulName, nameSeparator)
 	if serviceName == "" {
@@ -157,7 +157,7 @@ type indexedPortDefinition struct {
 	Labels map[string]string
 }
 
-func (app *App) findConsulPortDefinitions() []indexedPortDefinition {
+func (app App) findConsulPortDefinitions() []indexedPortDefinition {
 	var definitions []indexedPortDefinition
 	for i, d := range app.PortDefinitions {
 		if _, ok := d.Labels[MarathonConsulLabel]; ok {
