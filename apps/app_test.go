@@ -245,6 +245,31 @@ func TestRegistrationIntent_NoOverrideViaPortDefinitionsIfNoConsulLabelThere(t *
 	assert.Equal(t, []string{"private"}, intents[0].Tags)
 }
 
+func TestRegistrationIntent_DontPanicIfTaskHasNoPorts(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true", "private": "tag"},
+		PortDefinitions: []PortDefinition{
+			{
+				Labels: map[string]string{"other": "tag"},
+			},
+			{},
+		},
+	}
+	task := &Task{
+		Ports: []int{},
+	}
+
+	// when
+	intents := app.RegistrationIntents(task, "-")
+
+	// then
+	assert.Empty(t, intents)
+}
+
 func TestRegistrationIntent_OverrideNameAndAddTagsViaPortDefinitions(t *testing.T) {
 	t.Parallel()
 
@@ -329,6 +354,36 @@ func TestRegistrationIntent_MultipleIntentsViaPortDefinitionIfMultipleContainCon
 	assert.Equal(t, "second-name", intents[1].Name)
 	assert.Equal(t, 5678, intents[1].Port)
 	assert.Equal(t, []string{"common-tag", "second-tag"}, intents[1].Tags)
+}
+
+func TestRegistrationIntent_TaskHasLessPortsThanApp(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true", "common-tag": "tag"},
+		PortDefinitions: []PortDefinition{
+			{
+				Labels: map[string]string{"consul": "first-name", "first-tag": "tag"},
+			},
+			{
+				Labels: map[string]string{"consul": "second-name", "second-tag": "tag"},
+			},
+		},
+	}
+	task := &Task{
+		Ports: []int{1234},
+	}
+
+	// when
+	intents := app.RegistrationIntents(task, "-")
+
+	// then
+	assert.Len(t, intents, 1)
+	assert.Equal(t, "first-name", intents[0].Name)
+	assert.Equal(t, 1234, intents[0].Port)
+	assert.Equal(t, []string{"common-tag", "first-tag"}, intents[0].Tags)
 }
 
 func TestRegistrationIntentsNumber(t *testing.T) {
