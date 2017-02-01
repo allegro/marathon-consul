@@ -9,6 +9,7 @@ import (
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/sentry"
 	"github.com/allegro/marathon-consul/sync"
 	timeutil "github.com/allegro/marathon-consul/time"
 	"github.com/allegro/marathon-consul/web"
@@ -124,10 +125,18 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			Prefix:   "default",
 			Interval: timeutil.Interval{Duration: 30 * time.Second},
 			Addr:     ""},
-		Log: struct{ Level, Format, File string }{
+		Log: struct {
+			Level, Format, File string
+			Sentry              sentry.Config
+		}{
 			Level:  "info",
 			Format: "text",
 			File:   "",
+			Sentry: sentry.Config{
+				DSN:   "",
+				Env:   "",
+				Level: "",
+			},
 		},
 		configFile: "../debian/config.json",
 	}

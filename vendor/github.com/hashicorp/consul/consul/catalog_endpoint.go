@@ -5,8 +5,11 @@ import (
 	"time"
 
 	"github.com/armon/go-metrics"
+	"github.com/hashicorp/consul/consul/state"
 	"github.com/hashicorp/consul/consul/structs"
 	"github.com/hashicorp/consul/types"
+	"github.com/hashicorp/go-memdb"
+	"github.com/hashicorp/go-uuid"
 )
 
 // Catalog endpoint is used to manipulate the service catalog
@@ -24,6 +27,11 @@ func (c *Catalog) Register(args *structs.RegisterRequest, reply *struct{}) error
 	// Verify the args.
 	if args.Node == "" || args.Address == "" {
 		return fmt.Errorf("Must provide node and address")
+	}
+	if args.ID != "" {
+		if _, err := uuid.ParseUUID(string(args.ID)); err != nil {
+			return fmt.Errorf("Bad node ID: %v", err)
+		}
 	}
 
 	// Fetch the ACL token, if any.
@@ -73,7 +81,7 @@ func (c *Catalog) Register(args *structs.RegisterRequest, reply *struct{}) error
 	// Check the complete register request against the given ACL policy.
 	if acl != nil && c.srv.config.ACLEnforceVersion8 {
 		state := c.srv.fsm.State()
-		_, ns, err := state.NodeServices(args.Node)
+		_, ns, err := state.NodeServices(nil, args.Node)
 		if err != nil {
 			return fmt.Errorf("Node lookup failed: %v", err)
 		}
@@ -156,14 +164,18 @@ func (c *Catalog) ListNodes(args *structs.DCSpecificRequest, reply *structs.Inde
 		return err
 	}
 
-	// Get the list of nodes.
-	state := c.srv.fsm.State()
-	return c.srv.blockingRPC(
+	return c.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		state.GetQueryWatch("Nodes"),
-		func() error {
-			index, nodes, err := state.Nodes()
+		func(ws memdb.WatchSet, state *state.StateStore) error {
+			var index uint64
+			var nodes structs.Nodes
+			var err error
+			if len(args.NodeMetaFilters) > 0 {
+				index, nodes, err = state.NodesByMeta(ws, args.NodeMetaFilters)
+			} else {
+				index, nodes, err = state.Nodes(ws)
+			}
 			if err != nil {
 				return err
 			}
@@ -182,14 +194,18 @@ func (c *Catalog) ListServices(args *structs.DCSpecificRequest, reply *structs.I
 		return err
 	}
 
-	// Get the list of services and their tags.
-	state := c.srv.fsm.State()
-	return c.srv.blockingRPC(
+	return c.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		state.GetQueryWatch("Services"),
-		func() error {
-			index, services, err := state.Services()
+		func(ws memdb.WatchSet, state *state.StateStore) error {
+			var index uint64
+			var services structs.Services
+			var err error
+			if len(args.NodeMetaFilters) > 0 {
+				index, services, err = state.ServicesByNodeMeta(ws, args.NodeMetaFilters)
+			} else {
+				index, services, err = state.Services(ws)
+			}
 			if err != nil {
 				return err
 			}
@@ -210,25 +226,31 @@ func (c *Catalog) ServiceNodes(args *structs.ServiceSpecificRequest, reply *stru
 		return fmt.Errorf("Must provide service name")
 	}
 
-	// Get the nodes
-	state := c.srv.fsm.State()
-	err := c.srv.blockingRPC(
+	err := c.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		state.GetQueryWatch("ServiceNodes"),
-		func() error {
+		func(ws memdb.WatchSet, state *state.StateStore) error {
 			var index uint64
 			var services structs.ServiceNodes
 			var err error
 			if args.TagFilter {
-				index, services, err = state.ServiceTagNodes(args.ServiceName, args.ServiceTag)
+				index, services, err = state.ServiceTagNodes(ws, args.ServiceName, args.ServiceTag)
 			} else {
-				index, services, err = state.ServiceNodes(args.ServiceName)
+				index, services, err = state.ServiceNodes(ws, args.ServiceName)
 			}
 			if err != nil {
 				return err
 			}
 			reply.Index, reply.ServiceNodes = index, services
+			if len(args.NodeMetaFilters) > 0 {
+				var filtered structs.ServiceNodes
+				for _, service := range services {
+					if structs.SatisfiesMetaFilters(service.NodeMeta, args.NodeMetaFilters) {
+						filtered = append(filtered, service)
+					}
+				}
+				reply.ServiceNodes = filtered
+			}
 			if err := c.srv.filterACL(args.Token, reply); err != nil {
 				return err
 			}
@@ -259,14 +281,11 @@ func (c *Catalog) NodeServices(args *structs.NodeSpecificRequest, reply *structs
 		return fmt.Errorf("Must provide node")
 	}
 
-	// Get the node services
-	state := c.srv.fsm.State()
-	return c.srv.blockingRPC(
+	return c.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		state.GetQueryWatch("NodeServices"),
-		func() error {
-			index, services, err := state.NodeServices(args.Node)
+		func(ws memdb.WatchSet, state *state.StateStore) error {
+			index, services, err := state.NodeServices(ws, args.Node)
 			if err != nil {
 				return err
 			}

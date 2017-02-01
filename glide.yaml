@@ -19,3 +19,6 @@ import:
 - package: gopkg.in/gemnasium/logrus-airbrake-hook.v2
 - package: github.com/stathat/go
 - package: gopkg.in/airbrake/gobrake.v2
+- package: github.com/getsentry/raven-go
+- package: github.com/evalphobia/logrus_sentry
+  version: v0.2.9

@@ -11,6 +11,7 @@ import (
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
+	"github.com/allegro/marathon-consul/sentry"
 	"github.com/allegro/marathon-consul/sync"
 	"github.com/allegro/marathon-consul/web"
 	flag "github.com/ogier/pflag"
@@ -26,6 +27,7 @@ type Config struct {
 		Level  string
 		Format string
 		File   string
+		Sentry sentry.Config
 	}
 	configFile string
 }
@@ -104,6 +106,11 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Log.Level, "log-level", "info", "Log level: panic, fatal, error, warn, info, or debug")
 	flag.StringVar(&config.Log.Format, "log-format", "text", "Log format: JSON, text")
 	flag.StringVar(&config.Log.File, "log-file", "", "Save logs to file (e.g.: `/var/log/marathon-consul.log`). If empty logs are published to STDERR")
+
+	// Log -> Sentry
+	flag.StringVar(&config.Log.Sentry.DSN, "sentry-dsn", "", "Sentry DSN. If it's not set sentry will be disabled")
+	flag.StringVar(&config.Log.Sentry.Env, "sentry-env", "", "Sentry environment")
+	flag.StringVar(&config.Log.Sentry.Level, "sentry-level", "error", "Sentry alerting level (info|warning|error|fatal|panic)")
 
 	// General
 	flag.StringVar(&config.configFile, "config-file", "", "Path to a JSON file to read configuration from. Note: Will override options set earlier on the command line")

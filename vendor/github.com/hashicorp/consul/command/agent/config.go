@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/consul/consul"
 	"github.com/hashicorp/consul/lib"
+	"github.com/hashicorp/consul/types"
 	"github.com/hashicorp/consul/watch"
 	"github.com/mitchellh/mapstructure"
 )
@@ -128,8 +129,33 @@ type RetryJoinEC2 struct {
 	TagValue string `mapstructure:"tag_value"`
 
 	// The AWS credentials to use for making requests to EC2
-	AccessKeyID     string `mapstructure:"access_key_id"`
-	SecretAccessKey string `mapstructure:"secret_access_key"`
+	AccessKeyID     string `mapstructure:"access_key_id" json:"-"`
+	SecretAccessKey string `mapstructure:"secret_access_key" json:"-"`
+}
+
+// RetryJoinGCE is used to configure discovery of instances via Google Compute
+// Engine's API.
+type RetryJoinGCE struct {
+	// The name of the project the instances reside in.
+	ProjectName string `mapstructure:"project_name"`
+
+	// A regular expression (RE2) pattern for the zones you want to discover the instances in.
+	// Example: us-west1-.*, or us-(?west|east).*.
+	ZonePattern string `mapstructure:"zone_pattern"`
+
+	// The tag value to search for when filtering instances.
+	TagValue string `mapstructure:"tag_value"`
+
+	// A path to a JSON file with the service account credentials necessary to
+	// connect to GCE. If this is not defined, the following chain is respected:
+	// 1. A JSON file whose path is specified by the
+	//		GOOGLE_APPLICATION_CREDENTIALS environment variable.
+	// 2. A JSON file in a location known to the gcloud command-line tool.
+	//    On Windows, this is %APPDATA%/gcloud/application_default_credentials.json.
+	//  	On other systems, $HOME/.config/gcloud/application_default_credentials.json.
+	// 3. On Google Compute Engine, it fetches credentials from the metadata
+	//    server.  (In this final case any provided scopes are ignored.)
+	CredentialsFile string `mapstructure:"credentials_file"`
 }
 
 // Performance is used to tune the performance of Consul's subsystems.
@@ -287,6 +313,10 @@ type Config struct {
 	// LogLevel is the level of the logs to putout
 	LogLevel string `mapstructure:"log_level"`
 
+	// Node ID is a unique ID for this node across space and time. Defaults
+	// to a randomly-generated ID that persists in the data-dir.
+	NodeID types.NodeID `mapstructure:"node_id"`
+
 	// Node name is the name we use to advertise. Defaults to hostname.
 	NodeName string `mapstructure:"node_name"`
 
@@ -341,6 +371,11 @@ type Config struct {
 	// user-defined tags. The "wan" tag will be used by remote agents if
 	// they are configured with TranslateWanAddrs set to true.
 	TaggedAddresses map[string]string
+
+	// Node metadata key/value pairs. These are excluded from JSON output
+	// because they can be reloaded and might be stale when shown from the
+	// config instead of the local state.
+	Meta map[string]string `mapstructure:"node_meta" json:"-"`
 
 	// LeaveOnTerm controls if Serf does a graceful leave when receiving
 	// the TERM signal. Defaults true on clients, false on servers. This can
@@ -420,6 +455,9 @@ type Config struct {
 
 	// RetryJoinEC2 configuration
 	RetryJoinEC2 RetryJoinEC2 `mapstructure:"retry_join_ec2"`
+
+	// The config struct for the GCE tag server discovery feature.
+	RetryJoinGCE RetryJoinGCE `mapstructure:"retry_join_gce"`
 
 	// RetryJoinWan is a list of addresses to join -wan with retry enabled.
 	RetryJoinWan []string `mapstructure:"retry_join_wan"`
@@ -710,6 +748,7 @@ func DefaultConfig() *Config {
 		Telemetry: Telemetry{
 			StatsitePrefix: "consul",
 		},
+		Meta:                       make(map[string]string),
 		SyslogFacility:             "LOCAL0",
 		Protocol:                   consul.ProtocolVersion2Compatible,
 		CheckUpdateInterval:        5 * time.Minute,
@@ -1239,6 +1278,9 @@ func MergeConfig(a, b *Config) *Config {
 	if b.Protocol > 0 {
 		result.Protocol = b.Protocol
 	}
+	if b.NodeID != "" {
+		result.NodeID = b.NodeID
+	}
 	if b.NodeName != "" {
 		result.NodeName = b.NodeName
 	}
@@ -1440,6 +1482,18 @@ func MergeConfig(a, b *Config) *Config {
 	if b.RetryJoinEC2.TagValue != "" {
 		result.RetryJoinEC2.TagValue = b.RetryJoinEC2.TagValue
 	}
+	if b.RetryJoinGCE.ProjectName != "" {
+		result.RetryJoinGCE.ProjectName = b.RetryJoinGCE.ProjectName
+	}
+	if b.RetryJoinGCE.ZonePattern != "" {
+		result.RetryJoinGCE.ZonePattern = b.RetryJoinGCE.ZonePattern
+	}
+	if b.RetryJoinGCE.TagValue != "" {
+		result.RetryJoinGCE.TagValue = b.RetryJoinGCE.TagValue
+	}
+	if b.RetryJoinGCE.CredentialsFile != "" {
+		result.RetryJoinGCE.CredentialsFile = b.RetryJoinGCE.CredentialsFile
+	}
 	if b.RetryMaxAttemptsWan != 0 {
 		result.RetryMaxAttemptsWan = b.RetryMaxAttemptsWan
 	}
@@ -1575,6 +1629,14 @@ func MergeConfig(a, b *Config) *Config {
 		}
 		for field, value := range b.HTTPAPIResponseHeaders {
 			result.HTTPAPIResponseHeaders[field] = value
+		}
+	}
+	if len(b.Meta) != 0 {
+		if result.Meta == nil {
+			result.Meta = make(map[string]string)
+		}
+		for field, value := range b.Meta {
+			result.Meta[field] = value
 		}
 	}
 
