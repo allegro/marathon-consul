@@ -1,4 +1,3 @@
-SHELL := /bin/bash
 .DEFAULT_GOAL := build
 
 PACKAGES = $(shell go list ./... | grep -v /vendor/)
