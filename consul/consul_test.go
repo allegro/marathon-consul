@@ -965,7 +965,7 @@ func TestMarathonTaskToConsulServiceMapping_NotResolvableTaskHost(t *testing.T) 
 	task := &apps.Task{
 		ID:    "someTask",
 		AppID: app.ID,
-		Host:  "invalid.localhost",
+		Host:  "invalid.hostname",
 		Ports: []int{8090, 8443},
 	}
 
