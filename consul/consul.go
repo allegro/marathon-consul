@@ -312,7 +312,7 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 		port, err := getHealthCheckPort(check, *task)
 		if err != nil {
 			log.WithField("Id", task.AppID.String()).WithField("Address", serviceAddress).WithError(err).
-				Warn(fmt.Sprintf("Ignoring health check of type %s", check.Protocol))
+				Warnf("Ignoring health check of type %s", check.Protocol)
 			continue
 		}
 
@@ -337,7 +337,7 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 				log.WithError(err).
 					WithField("Id", task.AppID.String()).
 					WithField("Address", serviceAddress).
-					Warn(fmt.Sprintf("Could not parse provided path: %s", check.Path))
+					Warnf("Could not parse provided path: %s", check.Path)
 			}
 		case "TCP", "MESOS_TCP":
 			consulCheck.TCP = fmt.Sprintf("%s:%d", serviceAddress, port)
@@ -347,7 +347,7 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 			checks = append(checks, &consulCheck)
 		default:
 			log.WithField("Id", task.AppID.String()).WithField("Address", serviceAddress).
-				Warn(fmt.Sprintf("Unrecognized check protocol %s", check.Protocol))
+				Warnf("Unrecognized check protocol %s", check.Protocol)
 		}
 	}
 	return checks
