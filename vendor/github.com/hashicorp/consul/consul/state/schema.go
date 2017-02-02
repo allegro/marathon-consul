@@ -78,6 +78,15 @@ func nodesTableSchema() *memdb.TableSchema {
 					Lowercase: true,
 				},
 			},
+			"meta": &memdb.IndexSchema{
+				Name:         "meta",
+				AllowMissing: true,
+				Unique:       false,
+				Indexer: &memdb.StringMapFieldIndex{
+					Field:     "Meta",
+					Lowercase: false,
+				},
+			},
 		},
 	}
 }
@@ -177,6 +186,22 @@ func checksTableSchema() *memdb.TableSchema {
 				Indexer: &memdb.StringFieldIndex{
 					Field:     "Node",
 					Lowercase: true,
+				},
+			},
+			"node_service_check": &memdb.IndexSchema{
+				Name:         "node_service_check",
+				AllowMissing: true,
+				Unique:       false,
+				Indexer: &memdb.CompoundIndex{
+					Indexes: []memdb.Indexer{
+						&memdb.StringFieldIndex{
+							Field:     "Node",
+							Lowercase: true,
+						},
+						&memdb.FieldSetIndex{
+							Field: "ServiceID",
+						},
+					},
 				},
 			},
 			"node_service": &memdb.IndexSchema{

@@ -179,11 +179,6 @@ type Config struct {
 	// behavior for using LogOutput. You cannot specify both LogOutput and Logger
 	// at the same time.
 	Logger *log.Logger
-
-	// Size of Memberlist's internal channel which handles UDP messages. The
-	// size of this determines the size of the queue which Memberlist will keep
-	// while UDP messages are handled.
-	HandoffQueueDepth int
 }
 
 // DefaultLANConfig returns a sane set of configurations for Memberlist.
@@ -221,8 +216,6 @@ func DefaultLANConfig() *Config {
 		Keyring:   nil,
 
 		DNSConfigPath: "/etc/resolv.conf",
-
-		HandoffQueueDepth: 1024,
 	}
 }
 

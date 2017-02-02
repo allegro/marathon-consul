@@ -60,13 +60,17 @@ func TestDecodeConfig(t *testing.T) {
 	}
 
 	// Without a protocol
-	input = `{"node_name": "foo", "datacenter": "dc2"}`
+	input = `{"node_id": "bar", "node_name": "foo", "datacenter": "dc2"}`
 	config, err = DecodeConfig(bytes.NewReader([]byte(input)))
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
 
 	if config.NodeName != "foo" {
+		t.Fatalf("bad: %#v", config)
+	}
+
+	if config.NodeID != "bar" {
 		t.Fatalf("bad: %#v", config)
 	}
 
@@ -278,6 +282,19 @@ func TestDecodeConfig(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 	if config.TranslateWanAddrs != true {
+		t.Fatalf("bad: %#v", config)
+	}
+
+	// Node metadata fields
+	input = `{"node_meta": {"thing1": "1", "thing2": "2"}}`
+	config, err = DecodeConfig(bytes.NewReader([]byte(input)))
+	if err != nil {
+		t.Fatalf("err: %s", err)
+	}
+	if v, ok := config.Meta["thing1"]; !ok || v != "1" {
+		t.Fatalf("bad: %#v", config)
+	}
+	if v, ok := config.Meta["thing2"]; !ok || v != "2" {
 		t.Fatalf("bad: %#v", config)
 	}
 
@@ -1034,6 +1051,32 @@ func TestRetryJoinEC2(t *testing.T) {
 	}
 }
 
+func TestRetryJoinGCE(t *testing.T) {
+	input := `{"retry_join_gce": {
+	  "project_name": "test-project",
+		"zone_pattern": "us-west1-a",
+		"tag_value": "consul-server",
+		"credentials_file": "/path/to/foo.json"
+	}}`
+	config, err := DecodeConfig(bytes.NewReader([]byte(input)))
+	if err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	if config.RetryJoinGCE.ProjectName != "test-project" {
+		t.Fatalf("bad: %#v", config)
+	}
+	if config.RetryJoinGCE.ZonePattern != "us-west1-a" {
+		t.Fatalf("bad: %#v", config)
+	}
+	if config.RetryJoinGCE.TagValue != "consul-server" {
+		t.Fatalf("bad: %#v", config)
+	}
+	if config.RetryJoinGCE.CredentialsFile != "/path/to/foo.json" {
+		t.Fatalf("bad: %#v", config)
+	}
+}
+
 func TestDecodeConfig_Performance(t *testing.T) {
 	input := `{"performance": { "raft_multiplier": 3 }}`
 	config, err := DecodeConfig(bytes.NewReader([]byte(input)))
@@ -1493,6 +1536,7 @@ func TestMergeConfig(t *testing.T) {
 		DataDir:                "/tmp/foo",
 		Domain:                 "basic",
 		LogLevel:               "debug",
+		NodeID:                 "bar",
 		NodeName:               "foo",
 		ClientAddr:             "127.0.0.1",
 		BindAddr:               "127.0.0.1",
@@ -1519,6 +1563,9 @@ func TestMergeConfig(t *testing.T) {
 			DogStatsdAddr:   "nope",
 			DogStatsdTags:   []string{"nope"},
 		},
+		Meta: map[string]string{
+			"key": "value1",
+		},
 	}
 
 	b := &Config{
@@ -1544,6 +1591,7 @@ func TestMergeConfig(t *testing.T) {
 		},
 		Domain:           "other",
 		LogLevel:         "info",
+		NodeID:           "bar",
 		NodeName:         "baz",
 		ClientAddr:       "127.0.0.2",
 		BindAddr:         "127.0.0.2",
@@ -1619,6 +1667,9 @@ func TestMergeConfig(t *testing.T) {
 			DisableHostname: true,
 			DogStatsdAddr:   "127.0.0.1:7254",
 			DogStatsdTags:   []string{"tag_1:val_1", "tag_2:val_2"},
+		},
+		Meta: map[string]string{
+			"key": "value2",
 		},
 		DisableUpdateCheck:        true,
 		DisableAnonymousSignature: true,

@@ -215,6 +215,37 @@ will exit with an error at startup.
    will use the local instance's [EC2 metadata endpoint](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html)
    to discover the region.
 
+* <a name="_retry_join_gce_tag_value"></a><a href="#_retry_join_gce_tag_value">`-retry-join-gce-tag-value`
+  </a> - A Google Compute Engine instance tag to filter on. Much like the
+  `-retry-join-ec2-*` options, this gives Consul the option of doing server
+  discovery on [Google Compute Engine](https://cloud.google.com/compute/) by
+  searching the tags assigned to any particular instance.
+
+* <a name="_retry_join_gce_project_name"></a><a href="#_retry_join_gce_project_name">`-retry-join-gce-project-name`
+  </a> - The project to search in for the tag supplied by
+  [`-retry-join-gce-tag-value`](#_retry_join_gce_tag_value). If this is run
+  from within a GCE instance, the default is the project the instance is
+  located in.
+
+* <a name="_retry_join_gce_zone_pattern"></a><a href="#_retry_join_gce_zone_pattern">`-retry-join-gce-zone-pattern`
+  </a> - A regular expression that indicates the zones the tag should be
+  searched in. For example, while `us-west1-a` would only search in
+  `us-west1-a`, `us-west1-.*` would search in `us-west1-a` and `us-west1-b`.
+  The default is to search globally.
+
+* <a name="_retry_join_gce_credentials_file"></a><a href="#_retry_join_gce_credentials_file">`-retry-join-gce-credentials-file`
+  </a> - The path to the JSON credentials file of the [GCE Service
+  Account](https://cloud.google.com/compute/docs/access/service-accounts) that
+  will be used to search for instances. Note that this can also reside in the
+  following locations:
+   - A path supplied by the `GOOGLE_APPLICATION_CREDENTIALS` environment
+     variable
+   - The `%APPDATA%/gcloud/application_default_credentials.json` file (Windows)
+     or `$HOME/.config/gcloud/application_default_credentials.json` (Linux and
+     other systems)
+   - If none of these exist and discovery is being run from a GCE instance, the
+     instance's configured service account will be used.
+
 * <a name="_retry_interval"></a><a href="#_retry_interval">`-retry-interval`</a> - Time
   to wait between join attempts. Defaults to 30s.
 
@@ -250,6 +281,26 @@ will exit with an error at startup.
 
 * <a name="_node"></a><a href="#_node">`-node`</a> - The name of this node in the cluster.
   This must be unique within the cluster. By default this is the hostname of the machine.
+
+* <a name="_node_id"></a><a href="#_node_id">`-node-id`</a> - Available in Consul 0.7.3 and later, this
+  is a unique identifier for this node across all time, even if the name of the node or address
+  changes. This must be in the form of a hex string, 36 characters long, such as
+  `adf4238a-882b-9ddc-4a9d-5b6758e4159e`. If this isn't supplied, which is the most common case, then
+  the agent will generate an identifier at startup and persist it in the <a href="#_data_dir">data directory</a>
+  so that it will remain the same across agent restarts. This is currently only exposed via
+  <a href="/docs/agent/http/agent.html#agent_self">/v1/agent/self</a>,
+  <a href="/docs/agent/http/catalog.html">/v1/catalog</a>, and
+  <a href="/docs/agent/http/health.html">/v1/health</a> endpoints, but future versions of
+  Consul will use this to better manage cluster changes, especially for Consul servers.
+
+* <a name="_node_meta"></a><a href="#_node_meta">`-node-meta`</a> - Available in Consul 0.7.3 and later,
+  this specifies an arbitrary metadata key/value pair to associate with the node, of the form `key:value`.
+  This can be specified multiple times. Node metadata pairs have the following restrictions:
+  - A maximum of 64 key/value pairs can be registered per node.
+  - Metadata keys must be between 1 and 128 characters (inclusive) in length
+  - Metadata keys must contain only alphanumeric, `-`, and `_` characters.
+  - Metadata keys must not begin with the `consul-` prefix; that is reserved for internal use by Consul.
+  - Metadata values must be between 0 and 512 (inclusive) characters in length.
 
 * <a name="_pid_file"></a><a href="#_pid_file">`-pid-file`</a> - This flag provides the file
   path for the agent to store its PID. This is useful for sending signals (for example, `SIGINT`
@@ -655,28 +706,44 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 * <a name="log_level"></a><a href="#log_level">`log_level`</a> Equivalent to the
   [`-log-level` command-line flag](#_log_level).
 
+* <a name="node_id"></a><a href="#node_id">`node_id`</a> Equivalent to the
+  [`-node-id` command-line flag](#_node_id).
+
 * <a name="node_name"></a><a href="#node_name">`node_name`</a> Equivalent to the
   [`-node` command-line flag](#_node).
+
+* <a name="node_meta"></a><a href="#node_meta">`node_meta`</a> Available in Consul 0.7.3 and later,
+  This object allows associating arbitrary metadata key/value pairs with the local node, which can
+  then be used for filtering results from certain catalog endpoints. See the
+  [`-node-meta` command-line flag](#_node_meta) for more information.
+
+    ```javascript
+      {
+        "node_meta": {
+            "instance_type": "t2.medium"
+        }
+      }
+    ```
 
 * <a name="performance"></a><a href="#performance">`performance`</a> Available in Consul 0.7 and
   later, this is a nested object that allows tuning the performance of different subsystems in
   Consul. See the [Server Performance](/docs/guides/performance.html) guide for more details. The
   following parameters are available:
 
-* <a name="raft_multiplier"></a><a href="#raft_multiplier">`raft_multiplier`</a> - An integer
-  multiplier used by Consul servers to scale key Raft timing parameters. Omitting this value
-  or setting it to 0 uses default timing described below. Lower values are used to tighten
-  timing and increase sensitivity while higher values relax timings and reduce sensitivity.
-  Tuning this affects the time it takes Consul to detect leader failures and to perform
-  leader elections, at the expense of requiring more network and CPU resources for better
-  performance.<br><br>By default, Consul will use a lower-performance timing that's suitable
-  for [minimal Consul servers](/docs/guides/performance.html#minumum), currently equivalent
-  to setting this to a value of 5 (this default may be changed in future versions of Consul,
-  depending if the target minimum server profile changes). Setting this to a value of 1 will
-  configure Raft to its highest-performance mode, equivalent to the default timing of Consul
-  prior to 0.7, and is recommended for [production Consul servers](/docs/guides/performance.html#production).
-  See the note on [last contact](/docs/guides/performance.html#last-contact) timing for more
-  details on tuning this parameter. The maximum allowed value is 10.
+  * <a name="raft_multiplier"></a><a href="#raft_multiplier">`raft_multiplier`</a> - An integer
+    multiplier used by Consul servers to scale key Raft timing parameters. Omitting this value
+    or setting it to 0 uses default timing described below. Lower values are used to tighten
+    timing and increase sensitivity while higher values relax timings and reduce sensitivity.
+    Tuning this affects the time it takes Consul to detect leader failures and to perform
+    leader elections, at the expense of requiring more network and CPU resources for better
+    performance.<br><br>By default, Consul will use a lower-performance timing that's suitable
+    for [minimal Consul servers](/docs/guides/performance.html#minumum), currently equivalent
+    to setting this to a value of 5 (this default may be changed in future versions of Consul,
+    depending if the target minimum server profile changes). Setting this to a value of 1 will
+    configure Raft to its highest-performance mode, equivalent to the default timing of Consul
+    prior to 0.7, and is recommended for [production Consul servers](/docs/guides/performance.html#production).
+    See the note on [last contact](/docs/guides/performance.html#last-contact) timing for more
+    details on tuning this parameter. The maximum allowed value is 10.
 
 * <a name="ports"></a><a href="#ports">`ports`</a> This is a nested object that allows setting
   the bind ports for the following keys:
@@ -741,6 +808,25 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
     [`-retry-join-ec2-tag-value` command-line flag](#_retry_join_ec2_tag_value).
   * `access_key_id` - The AWS access key ID to use for authentication.
   * `secret_access_key` - The AWS secret access key to use for authentication.
+
+* <a name="retry_join_gce"></a><a href="#retry_join_gce">`retry_join_gce`</a> - This is a nested object
+  that allows the setting of GCE-related [`-retry-join`](#_retry_join) options.
+  <br><br>
+  The following keys are valid:
+  * `project_name` - The GCE project name. Equivalent to the<br>
+    [`-retry-join-gce-project-name` command-line
+    flag](#_retry_join_gce_project_name).
+  * `zone_pattern` - The regular expression indicating the zones to search in.
+    Equivalent to the <br>
+    [`-retry-join-gce-zone-pattern` command-line
+    flag](#_retry_join_gce_zone_pattern).
+  * `tag_value` - The GCE instance tag value to filter on. Equivalent to the <br>
+    [`-retry-join-gce-tag-value` command-line
+    flag](#_retry_join_gce_tag_value).
+  * `credentials_file` - The path to the GCE service account credentials file.
+    Equivalent to the <br>
+    [`-retry-join-gce-credentials-file` command-line
+    flag](#_retry_join_gce_credentials_file).
 
 * <a name="retry_interval"></a><a href="#retry_interval">`retry_interval`</a> Equivalent to the
   [`-retry-interval` command-line flag](#_retry_interval).

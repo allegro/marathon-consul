@@ -1,6 +1,6 @@
 # Serf Website
 
-This subdirectory contains the entire source for the [Serf Website](https://www.serf.io/).
+This subdirectory contains the entire source for the [Serf website](https://www.serf.io).
 This is a [Middleman](http://middlemanapp.com) project, which builds a static
 site from these source files.
 
@@ -12,19 +12,7 @@ requests like any normal GitHub project, and we'll merge it in.
 
 ## Running the Site Locally
 
-To run the site locally, clone this repository and run:
+Running the site locally is simple. Clone this repo and run `make dev`.
 
-```shell
-$ make website
-```
-
-You must have Docker installed for this to work.
-
-Alternatively, you can manually run the website like this:
-
-```shell
-$ bundle
-$ bundle exec middleman server
-```
-
-Then open up `http://localhost:4567`.
+Then open up `localhost:4567`. Note that some URLs you may need to append
+".html" to make them work (in the navigation and such).

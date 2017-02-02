@@ -1,11 +1,14 @@
 package agent
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -14,6 +17,10 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	compute "google.golang.org/api/compute/v1"
 
 	"github.com/armon/go-metrics"
 	"github.com/armon/go-metrics/circonus"
@@ -24,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/hashicorp/consul/consul/structs"
 	"github.com/hashicorp/consul/lib"
 	"github.com/hashicorp/consul/logger"
 	"github.com/hashicorp/consul/watch"
@@ -73,16 +81,19 @@ func (c *Command) readConfig() *Config {
 	var dnsRecursors []string
 	var dev bool
 	var dcDeprecated string
+	var nodeMeta []string
 	cmdFlags := flag.NewFlagSet("agent", flag.ContinueOnError)
 	cmdFlags.Usage = func() { c.Ui.Output(c.Help()) }
 
 	cmdFlags.Var((*AppendSliceValue)(&configFiles), "config-file", "json file to read config from")
 	cmdFlags.Var((*AppendSliceValue)(&configFiles), "config-dir", "directory of json files to read")
 	cmdFlags.Var((*AppendSliceValue)(&dnsRecursors), "recursor", "address of an upstream DNS server")
+	cmdFlags.Var((*AppendSliceValue)(&nodeMeta), "node-meta", "arbitrary metadata key/value pair")
 	cmdFlags.BoolVar(&dev, "dev", false, "development server mode")
 
 	cmdFlags.StringVar(&cmdConfig.LogLevel, "log-level", "", "log level")
 	cmdFlags.StringVar(&cmdConfig.NodeName, "node", "", "node name")
+	cmdFlags.StringVar((*string)(&cmdConfig.NodeID), "node-id", "", "node ID")
 	cmdFlags.StringVar(&dcDeprecated, "dc", "", "node datacenter (deprecated: use 'datacenter' instead)")
 	cmdFlags.StringVar(&cmdConfig.Datacenter, "datacenter", "", "node datacenter")
 	cmdFlags.StringVar(&cmdConfig.DataDir, "data-dir", "", "path to the data directory")
@@ -132,6 +143,14 @@ func (c *Command) readConfig() *Config {
 		"EC2 tag key to filter on for server discovery")
 	cmdFlags.StringVar(&cmdConfig.RetryJoinEC2.TagValue, "retry-join-ec2-tag-value", "",
 		"EC2 tag value to filter on for server discovery")
+	cmdFlags.StringVar(&cmdConfig.RetryJoinGCE.ProjectName, "retry-join-gce-project-name", "",
+		"Google Compute Engine project to discover servers in")
+	cmdFlags.StringVar(&cmdConfig.RetryJoinGCE.ZonePattern, "retry-join-gce-zone-pattern", "",
+		"Google Compute Engine region or zone to discover servers in (regex pattern)")
+	cmdFlags.StringVar(&cmdConfig.RetryJoinGCE.TagValue, "retry-join-gce-tag-value", "",
+		"Google Compute Engine tag value to filter on for server discovery")
+	cmdFlags.StringVar(&cmdConfig.RetryJoinGCE.CredentialsFile, "retry-join-gce-credentials-file", "",
+		"Path to credentials JSON file to use with Google Compute Engine")
 	cmdFlags.Var((*AppendSliceValue)(&cmdConfig.RetryJoinWan), "retry-join-wan",
 		"address of agent to join -wan on startup with retry")
 	cmdFlags.IntVar(&cmdConfig.RetryMaxAttemptsWan, "retry-max-wan", 0,
@@ -159,6 +178,14 @@ func (c *Command) readConfig() *Config {
 			return nil
 		}
 		cmdConfig.RetryIntervalWan = dur
+	}
+
+	if len(nodeMeta) > 0 {
+		cmdConfig.Meta = make(map[string]string)
+		for _, entry := range nodeMeta {
+			key, value := parseMetaPair(entry)
+			cmdConfig.Meta[key] = value
+		}
 	}
 
 	var config *Config
@@ -364,6 +391,18 @@ func (c *Command) readConfig() *Config {
 		}
 	}
 
+	// EC2 and GCE discovery are mutually exclusive
+	if config.RetryJoinEC2.TagKey != "" && config.RetryJoinEC2.TagValue != "" && config.RetryJoinGCE.TagValue != "" {
+		c.Ui.Error("EC2 and GCE discovery are mutually exclusive. Please provide one or the other.")
+		return nil
+	}
+
+	// Verify the node metadata entries are valid
+	if err := structs.ValidateMetadata(config.Meta); err != nil {
+		c.Ui.Error(fmt.Sprintf("Failed to parse node metadata: %v", err))
+		return nil
+	}
+
 	// Set the version info
 	config.Revision = c.Revision
 	config.Version = c.Version
@@ -475,6 +514,151 @@ func (c *Config) discoverEc2Hosts(logger *log.Logger) ([]string, error) {
 	}
 
 	return servers, nil
+}
+
+// discoverGCEHosts searches a Google Compute Engine region, returning a list
+// of instance ips that match the tags given in GCETags.
+func (c *Config) discoverGCEHosts(logger *log.Logger) ([]string, error) {
+	config := c.RetryJoinGCE
+	ctx := oauth2.NoContext
+	var client *http.Client
+	var err error
+
+	logger.Printf("[INFO] agent: Initializing GCE client")
+	if config.CredentialsFile != "" {
+		logger.Printf("[INFO] agent: Loading credentials from %s", config.CredentialsFile)
+		key, err := ioutil.ReadFile(config.CredentialsFile)
+		if err != nil {
+			return nil, err
+		}
+		jwtConfig, err := google.JWTConfigFromJSON(key, compute.ComputeScope)
+		if err != nil {
+			return nil, err
+		}
+		client = jwtConfig.Client(ctx)
+	} else {
+		logger.Printf("[INFO] agent: Using default credential chain")
+		client, err = google.DefaultClient(ctx, compute.ComputeScope)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	computeService, err := compute.New(client)
+	if err != nil {
+		return nil, err
+	}
+
+	if config.ProjectName == "" {
+		logger.Printf("[INFO] agent: No GCE project provided, will discover from metadata.")
+		config.ProjectName, err = gceProjectIDFromMetadata(logger)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		logger.Printf("[INFO] agent: Using pre-defined GCE project name: %s", config.ProjectName)
+	}
+
+	zones, err := gceDiscoverZones(logger, ctx, computeService, config.ProjectName, config.ZonePattern)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Printf("[INFO] agent: Discovering GCE hosts with tag %s in zones: %s", config.TagValue, strings.Join(zones, ", "))
+
+	var servers []string
+	for _, zone := range zones {
+		addresses, err := gceInstancesAddressesForZone(logger, ctx, computeService, config.ProjectName, zone, config.TagValue)
+		if err != nil {
+			return nil, err
+		}
+		if len(addresses) > 0 {
+			logger.Printf("[INFO] agent: Discovered %d instances in %s/%s: %v", len(addresses), config.ProjectName, zone, addresses)
+		}
+		servers = append(servers, addresses...)
+	}
+
+	return servers, nil
+}
+
+// gceProjectIDFromMetadata queries the metadata service on GCE to get the
+// project ID (name) of an instance.
+func gceProjectIDFromMetadata(logger *log.Logger) (string, error) {
+	logger.Printf("[INFO] agent: Attempting to discover GCE project from metadata.")
+	client := &http.Client{}
+
+	req, err := http.NewRequest("GET", "http://metadata.google.internal/computeMetadata/v1/project/project-id", nil)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Add("Metadata-Flavor", "Google")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+
+	project, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	logger.Printf("[INFO] agent: GCE project discovered as: %s", project)
+	return string(project), nil
+}
+
+// gceDiscoverZones discovers a list of zones from a supplied zone pattern, or
+// all of the zones available to a project.
+func gceDiscoverZones(logger *log.Logger, ctx context.Context, computeService *compute.Service, project, pattern string) ([]string, error) {
+	var zones []string
+
+	if pattern != "" {
+		logger.Printf("[INFO] agent: Discovering zones for project %s matching pattern: %s", project, pattern)
+	} else {
+		logger.Printf("[INFO] agent: Discovering all zones available to project: %s", project)
+	}
+
+	call := computeService.Zones.List(project)
+	if pattern != "" {
+		call = call.Filter(fmt.Sprintf("name eq %s", pattern))
+	}
+
+	if err := call.Pages(ctx, func(page *compute.ZoneList) error {
+		for _, v := range page.Items {
+			zones = append(zones, v.Name)
+		}
+		return nil
+	}); err != nil {
+		return zones, err
+	}
+
+	logger.Printf("[INFO] agent: Discovered GCE zones: %s", strings.Join(zones, ", "))
+	return zones, nil
+}
+
+// gceInstancesAddressesForZone locates all instances within a specific project
+// and zone, matching the supplied tag. Only the private IP addresses are
+// returned, but ID is also logged.
+func gceInstancesAddressesForZone(logger *log.Logger, ctx context.Context, computeService *compute.Service, project, zone, tag string) ([]string, error) {
+	var addresses []string
+	call := computeService.Instances.List(project, zone)
+	if err := call.Pages(ctx, func(page *compute.InstanceList) error {
+		for _, v := range page.Items {
+			for _, t := range v.Tags.Items {
+				if t == tag && len(v.NetworkInterfaces) > 0 && v.NetworkInterfaces[0].NetworkIP != "" {
+					addresses = append(addresses, v.NetworkInterfaces[0].NetworkIP)
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		return addresses, err
+	}
+
+	return addresses, nil
 }
 
 // setupAgent is used to start the agent and various interfaces
@@ -643,7 +827,7 @@ func (c *Command) startupJoinWan(config *Config) error {
 func (c *Command) retryJoin(config *Config, errCh chan<- struct{}) {
 	ec2Enabled := config.RetryJoinEC2.TagKey != "" && config.RetryJoinEC2.TagValue != ""
 
-	if len(config.RetryJoin) == 0 && !ec2Enabled {
+	if len(config.RetryJoin) == 0 && !ec2Enabled && config.RetryJoinGCE.TagValue == "" {
 		return
 	}
 
@@ -654,12 +838,19 @@ func (c *Command) retryJoin(config *Config, errCh chan<- struct{}) {
 	for {
 		var servers []string
 		var err error
-		if ec2Enabled {
+		switch {
+		case ec2Enabled:
 			servers, err = config.discoverEc2Hosts(logger)
 			if err != nil {
-				logger.Printf("[ERROR] agent: Unable to query EC2 insances: %s", err)
+				logger.Printf("[ERROR] agent: Unable to query EC2 instances: %s", err)
 			}
-			logger.Printf("[INFO] agent: Discovered %d servers from EC2...", len(servers))
+			logger.Printf("[INFO] agent: Discovered %d servers from EC2", len(servers))
+		case config.RetryJoinGCE.TagValue != "":
+			servers, err = config.discoverGCEHosts(logger)
+			if err != nil {
+				logger.Printf("[ERROR] agent: Unable to query GCE insances: %s", err)
+			}
+			logger.Printf("[INFO] agent: Discovered %d servers from GCE", len(servers))
 		}
 
 		servers = append(servers, config.RetryJoin...)
@@ -926,6 +1117,7 @@ func (c *Command) Run(args []string) int {
 
 	c.Ui.Output("Consul agent running!")
 	c.Ui.Info(fmt.Sprintf("       Version: '%s'", c.HumanVersion))
+	c.Ui.Info(fmt.Sprintf("       Node ID: '%s'", config.NodeID))
 	c.Ui.Info(fmt.Sprintf("     Node name: '%s'", config.NodeName))
 	c.Ui.Info(fmt.Sprintf("    Datacenter: '%s'", config.Datacenter))
 	c.Ui.Info(fmt.Sprintf("        Server: %v (bootstrap: %v)", config.Server, config.Bootstrap))
@@ -1071,7 +1263,7 @@ func (c *Command) handleReload(config *Config) (*Config, error) {
 	snap := c.agent.snapshotCheckState()
 	defer c.agent.restoreCheckState(snap)
 
-	// First unload all checks and services. This lets us begin the reload
+	// First unload all checks, services, and metadata. This lets us begin the reload
 	// with a clean slate.
 	if err := c.agent.unloadServices(); err != nil {
 		errs = multierror.Append(errs, fmt.Errorf("Failed unloading services: %s", err))
@@ -1081,14 +1273,19 @@ func (c *Command) handleReload(config *Config) (*Config, error) {
 		errs = multierror.Append(errs, fmt.Errorf("Failed unloading checks: %s", err))
 		return nil, errs
 	}
+	c.agent.unloadMetadata()
 
-	// Reload services and check definitions.
+	// Reload service/check definitions and metadata.
 	if err := c.agent.loadServices(newConf); err != nil {
 		errs = multierror.Append(errs, fmt.Errorf("Failed reloading services: %s", err))
 		return nil, errs
 	}
 	if err := c.agent.loadChecks(newConf); err != nil {
 		errs = multierror.Append(errs, fmt.Errorf("Failed reloading checks: %s", err))
+		return nil, errs
+	}
+	if err := c.agent.loadMetadata(newConf); err != nil {
+		errs = multierror.Append(errs, fmt.Errorf("Failed reloading metadata: %s", err))
 		return nil, errs
 	}
 
@@ -1187,57 +1384,86 @@ Usage: consul agent [options]
 
 Options:
 
-  -advertise=addr           Sets the advertise address to use
-  -advertise-wan=addr       Sets address to advertise on wan instead of advertise addr
-  -atlas=org/name           Sets the Atlas infrastructure name, enables SCADA.
-  -atlas-join               Enables auto-joining the Atlas cluster
-  -atlas-token=token        Provides the Atlas API token
-  -atlas-endpoint=1.2.3.4   The address of the endpoint for Atlas integration.
-  -bootstrap                Sets server to bootstrap mode
-  -bind=0.0.0.0             Sets the bind address for cluster communication
-  -http-port=8500           Sets the HTTP API port to listen on
-  -bootstrap-expect=0       Sets server to expect bootstrap mode.
-  -client=127.0.0.1         Sets the address to bind for client access.
-                            This includes RPC, DNS, HTTP and HTTPS (if configured)
-  -config-file=foo          Path to a JSON file to read configuration from.
-                            This can be specified multiple times.
-  -config-dir=foo           Path to a directory to read configuration files
-                            from. This will read every file ending in ".json"
-                            as configuration in this directory in alphabetical
-                            order. This can be specified multiple times.
-  -data-dir=path            Path to a data directory to store agent state
-  -dev                      Starts the agent in development mode.
-  -recursor=1.2.3.4         Address of an upstream DNS server.
-                            Can be specified multiple times.
-  -dc=east-aws              Datacenter of the agent (deprecated: use 'datacenter' instead).
-  -datacenter=east-aws      Datacenter of the agent.
-  -encrypt=key              Provides the gossip encryption key
-  -join=1.2.3.4             Address of an agent to join at start time.
-                            Can be specified multiple times.
-  -join-wan=1.2.3.4         Address of an agent to join -wan at start time.
-                            Can be specified multiple times.
-  -retry-join=1.2.3.4       Address of an agent to join at start time with
-                            retries enabled. Can be specified multiple times.
-  -retry-interval=30s       Time to wait between join attempts.
-  -retry-max=0              Maximum number of join attempts. Defaults to 0, which
-                            will retry indefinitely.
-  -retry-join-ec2-region    EC2 Region to use for discovering servers to join.
-  -retry-join-ec2-tag-key   EC2 tag key to filter on for server discovery
-  -retry-join-ec2-tag-value EC2 tag value to filter on for server discovery
-  -retry-join-wan=1.2.3.4   Address of an agent to join -wan at start time with
-                            retries enabled. Can be specified multiple times.
-  -retry-interval-wan=30s   Time to wait between join -wan attempts.
-  -retry-max-wan=0          Maximum number of join -wan attempts. Defaults to 0, which
-                            will retry indefinitely.
-  -log-level=info           Log level of the agent.
-  -node=hostname            Name of this node. Must be unique in the cluster
-  -protocol=N               Sets the protocol version. Defaults to latest.
-  -rejoin                   Ignores a previous leave and attempts to rejoin the cluster.
-  -server                   Switches agent to server mode.
-  -syslog                   Enables logging to syslog
-  -ui                       Enables the built-in static web UI server
-  -ui-dir=path              Path to directory containing the Web UI resources
-  -pid-file=path            Path to file to store agent PID
+  -advertise=addr                  Sets the advertise address to use
+  -advertise-wan=addr              Sets address to advertise on wan instead of
+                                   advertise addr
+  -atlas=org/name                  Sets the Atlas infrastructure name, enables
+                                   SCADA.
+  -atlas-join                      Enables auto-joining the Atlas cluster
+  -atlas-token=token               Provides the Atlas API token
+  -atlas-endpoint=1.2.3.4          The address of the endpoint for Atlas
+                                   integration.
+  -bootstrap                       Sets server to bootstrap mode
+  -bind=0.0.0.0                    Sets the bind address for cluster
+                                   communication
+  -http-port=8500                  Sets the HTTP API port to listen on
+  -bootstrap-expect=0              Sets server to expect bootstrap mode.
+  -client=127.0.0.1                Sets the address to bind for client access.
+                                   This includes RPC, DNS, HTTP and HTTPS (if
+                                   configured)
+  -config-file=foo                 Path to a JSON file to read configuration
+                                   from. This can be specified multiple times.
+  -config-dir=foo                  Path to a directory to read configuration
+                                   files from. This will read every file ending
+                                   in ".json" as configuration in this
+                                   directory in alphabetical order. This can be
+                                   specified multiple times.
+  -data-dir=path                   Path to a data directory to store agent
+                                   state
+  -dev                             Starts the agent in development mode.
+  -recursor=1.2.3.4                Address of an upstream DNS server.
+                                   Can be specified multiple times.
+  -dc=east-aws                     Datacenter of the agent (deprecated: use
+                                   'datacenter' instead).
+  -datacenter=east-aws             Datacenter of the agent.
+  -encrypt=key                     Provides the gossip encryption key
+  -join=1.2.3.4                    Address of an agent to join at start time.
+                                   Can be specified multiple times.
+  -join-wan=1.2.3.4                Address of an agent to join -wan at start
+                                   time. Can be specified multiple times.
+  -retry-join=1.2.3.4              Address of an agent to join at start time
+                                   with retries enabled. Can be specified
+                                   multiple times.
+  -retry-interval=30s              Time to wait between join attempts.
+  -retry-max=0                     Maximum number of join attempts. Defaults to
+                                   0, which will retry indefinitely.
+  -retry-join-ec2-region           EC2 Region to use for discovering servers to
+                                   join.
+  -retry-join-ec2-tag-key          EC2 tag key to filter on for server
+                                   discovery
+  -retry-join-ec2-tag-value        EC2 tag value to filter on for server
+                                   discovery
+  -retry-join-gce-project-name     Google Compute Engine project to discover
+                                   servers in
+  -retry-join-gce-zone-pattern     Google Compute Engine region or zone to
+                                   discover servers in (regex pattern)
+  -retry-join-gce-tag-value        Google Compute Engine tag value to filter
+                                   for server discovery
+  -retry-join-gce-credentials-file Path to credentials JSON file to use with
+                                   Google Compute Engine
+  -retry-join-wan=1.2.3.4          Address of an agent to join -wan at start
+                                   time with retries enabled. Can be specified
+                                   multiple times.
+  -retry-interval-wan=30s          Time to wait between join -wan attempts.
+  -retry-max-wan=0                 Maximum number of join -wan attempts.
+                                   Defaults to 0, which will retry
+                                   indefinitely.
+  -log-level=info                  Log level of the agent.
+  -node=hostname                   Name of this node. Must be unique in the
+                                   cluster
+  -node-meta=key:value             An arbitrary metadata key/value pair for
+                                   this node.
+                                   This can be specified multiple times.
+  -protocol=N                      Sets the protocol version. Defaults to
+                                   latest.
+  -rejoin                          Ignores a previous leave and attempts to
+                                   rejoin the cluster.
+  -server                          Switches agent to server mode.
+  -syslog                          Enables logging to syslog
+  -ui                              Enables the built-in static web UI server
+  -ui-dir=path                     Path to directory containing the Web UI
+                                   resources
+  -pid-file=path                   Path to file to store agent PID
 
  `
 	return strings.TrimSpace(helpText)

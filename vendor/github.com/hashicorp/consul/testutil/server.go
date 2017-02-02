@@ -53,6 +53,7 @@ type TestAddressConfig struct {
 // TestServerConfig is the main server configuration struct.
 type TestServerConfig struct {
 	NodeName          string                 `json:"node_name"`
+	NodeMeta          map[string]string      `json:"node_meta,omitempty"`
 	Performance       *TestPerformanceConfig `json:"performance,omitempty"`
 	Bootstrap         bool                   `json:"bootstrap,omitempty"`
 	Server            bool                   `json:"server,omitempty"`
@@ -164,7 +165,8 @@ func NewTestServer(t TestingT) *TestServer {
 // an optional callback function to modify the configuration.
 func NewTestServerConfig(t TestingT, cb ServerConfigCallback) *TestServer {
 	if path, err := exec.LookPath("consul"); err != nil || path == "" {
-		t.Skip("consul not found on $PATH, skipping")
+		t.Fatal("consul not found on $PATH - download and install " +
+			"consul or skip this test")
 	}
 
 	dataDir, err := ioutil.TempDir("", "consul")
@@ -290,6 +292,7 @@ func (s *TestServer) waitForAPI() {
 // waitForLeader waits for the Consul server's HTTP API to become
 // available, and then waits for a known leader and an index of
 // 1 or more to be observed to confirm leader election is done.
+// It then waits to ensure the anti-entropy checks have completed.
 func (s *TestServer) waitForLeader() {
 	WaitForResult(func() (bool, error) {
 		// Query the API and check the status code
@@ -310,6 +313,25 @@ func (s *TestServer) waitForLeader() {
 		if resp.Header.Get("X-Consul-Index") == "0" {
 			return false, fmt.Errorf("Consul index is 0")
 		}
+
+		var parsed []map[string]interface{}
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&parsed); err != nil {
+			return false, err
+		}
+
+		if len(parsed) < 1 {
+			return false, fmt.Errorf("No nodes")
+		}
+
+		taggedAddresses, ok := parsed[0]["TaggedAddresses"].(map[string]interface{})
+		if !ok {
+			return false, fmt.Errorf("Missing tagged addresses")
+		}
+		if _, ok := taggedAddresses["lan"]; !ok {
+			return false, fmt.Errorf("No lan tagged addresses")
+		}
+
 		return true, nil
 	}, func(err error) {
 		defer s.Stop()

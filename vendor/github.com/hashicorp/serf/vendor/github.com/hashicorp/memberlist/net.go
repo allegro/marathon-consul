@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"hash/crc32"
 	"io"
 	"net"
 	"time"
@@ -33,7 +32,7 @@ const (
 	// understand version 4 or greater.
 	ProtocolVersion2Compatible = 2
 
-	ProtocolVersionMax = 5
+	ProtocolVersionMax = 4
 )
 
 // messageType is an integer ID of a type of message that can be received
@@ -54,7 +53,6 @@ const (
 	compressMsg
 	encryptMsg
 	nackRespMsg
-	hasCrcMsg
 )
 
 // compressionType is used to specify the compression algorithm
@@ -340,18 +338,8 @@ func (m *Memberlist) ingestPacket(buf []byte, from net.Addr, timestamp time.Time
 		buf = plain
 	}
 
-	// See if there's a checksum included to verify the contents of the message
-	if len(buf) >= 5 && messageType(buf[0]) == hasCrcMsg {
-		crc := crc32.ChecksumIEEE(buf[5:])
-		expected := binary.BigEndian.Uint32(buf[1:5])
-		if crc != expected {
-			m.logger.Printf("[WARN] memberlist: Got invalid checksum for UDP packet: %x, %x", crc, expected)
-			return
-		}
-		m.handleCommand(buf[5:], from, timestamp)
-	} else {
-		m.handleCommand(buf, from, timestamp)
-	}
+	// Handle the command
+	m.handleCommand(buf, from, timestamp)
 }
 
 func (m *Memberlist) handleCommand(buf []byte, from net.Addr, timestamp time.Time) {
@@ -613,7 +601,7 @@ func (m *Memberlist) sendMsg(to net.Addr, msg []byte) error {
 
 	// Fast path if nothing to piggypack
 	if len(extra) == 0 {
-		return m.rawSendMsgUDP(to, nil, msg)
+		return m.rawSendMsgUDP(to, msg)
 	}
 
 	// Join all the messages
@@ -625,11 +613,11 @@ func (m *Memberlist) sendMsg(to net.Addr, msg []byte) error {
 	compound := makeCompoundMessage(msgs)
 
 	// Send the message
-	return m.rawSendMsgUDP(to, nil, compound.Bytes())
+	return m.rawSendMsgUDP(to, compound.Bytes())
 }
 
 // rawSendMsgUDP is used to send a UDP message to another host without modification
-func (m *Memberlist) rawSendMsgUDP(addr net.Addr, node *Node, msg []byte) error {
+func (m *Memberlist) rawSendMsgUDP(to net.Addr, msg []byte) error {
 	// Check if we have compression enabled
 	if m.config.EnableCompression {
 		buf, err := compressPayload(msg)
@@ -641,31 +629,6 @@ func (m *Memberlist) rawSendMsgUDP(addr net.Addr, node *Node, msg []byte) error 
 				msg = buf.Bytes()
 			}
 		}
-	}
-
-	// Try to look up the destination node
-	if node == nil {
-		toAddr, _, err := net.SplitHostPort(addr.String())
-		if err != nil {
-			m.logger.Printf("[ERR] memberlist: Failed to parse address %q: %v", addr.String(), err)
-			return err
-		}
-		m.nodeLock.RLock()
-		nodeState, ok := m.nodeMap[toAddr]
-		m.nodeLock.RUnlock()
-		if ok {
-			node = &nodeState.Node
-		}
-	}
-
-	// Add a CRC to the end of the payload if the recipient understands
-	// ProtocolVersion >= 5
-	if node != nil && node.PMax >= 5 {
-		crc := crc32.ChecksumIEEE(msg)
-		header := make([]byte, 5, 5+len(msg))
-		header[0] = byte(hasCrcMsg)
-		binary.BigEndian.PutUint32(header[1:], crc)
-		msg = append(header, msg...)
 	}
 
 	// Check if we have encryption enabled
@@ -682,7 +645,7 @@ func (m *Memberlist) rawSendMsgUDP(addr net.Addr, node *Node, msg []byte) error 
 	}
 
 	metrics.IncrCounter([]string{"memberlist", "udp", "sent"}, float32(len(msg)))
-	_, err := m.udpListener.WriteTo(msg, addr)
+	_, err := m.udpListener.WriteTo(msg, to)
 	return err
 }
 

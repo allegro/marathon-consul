@@ -33,6 +33,7 @@ It returns a JSON body like this:
 ```javascript
 [
   {
+    "ID": "40e4a748-2192-161a-0510-9bf59fe950b5",
     "Node": "foobar",
     "CheckID": "serfHealth",
     "Name": "Serf Health Status",
@@ -43,6 +44,7 @@ It returns a JSON body like this:
     "ServiceName": ""
   },
   {
+    "ID": "40e4a748-2192-161a-0510-9bf59fe950b5",
     "Node": "foobar",
     "CheckID": "service:redis",
     "Name": "Service 'redis' check",
@@ -75,6 +77,11 @@ the node list in ascending order based on the estimated round trip
 time from that node. Passing `?near=_agent` will use the agent's
 node for the sort.
 
+In Consul 0.7.3 and later, the optional `?node-meta=` parameter can be
+provided with a desired node metadata key/value pair of the form `key:value`.
+This parameter can be specified multiple times, and will filter the results to
+health checks on nodes with the specified key/value pair(s).
+
 It returns a JSON body like this:
 
 ```javascript
@@ -106,11 +113,16 @@ time from that node. Passing `?near=_agent` will use the agent's
 node for the sort.
 
 By default, all nodes matching the service are returned. The list can be filtered
-by tag using the "?tag=" query parameter.
+by tag using the `?tag=` query parameter.
 
 Providing the `?passing` query parameter, added in Consul 0.2, will
 filter results to only nodes with all checks in the `passing` state.
 This can be used to avoid extra filtering logic on the client side.
+
+In Consul 0.7.3 and later, the optional `?node-meta=` parameter can be
+provided with a desired node metadata key/value pair of the form `key:value`.
+This parameter can be specified multiple times, and will filter the results to
+nodes with the specified key/value pair(s).
 
 This endpoint is very similar to the `/v1/catalog/service` endpoint; however, this
 endpoint automatically returns the status of the associated health check
@@ -126,11 +138,15 @@ It returns a JSON body like this:
 [
   {
     "Node": {
+      "ID": "40e4a748-2192-161a-0510-9bf59fe950b5",
       "Node": "foobar",
       "Address": "10.1.10.12",
       "TaggedAddresses": {
         "lan": "10.1.10.12",
         "wan": "10.1.10.12"
+      },
+      "Meta": {
+        "instance_type": "t2.medium"
       }
     },
     "Service": {
@@ -178,6 +194,11 @@ Adding the optional `?near=` parameter with a node name will sort
 the node list in ascending order based on the estimated round trip
 time from that node. Passing `?near=_agent` will use the agent's
 node for the sort.
+
+In Consul 0.7.3 and later, the optional `?node-meta=` parameter can be
+provided with a desired node metadata key/value pair of the form `key:value`.
+This parameter can be specified multiple times, and will filter the results to
+health checks on nodes with the specified key/value pair(s).
 
 The supported states are `any`, `passing`, `warning`, or `critical`.
 The `any` state is a wildcard that can be used to return all checks.

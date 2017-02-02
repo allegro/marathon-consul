@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/consul/logger"
 	"github.com/hashicorp/consul/testutil"
 	"github.com/mitchellh/cli"
+	"reflect"
 )
 
 func TestCommand_implements(t *testing.T) {
@@ -129,6 +130,7 @@ func TestReadCliConfig(t *testing.T) {
 				"-advertise-wan", "1.2.3.4",
 				"-serf-wan-bind", "4.3.2.1",
 				"-serf-lan-bind", "4.3.2.2",
+				"-node-meta", "somekey:somevalue",
 			},
 			ShutdownCh: shutdownCh,
 			Ui:         new(cli.MockUi),
@@ -143,6 +145,30 @@ func TestReadCliConfig(t *testing.T) {
 		}
 		if config.SerfLanBindAddr != "4.3.2.2" {
 			t.Fatalf("expected -serf-lan-bind 4.3.2.2 got %s", config.SerfLanBindAddr)
+		}
+		if len(config.Meta) != 1 || config.Meta["somekey"] != "somevalue" {
+			t.Fatalf("expected somekey=somevalue, got %v", config.Meta)
+		}
+	}
+
+	// Test multiple node meta flags
+	{
+		cmd := &Command{
+			args: []string{
+				"-data-dir", tmpDir,
+				"-node-meta", "somekey:somevalue",
+				"-node-meta", "otherkey:othervalue",
+			},
+			ShutdownCh: shutdownCh,
+			Ui:         new(cli.MockUi),
+		}
+		expected := map[string]string{
+			"somekey":  "somevalue",
+			"otherkey": "othervalue",
+		}
+		config := cmd.readConfig()
+		if !reflect.DeepEqual(config.Meta, expected) {
+			t.Fatalf("bad: %v %v", config.Meta, expected)
 		}
 	}
 
@@ -297,6 +323,33 @@ func TestDiscoverEC2Hosts(t *testing.T) {
 	}
 
 	servers, err := c.discoverEc2Hosts(&log.Logger{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(servers) != 3 {
+		t.Fatalf("bad: %v", servers)
+	}
+}
+
+func TestDiscoverGCEHosts(t *testing.T) {
+	if os.Getenv("GCE_PROJECT") == "" {
+		t.Skip("GCE_PROJECT not set, skipping")
+	}
+
+	if os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" && os.Getenv("GCE_CONFIG_CREDENTIALS") == "" {
+		t.Skip("GOOGLE_APPLICATION_CREDENTIALS or GCE_CONFIG_CREDENTIALS not set, skipping")
+	}
+
+	c := &Config{
+		RetryJoinGCE: RetryJoinGCE{
+			ProjectName:     os.Getenv("GCE_PROJECT"),
+			ZonePattern:     os.Getenv("GCE_ZONE"),
+			TagValue:        "consulrole-server",
+			CredentialsFile: os.Getenv("GCE_CONFIG_CREDENTIALS"),
+		},
+	}
+
+	servers, err := c.discoverGCEHosts(log.New(os.Stderr, "", log.LstdFlags))
 	if err != nil {
 		t.Fatal(err)
 	}
