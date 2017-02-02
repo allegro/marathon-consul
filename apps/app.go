@@ -104,9 +104,9 @@ func (app App) RegistrationIntentsNumber() int {
 
 func (app App) RegistrationIntents(task *Task, nameSeparator string) []RegistrationIntent {
 	commonTags := labelsToTags(app.Labels)
-
+	taskPortsCount := len(task.Ports)
 	definitions := app.findConsulPortDefinitions()
-	if len(definitions) == 0 {
+	if len(definitions) == 0 && taskPortsCount != 0 {
 		return []RegistrationIntent{
 			{
 				Name: app.labelsToName(app.Labels, nameSeparator),
@@ -118,6 +118,10 @@ func (app App) RegistrationIntents(task *Task, nameSeparator string) []Registrat
 
 	var intents []RegistrationIntent
 	for _, d := range definitions {
+		if d.Index >= taskPortsCount {
+			log.WithField("Id", task.ID.String()).Warnf("Port index (%d) out of bounds should be from range [0,%d)", d.Index, taskPortsCount)
+			continue
+		}
 		intents = append(intents, RegistrationIntent{
 			Name: app.labelsToName(d.Labels, nameSeparator),
 			Port: task.Ports[d.Index],
