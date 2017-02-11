@@ -1,12 +1,12 @@
-hash: 569fec4a5ced1abbb3b1b901c2c9a037fba340ea64a9fda561b4e54755906c4d
-updated: 2017-02-01T17:06:19.377168387+01:00
+hash: d698b10b133b3b77ba51fa9e122d63c85274743c23cd035cb24c031bff80fd6f
+updated: 2017-02-11T22:26:12.493113656+01:00
 imports:
 - name: github.com/armon/go-metrics
-  version: 3df31a1ada83e310c2e24b267c8e8b68836547b4
+  version: 93f237eba9b0602f3e73710416558854a81d9337
 - name: github.com/armon/go-radix
   version: 4239b77079c7b5d1243b7b4736304ce8ddb6f0f2
 - name: github.com/certifi/gocertifi
-  version: a61bf5eafa3aee233ec8043e9da052447e5463dd
+  version: 03be5e6bb9874570ea7fb0961225d193cbc374c5
 - name: github.com/cyberdelia/go-metrics-graphite
   version: 39f87cc3b432bbb898d7c643c0e93cac2bc865ad
 - name: github.com/davecgh/go-spew
@@ -18,7 +18,7 @@ imports:
 - name: github.com/getsentry/raven-go
   version: 3f7439d3e74d88e21d196ba20eb61a5a958bc118
 - name: github.com/hashicorp/consul
-  version: a90bb8f02183e12c312ddb4dfb2c7602fdbf4e12
+  version: 14c6d009cc103e730c8cc91661846f7f79d364c3
   subpackages:
   - acl
   - api
@@ -26,7 +26,7 @@ imports:
   - testutil
   - types
 - name: github.com/hashicorp/go-cleanhttp
-  version: ad28ea4487f05916463e2423a55166280e8254b5
+  version: 3573b8b52aa7b37b9358d966a898feb387f62437
 - name: github.com/hashicorp/go-msgpack
   version: fa3f63826f7c23912c15263591e65d54d080b458
   subpackages:
@@ -36,7 +36,7 @@ imports:
   subpackages:
   - simplelru
 - name: github.com/hashicorp/hcl
-  version: 6f5bfed9a0a22222fbe4e731ae3481730ba41e93
+  version: 372e8ddaa16fd67e371e9323807d056b799360af
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -49,7 +49,7 @@ imports:
 - name: github.com/hashicorp/raft
   version: 5f09c4ffdbcd2a53768e78c47717415de12b6728
 - name: github.com/hashicorp/serf
-  version: b03bf85930b2349eb04b97c8fac437495296e3e7
+  version: cb45b412ee4f9d6cc2eeb2b2b7dd0f6cfd7545c1
   subpackages:
   - coordinate
 - name: github.com/ogier/pflag
@@ -63,7 +63,7 @@ imports:
 - name: github.com/rcrowley/go-metrics
   version: bdb33529eca3e55eac7328e07c57012a797af602
 - name: github.com/Sirupsen/logrus
-  version: d26492970760ca5d33129d2d799e34be5c4782eb
+  version: c078b1e43f58d563c74cebe63c85789e76ddb627
 - name: github.com/stathat/go
   version: 74669b9f388d9d788c97399a0824adbfee78400e
 - name: github.com/stretchr/testify
@@ -72,7 +72,7 @@ imports:
   - assert
   - require
 - name: golang.org/x/sys
-  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  version: aaabbdc969c3935a2a7f61efac801e7163c73a2a
   subpackages:
   - unix
 - name: gopkg.in/airbrake/gobrake.v2

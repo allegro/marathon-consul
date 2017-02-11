@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	sockaddr "github.com/hashicorp/go-sockaddr"
 	"github.com/miekg/dns"
 )
 
@@ -129,7 +130,7 @@ func newMemberlist(conf *Config) (*Memberlist, error) {
 		leaveBroadcast: make(chan struct{}, 1),
 		udpListener:    udpLn,
 		tcpListener:    tcpLn,
-		handoff:        make(chan msgHandoff, 1024),
+		handoff:        make(chan msgHandoff, conf.HandoffQueueDepth),
 		nodeMap:        make(map[string]*nodeState),
 		nodeTimers:     make(map[string]*suspicion),
 		awareness:      newAwareness(conf.AwarenessMaxMultiplier),
@@ -326,7 +327,7 @@ func (m *Memberlist) resolveAddr(hostStr string) ([]ipPort, error) {
 // as if we received an alive notification our own network channel for
 // ourself.
 func (m *Memberlist) setAlive() error {
-	var advertiseAddr []byte
+	var advertiseAddr net.IP
 	var advertisePort int
 	if m.config.AdvertiseAddr != "" {
 		// If AdvertiseAddr is not empty, then advertise
@@ -345,42 +346,21 @@ func (m *Memberlist) setAlive() error {
 		advertisePort = m.config.AdvertisePort
 	} else {
 		if m.config.BindAddr == "0.0.0.0" {
-			// Otherwise, if we're not bound to a specific IP,
-			//let's list the interfaces on this machine and use
-			// the first private IP we find.
-			addresses, err := net.InterfaceAddrs()
+			// Otherwise, if we're not bound to a specific IP, let's use a suitable
+			// private IP address.
+			var err error
+			m.config.AdvertiseAddr, err = sockaddr.GetPrivateIP()
 			if err != nil {
-				return fmt.Errorf("Failed to get interface addresses! Err: %v", err)
+				return fmt.Errorf("Failed to get interface addresses: %v", err)
 			}
-
-			// Find private IPv4 address
-			for _, rawAddr := range addresses {
-				var ip net.IP
-				switch addr := rawAddr.(type) {
-				case *net.IPAddr:
-					ip = addr.IP
-				case *net.IPNet:
-					ip = addr.IP
-				default:
-					continue
-				}
-
-				if ip.To4() == nil {
-					continue
-				}
-				if !IsPrivateIP(ip.String()) {
-					continue
-				}
-
-				advertiseAddr = ip
-				break
-			}
-
-			// Failed to find private IP, error
-			if advertiseAddr == nil {
+			if m.config.AdvertiseAddr == "" {
 				return fmt.Errorf("No private IP address found, and explicit IP not provided")
 			}
 
+			advertiseAddr = net.ParseIP(m.config.AdvertiseAddr)
+			if advertiseAddr == nil {
+				return fmt.Errorf("Failed to parse advertise address: %q", m.config.AdvertiseAddr)
+			}
 		} else {
 			// Use the IP that we're bound to.
 			addr := m.tcpListener.Addr().(*net.TCPAddr)
@@ -392,8 +372,19 @@ func (m *Memberlist) setAlive() error {
 	}
 
 	// Check if this is a public address without encryption
-	addrStr := net.IP(advertiseAddr).String()
-	if !IsPrivateIP(addrStr) && !isLoopbackIP(addrStr) && !m.config.EncryptionEnabled() {
+	ipAddr, err := sockaddr.NewIPAddr(advertiseAddr.String())
+	if err != nil {
+		return fmt.Errorf("Failed to parse interface addresses: %v", err)
+	}
+
+	ifAddrs := []sockaddr.IfAddr{
+		sockaddr.IfAddr{
+			SockAddr: ipAddr,
+		},
+	}
+
+	_, publicIfs, err := sockaddr.IfByRFC("6890", ifAddrs)
+	if len(publicIfs) > 0 && !m.config.EncryptionEnabled() {
 		m.logger.Printf("[WARN] memberlist: Binding to public address without encryption!")
 	}
 
@@ -496,7 +487,7 @@ func (m *Memberlist) SendTo(to net.Addr, msg []byte) error {
 	buf = append(buf, msg...)
 
 	// Send the message
-	return m.rawSendMsgUDP(to, buf)
+	return m.rawSendMsgUDP(to, nil, buf)
 }
 
 // SendToUDP is used to directly send a message to another node, without
@@ -513,7 +504,7 @@ func (m *Memberlist) SendToUDP(to *Node, msg []byte) error {
 
 	// Send the message
 	destAddr := &net.UDPAddr{IP: to.Addr, Port: int(to.Port)}
-	return m.rawSendMsgUDP(destAddr, buf)
+	return m.rawSendMsgUDP(destAddr, to, buf)
 }
 
 // SendToTCP is used to directly send a message to another node, without

@@ -1,3 +1,27 @@
+## 0.8.0 (UNRELEASED)
+
+BREAKING CHANGES:
+
+FEATURES:
+
+IMPROVEMENTS:
+
+BUG FIXES:
+
+## 0.7.4 (February 6, 2017)
+
+IMPROVEMENTS:
+
+* agent: Integrated gopsutil library to use built in host UUID as node ID, if available, instead of a randomly generated UUID. This makes it easier for other applications on the same host to generate the same node ID without coordinating with Consul. [GH-2697]
+* agent: Added a configuration option, `tls_min_version`, for setting the minimum allowed TLS version used for the HTTP API and RPC. [GH-2699]
+* agent: Added a `relay-factor` option to keyring operations to allow nodes to relay their response through N randomly-chosen other nodes in the cluster. [GH-2704]
+* build: Consul is now built with Go 1.7.5. [GH-2682]
+* dns: Add ability to lookup Consul agents by either their Node ID or Node Name through the node interface (e.g. DNS `(node-id|node-name).node.consul`). [GH-2702]
+
+BUG FIXES:
+
+* dns: Fixed an issue where SRV lookups for services on a node registered with non-IP addresses were missing the CNAME record in the additional section of the response. [GH-2695]
+
 ## 0.7.3 (January 26, 2017)
 
 FEATURES:
