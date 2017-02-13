@@ -261,7 +261,7 @@ func (m *Memberlist) probeNode(node *nodeState) {
 		}
 
 		compound := makeCompoundMessage(msgs)
-		if err := m.rawSendMsgUDP(destAddr, compound.Bytes()); err != nil {
+		if err := m.rawSendMsgUDP(destAddr, &node.Node, compound.Bytes()); err != nil {
 			m.logger.Printf("[ERR] memberlist: Failed to send compound ping and suspect message to %s: %s", destAddr, err)
 			return
 		}
@@ -310,8 +310,11 @@ func (m *Memberlist) probeNode(node *nodeState) {
 
 	// Get some random live nodes.
 	m.nodeLock.RLock()
-	excludes := []string{m.config.Name, node.Name}
-	kNodes := kRandomNodes(m.config.IndirectChecks, excludes, m.nodes)
+	kNodes := kRandomNodes(m.config.IndirectChecks, m.nodes, func(n *nodeState) bool {
+		return n.Name == m.config.Name ||
+			n.Name == node.Name ||
+			n.State != stateAlive
+	})
 	m.nodeLock.RUnlock()
 
 	// Attempt an indirect ping.
@@ -436,8 +439,8 @@ func (m *Memberlist) resetNodes() {
 	m.nodeLock.Lock()
 	defer m.nodeLock.Unlock()
 
-	// Move the dead nodes
-	deadIdx := moveDeadNodes(m.nodes)
+	// Move dead nodes, but respect gossip to the dead interval
+	deadIdx := moveDeadNodes(m.nodes, m.config.GossipToTheDeadTime)
 
 	// Deregister the dead nodes
 	for i := deadIdx; i < len(m.nodes); i++ {
@@ -460,14 +463,28 @@ func (m *Memberlist) resetNodes() {
 func (m *Memberlist) gossip() {
 	defer metrics.MeasureSince([]string{"memberlist", "gossip"}, time.Now())
 
-	// Get some random live nodes
+	// Get some random live, suspect, or recently dead nodes
 	m.nodeLock.RLock()
-	excludes := []string{m.config.Name}
-	kNodes := kRandomNodes(m.config.GossipNodes, excludes, m.nodes)
+	kNodes := kRandomNodes(m.config.GossipNodes, m.nodes, func(n *nodeState) bool {
+		if n.Name == m.config.Name {
+			return true
+		}
+
+		switch n.State {
+		case stateAlive, stateSuspect:
+			return false
+
+		case stateDead:
+			return time.Since(n.StateChange) > m.config.GossipToTheDeadTime
+
+		default:
+			return true
+		}
+	})
 	m.nodeLock.RUnlock()
 
 	// Compute the bytes available
-	bytesAvail := udpSendBuf - compoundHeaderOverhead
+	bytesAvail := m.config.UDPBufferSize - compoundHeaderOverhead
 	if m.config.EncryptionEnabled() {
 		bytesAvail -= encryptOverhead(m.encryptionVersion())
 	}
@@ -479,13 +496,19 @@ func (m *Memberlist) gossip() {
 			return
 		}
 
-		// Create a compound message
-		compound := makeCompoundMessage(msgs)
-
-		// Send the compound message
 		destAddr := &net.UDPAddr{IP: node.Addr, Port: int(node.Port)}
-		if err := m.rawSendMsgUDP(destAddr, compound.Bytes()); err != nil {
-			m.logger.Printf("[ERR] memberlist: Failed to send gossip to %s: %s", destAddr, err)
+
+		if len(msgs) == 1 {
+			// Send single message as is
+			if err := m.rawSendMsgUDP(destAddr, &node.Node, msgs[0]); err != nil {
+				m.logger.Printf("[ERR] memberlist: Failed to send gossip to %s: %s", destAddr, err)
+			}
+		} else {
+			// Otherwise create and send a compound message
+			compound := makeCompoundMessage(msgs)
+			if err := m.rawSendMsgUDP(destAddr, &node.Node, compound.Bytes()); err != nil {
+				m.logger.Printf("[ERR] memberlist: Failed to send gossip to %s: %s", destAddr, err)
+			}
 		}
 	}
 }
@@ -497,8 +520,10 @@ func (m *Memberlist) gossip() {
 func (m *Memberlist) pushPull() {
 	// Get a random live node
 	m.nodeLock.RLock()
-	excludes := []string{m.config.Name}
-	nodes := kRandomNodes(1, excludes, m.nodes)
+	nodes := kRandomNodes(1, m.nodes, func(n *nodeState) bool {
+		return n.Name == m.config.Name ||
+			n.State != stateAlive
+	})
 	m.nodeLock.RUnlock()
 
 	// If no nodes, bail

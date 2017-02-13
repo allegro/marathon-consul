@@ -10,6 +10,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -25,7 +26,7 @@ import (
 // version to memberlist below.
 const (
 	ProtocolVersionMin uint8 = 2
-	ProtocolVersionMax       = 4
+	ProtocolVersionMax       = 5
 )
 
 const (
@@ -240,9 +241,23 @@ func Create(conf *Config) (*Serf, error) {
 			conf.ProtocolVersion, ProtocolVersionMin, ProtocolVersionMax)
 	}
 
+	if conf.LogOutput != nil && conf.Logger != nil {
+		return nil, fmt.Errorf("Cannot specify both LogOutput and Logger. Please choose a single log configuration setting.")
+	}
+
+	logDest := conf.LogOutput
+	if logDest == nil {
+		logDest = os.Stderr
+	}
+
+	logger := conf.Logger
+	if logger == nil {
+		logger = log.New(logDest, "", log.LstdFlags)
+	}
+
 	serf := &Serf{
 		config:        conf,
-		logger:        log.New(conf.LogOutput, "", log.LstdFlags),
+		logger:        logger,
 		members:       make(map[string]*memberState),
 		queryResponse: make(map[LamportTime]*QueryResponse),
 		shutdownCh:    make(chan struct{}),
@@ -328,21 +343,15 @@ func Create(conf *Config) (*Serf, error) {
 	// Setup the various broadcast queues, which we use to send our own
 	// custom broadcasts along the gossip channel.
 	serf.broadcasts = &memberlist.TransmitLimitedQueue{
-		NumNodes: func() int {
-			return len(serf.members)
-		},
+		NumNodes:       serf.NumNodes,
 		RetransmitMult: conf.MemberlistConfig.RetransmitMult,
 	}
 	serf.eventBroadcasts = &memberlist.TransmitLimitedQueue{
-		NumNodes: func() int {
-			return len(serf.members)
-		},
+		NumNodes:       serf.NumNodes,
 		RetransmitMult: conf.MemberlistConfig.RetransmitMult,
 	}
 	serf.queryBroadcasts = &memberlist.TransmitLimitedQueue{
-		NumNodes: func() int {
-			return len(serf.members)
-		},
+		NumNodes:       serf.NumNodes,
 		RetransmitMult: conf.MemberlistConfig.RetransmitMult,
 	}
 
@@ -499,15 +508,16 @@ func (s *Serf) Query(name string, payload []byte, params *QueryParam) (*QueryRes
 
 	// Create a message
 	q := messageQuery{
-		LTime:   s.queryClock.Time(),
-		ID:      uint32(rand.Int31()),
-		Addr:    local.Addr,
-		Port:    local.Port,
-		Filters: filters,
-		Flags:   flags,
-		Timeout: params.Timeout,
-		Name:    name,
-		Payload: payload,
+		LTime:       s.queryClock.Time(),
+		ID:          uint32(rand.Int31()),
+		Addr:        local.Addr,
+		Port:        local.Port,
+		Filters:     filters,
+		Flags:       flags,
+		RelayFactor: params.RelayFactor,
+		Timeout:     params.Timeout,
+		Name:        name,
+		Payload:     payload,
 	}
 
 	// Encode the query
@@ -1237,19 +1247,23 @@ func (s *Serf) handleQuery(query *messageQuery) bool {
 			if err := s.memberlist.SendTo(&addr, raw); err != nil {
 				s.logger.Printf("[ERR] serf: failed to send ack: %v", err)
 			}
+			if err := s.relayResponse(query.RelayFactor, addr, &ack); err != nil {
+				s.logger.Printf("[ERR] serf: failed to relay ack: %v", err)
+			}
 		}
 	}
 
 	if s.config.EventCh != nil {
 		s.config.EventCh <- &Query{
-			LTime:    query.LTime,
-			Name:     query.Name,
-			Payload:  query.Payload,
-			serf:     s,
-			id:       query.ID,
-			addr:     query.Addr,
-			port:     query.Port,
-			deadline: time.Now().Add(query.Timeout),
+			LTime:       query.LTime,
+			Name:        query.Name,
+			Payload:     query.Payload,
+			serf:        s,
+			id:          query.ID,
+			addr:        query.Addr,
+			port:        query.Port,
+			deadline:    time.Now().Add(query.Timeout),
+			relayFactor: query.RelayFactor,
 		}
 	}
 	return rebroadcast
@@ -1282,18 +1296,32 @@ func (s *Serf) handleQueryResponse(resp *messageQueryResponse) {
 
 	// Process each type of response
 	if resp.Ack() {
+		// Exit early if this is a duplicate ack
+		if _, ok := query.acks[resp.From]; ok {
+			metrics.IncrCounter([]string{"serf", "query_duplicate_acks"}, 1)
+			return
+		}
+
 		metrics.IncrCounter([]string{"serf", "query_acks"}, 1)
 		select {
 		case query.ackCh <- resp.From:
+			query.acks[resp.From] = struct{}{}
 		default:
-			s.logger.Printf("[WARN] serf: Failed to delivery query ack, dropping")
+			s.logger.Printf("[WARN] serf: Failed to deliver query ack, dropping")
 		}
 	} else {
+		// Exit early if this is a duplicate response
+		if _, ok := query.responses[resp.From]; ok {
+			metrics.IncrCounter([]string{"serf", "query_duplicate_responses"}, 1)
+			return
+		}
+
 		metrics.IncrCounter([]string{"serf", "query_responses"}, 1)
 		select {
 		case query.respCh <- NodeResponse{From: resp.From, Payload: resp.Payload}:
+			query.responses[resp.From] = struct{}{}
 		default:
-			s.logger.Printf("[WARN] serf: Failed to delivery query response, dropping")
+			s.logger.Printf("[WARN] serf: Failed to deliver query response, dropping")
 		}
 	}
 }
