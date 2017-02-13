@@ -10,6 +10,7 @@ import (
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/sentry"
+	"github.com/allegro/marathon-consul/sse"
 	"github.com/allegro/marathon-consul/sync"
 	timeutil "github.com/allegro/marathon-consul/time"
 	"github.com/allegro/marathon-consul/web"
@@ -108,6 +109,10 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			QueueSize:    1000,
 			WorkersCount: 10,
 			MaxEventSize: 4096,
+			Enabled:      true,
+		},
+		SSE: sse.Config{
+			Enabled: false,
 		},
 		Sync: sync.Config{
 			Interval: timeutil.Interval{Duration: 15 * time.Minute},

@@ -42,6 +42,14 @@ func (m *MarathonerStub) Leader() (string, error) {
 	return m.leader, nil
 }
 
+func (m *MarathonerStub) EventStream([]string, int, int) (*Streamer, error) {
+	return &Streamer{}, nil
+}
+
+func (m *MarathonerStub) AmILeader() (bool, error) {
+	return false, nil
+}
+
 func (m *MarathonerStub) Interactions() bool {
 	m.interactionsMu.RLock()
 	defer m.interactionsMu.RUnlock()

@@ -5,4 +5,5 @@ type Config struct {
 	QueueSize    int
 	WorkersCount int
 	MaxEventSize int64
+	Enabled      bool
 }
