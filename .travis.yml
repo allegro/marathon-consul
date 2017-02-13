@@ -9,3 +9,11 @@ before_install:
 script:
   - make check
   - goveralls -coverprofile=coverage/gover.coverprofile -service travis-ci
+deploy:
+  provider: releases
+  api_key:
+    secure: Y+9PJcw/c5S7DOd49gGA83T7vcX30ytFAxAmWdWCTMpzQYW+AZux0rB4bGhiJTVuzsd7/bbVM/DmNSQbEfGGLPOrcgba4IpoLsy22UUClVGs5511VfqR9INInEchYKpJQJr6XSXa/iFOwblPOXXHiK+eGJKWBD1ZEWhxxG/uqgOjQBUyfOuQd7FzM6QhwJlYHlUHkXmEr4iiAwNIQ8ucWArNClhlhHXd91TzsTB7SD2xYufRIwwBZV9HPHAvpLyx3OWMnofXihXJ9QTBwEkRF7HYF9q1D+TnLWeAfyFJUN4NTWvbNgSBdJV7PlSmShb2WxaaEtdH0xCZ1Rg6SkbX14yjKaMUKL2dD4F3uNNtA1BV5HceBo1w5rfBNMsvBwA+Xx//+pDFZCqyHor/5bR418otHff5Gxv2Pf2bbBFk/SGt+7JmaizHBvWGrYSQrpXJRqcejYUf3XBt0rdV40QWCJt6rUUu0ar0349zRovN/CpiqGPqJ4GyQvoaaRQ8Sig7+gBTW9YSuvxmX/MqGFIw4uAvp+kNAGuxTHro0VVa5E5qLA3qmBYlZOcglolimBoSJzznVo2qbiNZadjIoRKn5yJk5vQ7LYUY3ZY3j98dabngY73H1zLglHG4tOb1iWwiZVPZJETYvr3CTOtgQRnw4VHmrzldeQetBiDV6Ibhwcc=
+  file_glob: true
+  file: dist/$TRAVIS_TAG/marathon-consul_*
+  on:
+    tags: true

@@ -27,6 +27,8 @@ deps:
 	@mkdir -p $(COVERAGEDIR)
 	@which gover > /dev/null || \
         (go get github.com/modocache/gover)
+	@which goxc > /dev/null || \
+        (go get github.com/laher/goxc)
 
 build-deps: deps format test check
 	@mkdir -p bin/
@@ -79,13 +81,13 @@ deb: FPM-exists build
         ../../debian/marathon-consul.upstart=/etc/init/marathon-consul.conf \
         ../../debian/config.json=/etc/marathon-consul.d/config.json
 
-release: deb
-	@go get github.com/laher/goxc
+release: deb deps
 	goxc
 
-bump:
-	goxc bump
+version: deps
+	goxc -wc -pv=$(v)
 	git add .goxc.json
-	git commit -m "Bumped version"
+	git commit -m "Release $(v)"
+	git tag $(v)
 
 .PHONY: all bump build release deb
