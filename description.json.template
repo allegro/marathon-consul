@@ -1,0 +1,25 @@
+{
+  "package": {
+    "name": "marathon-consul",
+    "repo": "deb",
+    "subject": "allegro",
+    "desc": "Marathon-consul service (performs Marathon Tasks registration as Consul Services for service discovery) Marathon-consul takes information provided by the Marathon event bus and forwards it to Consul agents. It also re-syncs all the information from Marathon to Consul on startup and repeats it with given interval.",
+    "website_url": "https://github.com/allegro/marathon-consul",
+    "issue_tracker_url": "https://github.com/allegro/marathon-consul",
+    "vcs_url": "https://github.com/allegro/marathon-consul.git",
+    "licenses": ["Apache License, version 2.0"],
+    "labels": ["marathon", "consul", "discovery", "mesos"]
+  },
+  "version": {
+    "name": "{VERSION}",
+    "desc": "Release {VERSION}",
+    "released": "{DATE}",
+    "vcs_tag": "{VERSION}   ",
+    "gpgSign": true
+  },
+  "files":
+  [
+    {"includePattern": "dist/{VERSION}/(.*).deb", "uploadPattern": "/$1"}
+  ],
+  "publish": true
+}

@@ -14,6 +14,7 @@ PATH := $(CURRENTDIR)/bin:$(PATH)
 COVERAGEDIR = $(CURRENTDIR)/coverage
 
 VERSION = $(shell cat .goxc.json | python -c "import json,sys;obj=json.load(sys.stdin);print obj['PackageVersion'];")
+DATE = $(shell date +%Y-%m-%d)
 
 TEMPDIR := $(shell mktemp -d)
 LD_FLAGS = -ldflags '-w' -ldflags "-X main.VERSION=$(VERSION)"
@@ -64,8 +65,10 @@ FPM-exists:
 	@fpm -v || \
 	(echo >&2 "FPM must be installed on the system. See https://github.com/jordansissel/fpm"; false)
 
-deb: FPM-exists build
-	mkdir -p dist/$(VERSION)/
+dist/$(VERSION):
+	@mkdir -p dist/$(VERSION)
+
+deb: FPM-exists build dist/$(VERSION)
 	cd dist/$(VERSION)/ && \
 	fpm -s dir \
 	    -t deb \
@@ -83,6 +86,13 @@ deb: FPM-exists build
         ../../debian/marathon-consul.upstart=/etc/init/marathon-consul.conf \
         ../../debian/config.json=/etc/marathon-consul.d/config.json
 
+dist/description.json: description.json.template dist/$(VERSION)
+	@TEMPFILE=$(mktemp)
+	@echo "s/{DATE}/${DATE}/" >> TEMPFILE
+	@echo "s/{VERSION}/${VERSION}/" >> TEMPFILE
+	@$(shell sed -f x description.json.template > dist/description.json)
+	@rm TEMPFILE
+
 release: deb deps
 	goxc
 
@@ -92,4 +102,7 @@ version: deps
 	git commit -m "Release $(v)"
 	git tag $(v)
 
-.PHONY: all bump build release deb
+clean:
+	rm -rf dist
+
+.PHONY: all bump build release deb clean
