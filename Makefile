@@ -29,6 +29,8 @@ deps:
         (go get github.com/modocache/gover)
 	@which goxc > /dev/null || \
         (go get github.com/laher/goxc)
+	@which goimports > /dev/null || \
+        (go get golang.org/x/tools/cmd/goimports)
 
 build-deps: deps format test check
 	@mkdir -p bin/
