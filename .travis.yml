@@ -5,12 +5,11 @@ sudo: false
 go:
   - 1.7
 before_install:
+  - gem install fpm
   - go get github.com/mattn/goveralls
 script:
-  - make check
+  - make release check
   - goveralls -coverprofile=coverage/gover.coverprofile -service travis-ci
-before_deploy:
-  - make release
 deploy:
   provider: releases
   api_key:
