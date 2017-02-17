@@ -19,6 +19,11 @@ import (
 
 var pfx string
 
+func Clear() {
+	log.Info("Unregistering all metrics.")
+	metrics.DefaultRegistry.UnregisterAll()
+}
+
 func Mark(name string) {
 	meter := metrics.GetOrRegisterMeter(name, metrics.DefaultRegistry)
 	meter.Mark(1)

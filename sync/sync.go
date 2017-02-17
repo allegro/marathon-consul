@@ -59,6 +59,7 @@ func (s *Sync) SyncServices() error {
 
 func (s *Sync) syncServices() error {
 	if check, err := s.shouldPerformSync(); !check {
+		metrics.Clear()
 		return err
 	}
 	log.Info("Syncing services started")
