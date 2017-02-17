@@ -76,10 +76,13 @@ func (s *Sync) syncServices() error {
 		return fmt.Errorf("Can't get Consul services: %v", err)
 	}
 
-	s.registerAppTasksNotFoundInConsul(apps, services)
-	s.deregisterConsulServicesNotFoundInMarathon(apps, services)
+	registerCount := s.registerAppTasksNotFoundInConsul(apps, services)
+	deregisterCount := s.deregisterConsulServicesNotFoundInMarathon(apps, services)
 
-	log.Info("Syncing services finished")
+	metrics.UpdateGauge("sync.register", int64(registerCount))
+	metrics.UpdateGauge("sync.deregister", int64(deregisterCount))
+
+	log.Infof("Syncing services finished. Stats, register: %d, deregister: %d", registerCount, deregisterCount)
 	return nil
 }
 
@@ -115,7 +118,8 @@ func (s *Sync) resolveHostname() error {
 	return nil
 }
 
-func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.App, services []*service.Service) {
+func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.App, services []*service.Service) int {
+	deregisterCount := 0
 	runningTasks := s.marathonTaskIdsSet(marathonApps)
 	for _, service := range services {
 		taskIDInTag, err := service.TaskId()
@@ -132,14 +136,18 @@ func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.A
 					"Id":      service.ID,
 					"Address": service.RegisteringAgentAddress,
 				}).Error("Can't deregister service")
+			} else {
+				deregisterCount++
 			}
 		} else {
 			log.WithField("Id", service.ID).Debug("Service is running")
 		}
 	}
+	return deregisterCount
 }
 
-func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, services []*service.Service) {
+func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, services []*service.Service) int {
+	registerCount := 0
 	registrationsUnderTaskIds := s.taskIdsInConsulServices(services)
 	for _, app := range marathonApps {
 		if !app.IsConsulApp() {
@@ -158,6 +166,8 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, servic
 					err := s.serviceRegistry.Register(&task, app)
 					if err != nil {
 						log.WithError(err).WithField("Id", task.ID).Error("Can't register task")
+					} else {
+						registerCount++
 					}
 				} else {
 					log.WithField("Id", task.ID).Debug("Task is not healthy. Not Registering")
@@ -170,6 +180,7 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, servic
 			}
 		}
 	}
+	return registerCount
 }
 
 func (s *Sync) taskIdsInConsulServices(services []*service.Service) map[apps.TaskID]int {
