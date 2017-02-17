@@ -29,6 +29,12 @@ func TestMark(t *testing.T) {
 
 	// then
 	assert.Equal(t, int64(2), mark.Count())
+
+	// when
+	Clear()
+
+	// then
+	assert.Nil(t, metrics.Get("marker"))
 }
 
 func TestTime(t *testing.T) {
@@ -50,6 +56,12 @@ func TestTime(t *testing.T) {
 
 	// then
 	assert.Equal(t, int64(2), time.Count())
+
+	// when
+	Clear()
+
+	// then
+	assert.Nil(t, metrics.Get("marker"))
 }
 
 func TestUpdateGauge(t *testing.T) {
@@ -71,6 +83,12 @@ func TestUpdateGauge(t *testing.T) {
 
 	// then
 	assert.Equal(t, int64(123), gauge.Value())
+
+	// when
+	Clear()
+
+	// then
+	assert.Nil(t, metrics.Get("marker"))
 }
 
 func TestMetricsInit_ForGraphiteWithNoAddress(t *testing.T) {
