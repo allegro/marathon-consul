@@ -28,6 +28,7 @@ func Init(config Config) error {
 	if err != nil {
 		return err
 	}
+	sentryHook.Timeout = config.Timeout.Duration
 	log.AddHook(sentryHook)
 	log.Infof("Enabled Sentry alerting for following logging levels: %v", levels)
 

@@ -206,9 +206,10 @@ metrics-interval            | `30s`           | Metrics reporting interval
 metrics-location            |                 | Graphite URL (used when metrics-target is set to graphite)
 metrics-prefix              | `default`       | Metrics prefix (default is resolved to <hostname>.<app_name>
 metrics-target              | `stdout`        | Metrics destination stdout or graphite (empty string disables metrics)
-  sentry-dsn                |                 | Sentry DSN. If it's not set sentry will be disabled
-  sentry-env                |                 | Sentry environment
-  sentry-level              | `error`         | Sentry alerting level (info|warning|error|fatal|panic)
+sentry-dsn                  |                 | Sentry DSN. If it's not set sentry will be disabled
+sentry-env                  |                 | Sentry environment
+sentry-level                | `error`         | Sentry alerting level (info|warning|error|fatal|panic)
+sentry-timeout              | `1s`            | Sentry hook initialization timeout
 sync-enabled                | `true`          | Enable Marathon-consul scheduled sync
 sync-force                  | `false`         | Force leadership-independent Marathon-consul sync (run always)
 sync-interval               | `15m0s`         | Marathon-consul sync interval
