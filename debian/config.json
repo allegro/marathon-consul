@@ -47,6 +47,12 @@
   "Log": {
     "Level": "info",
     "Format": "text",
-    "File": ""
+    "File": "",
+    "Sentry": {
+      "DSN": "",
+      "Env": "",
+      "Timeout": "1s",
+      "Level": "error"
+    }
   }
 }

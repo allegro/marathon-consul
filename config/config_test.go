@@ -133,9 +133,10 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			Format: "text",
 			File:   "",
 			Sentry: sentry.Config{
-				DSN:   "",
-				Env:   "",
-				Level: "",
+				DSN:     "",
+				Env:     "",
+				Level:   "error",
+				Timeout: timeutil.Interval{Duration: time.Second},
 			},
 		},
 		configFile: "../debian/config.json",

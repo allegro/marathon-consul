@@ -111,6 +111,7 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Log.Sentry.DSN, "sentry-dsn", "", "Sentry DSN. If it's not set sentry will be disabled")
 	flag.StringVar(&config.Log.Sentry.Env, "sentry-env", "", "Sentry environment")
 	flag.StringVar(&config.Log.Sentry.Level, "sentry-level", "error", "Sentry alerting level (info|warning|error|fatal|panic)")
+	flag.DurationVar(&config.Log.Sentry.Timeout.Duration, "sentry-timeout", time.Second, "Sentry hook initialization timeout")
 
 	// General
 	flag.StringVar(&config.configFile, "config-file", "", "Path to a JSON file to read configuration from. Note: Will override options set earlier on the command line")
