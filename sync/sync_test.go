@@ -385,14 +385,58 @@ func TestSync_WithDeregisteringProblems(t *testing.T) {
 	for _, s := range allServices {
 		consulStub.FailDeregisterForID(s.ID)
 	}
-
 	sync := newSyncWithDefaultConfig(marathon, consulStub)
+
 	// when
 	err := sync.SyncServices()
 	services, _ := consulStub.GetAllServices()
+
 	// then
 	assert.NoError(t, err)
 	assert.Len(t, services, 1)
+}
+
+func TestSync_WithDeregisteringFallback(t *testing.T) {
+	t.Parallel()
+	// given
+	marathon := marathon.MarathonerStubForApps()
+	consulStub := consul.NewConsulStub()
+	marathonApp := ConsulApp("/test/app", 1)
+	for _, task := range marathonApp.Tasks {
+		consulStub.Register(&task, marathonApp)
+	}
+	marathon.TasksStub = map[apps.AppID][]*apps.Task{
+		apps.AppID("/test/app"): []*apps.Task{&marathonApp.Tasks[0]},
+	}
+	sync := newSyncWithDefaultConfig(marathon, consulStub)
+
+	// when
+	err := sync.SyncServices()
+	services, _ := consulStub.GetAllServices()
+
+	// then
+	assert.NoError(t, err)
+	assert.Len(t, services, 1)
+}
+
+func TestSync_WithDeregisteringFallbackError(t *testing.T) {
+	t.Parallel()
+	// given
+	marathon := marathon.MarathonerStubForApps()
+	consulStub := consul.NewConsulStub()
+	marathonApp := ConsulApp("/test/app", 1)
+	for _, task := range marathonApp.Tasks {
+		consulStub.Register(&task, marathonApp)
+	}
+	sync := newSyncWithDefaultConfig(marathon, consulStub)
+
+	// when
+	err := sync.SyncServices()
+	services, _ := consulStub.GetAllServices()
+
+	// then
+	assert.NoError(t, err)
+	assert.Len(t, services, 0)
 }
 
 func TestSync_WithMarathonProblems(t *testing.T) {
