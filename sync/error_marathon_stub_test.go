@@ -17,7 +17,7 @@ func (m errorMarathon) App(id apps.AppID) (*apps.App, error) {
 	return nil, errors.New("Error")
 }
 
-func (m errorMarathon) Tasks(appID apps.AppID) ([]*apps.Task, error) {
+func (m errorMarathon) Tasks(appID apps.AppID) ([]apps.Task, error) {
 	return nil, errors.New("Error")
 }
 

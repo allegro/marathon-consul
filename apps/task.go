@@ -32,10 +32,19 @@ type HealthCheckResult struct {
 }
 
 type TasksResponse struct {
-	Tasks []*Task `json:"tasks"`
+	Tasks []Task `json:"tasks"`
 }
 
-func ParseTasks(jsonBlob []byte) ([]*Task, error) {
+func FindTaskByID(id TaskID, tasks []Task) (Task, bool) {
+	for _, task := range tasks {
+		if task.ID == id {
+			return task, true
+		}
+	}
+	return Task{}, false
+}
+
+func ParseTasks(jsonBlob []byte) ([]Task, error) {
 	tasks := &TasksResponse{}
 	err := json.Unmarshal(jsonBlob, tasks)
 
