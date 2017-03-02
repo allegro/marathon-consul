@@ -1,19 +1,19 @@
 package: github.com/allegro/marathon-consul
 import:
 - package: github.com/Sirupsen/logrus
-  version: ^0.11.0
+  version: ^0.11.4
 - package: github.com/cyberdelia/go-metrics-graphite
 - package: github.com/hashicorp/consul
-  version: 14c6d009cc103e730c8cc91661846f7f79d364c3
+  version: v0.7.5
   subpackages:
   - api
   - testutil
 - package: github.com/ogier/pflag
-  version: ^0.0.1
+  version: 0.0.1
 - package: github.com/rcrowley/go-metrics
   version: bdb33529eca3e55eac7328e07c57012a797af602
 - package: github.com/stretchr/testify
-  version: ^1.1.4
+  version: 1.1.4
   subpackages:
   - assert
 - package: gopkg.in/gemnasium/logrus-airbrake-hook.v2
@@ -21,4 +21,4 @@ import:
 - package: gopkg.in/airbrake/gobrake.v2
 - package: github.com/getsentry/raven-go
 - package: github.com/evalphobia/logrus_sentry
-  version: v0.2.9
+  version: v0.2.10

@@ -15,5 +15,5 @@ go graphite.Graphite(metrics.DefaultRegistry,
 
 ### Migrating from `rcrowley/go-metrics` implementation
 
-Simply modify the import from `"github.com/rcrowley/go-metrics/graphite"` to
+Simply modify the import from `"github.com/rcrowley/go-metrics/librato"` to
 `"github.com/cyberdelia/go-metrics-graphite"` and it should Just Work.
