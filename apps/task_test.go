@@ -37,7 +37,7 @@ func TestParseTasks(t *testing.T) {
 
 	tasksBlob, _ := ioutil.ReadFile("tasks.json")
 
-	expectedTasks := []*Task{
+	expectedTasks := []Task{
 		{
 			ID:                 "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8",
 			AppID:              "/test",

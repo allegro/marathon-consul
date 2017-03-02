@@ -146,7 +146,7 @@ func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.A
 					Error("Can't get fresh info about app tasks. Will deregister this service.")
 			}
 
-			taskIsRunning := findTask(taskIDInTag, tasks)
+			_, taskIsRunning := apps.FindTaskByID(taskIDInTag, tasks)
 
 			if !taskIsRunning {
 				if err := s.serviceRegistry.Deregister(service); err != nil {
@@ -223,13 +223,4 @@ func marathonTaskIdsSet(marathonApps []*apps.App) map[apps.TaskID]struct{} {
 		}
 	}
 	return tasksSet
-}
-
-func findTask(id apps.TaskID, tasks []*apps.Task) bool {
-	for _, t := range tasks {
-		if t.ID == id {
-			return true
-		}
-	}
-	return false
 }

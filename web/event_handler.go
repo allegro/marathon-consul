@@ -122,9 +122,9 @@ func (fh *eventHandler) handleHealthyTask(body []byte) error {
 
 	tasks := app.Tasks
 
-	task, err := findTaskByID(taskID, tasks)
-	if err != nil {
-		log.WithField("Id", taskID).WithError(err).Error("Task not found")
+	task, found := apps.FindTaskByID(taskID, tasks)
+	if !found {
+		log.WithField("Id", taskID).Error("Task not found")
 		return err
 	}
 
@@ -171,15 +171,6 @@ func (fh *eventHandler) deregister(taskID apps.TaskID) error {
 		log.WithField("Id", taskID).WithError(err).Error("There was a problem deregistering task")
 	}
 	return err
-}
-
-func findTaskByID(id apps.TaskID, tasks []apps.Task) (apps.Task, error) {
-	for _, task := range tasks {
-		if task.ID == id {
-			return task, nil
-		}
-	}
-	return apps.Task{}, fmt.Errorf("Task %s not found", id)
 }
 
 // for every other use of Tasks, Marathon uses the "id" field for the task ID.

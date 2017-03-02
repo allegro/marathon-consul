@@ -17,7 +17,7 @@ import (
 type Marathoner interface {
 	ConsulApps() ([]*apps.App, error)
 	App(apps.AppID) (*apps.App, error)
-	Tasks(apps.AppID) ([]*apps.Task, error)
+	Tasks(apps.AppID) ([]apps.Task, error)
 	Leader() (string, error)
 }
 
@@ -77,7 +77,7 @@ func (m Marathon) ConsulApps() ([]*apps.App, error) {
 	return apps.ParseApps(body)
 }
 
-func (m Marathon) Tasks(app apps.AppID) ([]*apps.Task, error) {
+func (m Marathon) Tasks(app apps.AppID) ([]apps.Task, error) {
 	log.WithFields(log.Fields{
 		"Location": m.Location,
 		"Id":       app,
