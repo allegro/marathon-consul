@@ -2,11 +2,11 @@ package config
 
 import (
 	"encoding/json"
+	"flag"
 	"io/ioutil"
 	"os"
 	"strings"
 	"time"
-	"flag"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/consul"

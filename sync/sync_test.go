@@ -406,7 +406,7 @@ func TestSync_WithDeregisteringFallback(t *testing.T) {
 		consulStub.Register(&task, marathonApp)
 	}
 	marathon.TasksStub = map[apps.AppID][]apps.Task{
-		apps.AppID("/test/app"): []apps.Task{marathonApp.Tasks[0]},
+		apps.AppID("/test/app"): {marathonApp.Tasks[0]},
 	}
 	sync := newSyncWithDefaultConfig(marathon, consulStub)
 
