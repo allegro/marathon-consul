@@ -2,14 +2,22 @@ package web
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/allegro/marathon-consul/events"
 	"github.com/stretchr/testify/assert"
 )
 
 const maxEventSize = 4096
+
+type BadReader struct{}
+
+func (r BadReader) Read(p []byte) (int, error) {
+	return 0, errors.New("Some error")
+}
 
 func TestWebHandler_Send202AcceptedWhenEventsPassesValidation(t *testing.T) {
 	t.Parallel()
@@ -20,7 +28,7 @@ func TestWebHandler_Send202AcceptedWhenEventsPassesValidation(t *testing.T) {
 		  "timestamp":"2015-12-07T09:33:40.898Z"
 		}`)
 
-	queue := make(chan event, 1)
+	queue := make(chan events.Event, 1)
 	handler := newWebHandler(queue, maxEventSize)
 	req, _ := http.NewRequest("POST", "/events", bytes.NewBuffer(body))
 	recorder := httptest.NewRecorder()
@@ -149,7 +157,7 @@ func TestWebHandler_DropWhenEventQueueIsFull(t *testing.T) {
                   "timestamp":"2015-12-07T09:33:40.898Z"
                 }`)
 
-	queue := make(chan event, 1)
+	queue := make(chan events.Event, 1)
 	handler := newWebHandler(queue, maxEventSize)
 	req1, _ := http.NewRequest("POST", "/events", bytes.NewBuffer(body))
 	req2, _ := http.NewRequest("POST", "/events", bytes.NewBuffer(body))

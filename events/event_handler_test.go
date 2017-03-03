@@ -1,4 +1,4 @@
-package web
+package events
 
 import (
 	"errors"
@@ -22,11 +22,11 @@ type handlerStubs struct {
 // Creates eventHandler and returns nonbuffered event queue that has to be used to send events to handler and
 // function that can be used as a synchronization point to wait until previous event has been processed.
 // Under the hood synchronization function simply sends a stop signal to the handlers stopChan.
-func testEventHandler(stubs handlerStubs) (chan<- event, func()) {
-	queue := make(chan event)
-	awaitChan := newEventHandler(0, stubs.serviceRegistry, stubs.marathon, queue).start()
+func testEventHandler(stubs handlerStubs) (chan<- Event, func()) {
+	queue := make(chan Event)
+	awaitChan := NewEventHandler(0, stubs.serviceRegistry, stubs.marathon, queue).Start()
 
-	return queue, func() { awaitChan <- stopEvent{} }
+	return queue, func() { awaitChan <- StopEvent{} }
 }
 
 func TestEventHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
@@ -50,7 +50,7 @@ func TestEventHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
 	}`)
 
 	// when
-	queue <- event{eventType: "status_update_event", timestamp: time.Now(), body: body}
+	queue <- Event{EventType: "status_update_event", Timestamp: time.Now(), Body: body}
 	awaitFunc()
 
 	// then
@@ -82,7 +82,7 @@ func TestEventHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 		}`)
 
 		// when
-		queue <- event{eventType: "status_update_event", timestamp: time.Now(), body: body}
+		queue <- Event{EventType: "status_update_event", Timestamp: time.Now(), Body: body}
 		awaitFunc()
 
 		// then
@@ -125,7 +125,7 @@ func TestEventHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 		}`)
 
 		// when
-		queue <- event{eventType: "status_update_event", timestamp: time.Now(), body: body}
+		queue <- Event{EventType: "status_update_event", Timestamp: time.Now(), Body: body}
 		awaitFunc()
 
 		// then
@@ -162,7 +162,7 @@ func TestEventHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testi
 	}`)
 
 	// when
-	queue <- event{eventType: "status_update_event", timestamp: time.Now(), body: body}
+	queue <- Event{EventType: "status_update_event", Timestamp: time.Now(), Body: body}
 	awaitFunc()
 
 	// then
@@ -197,7 +197,7 @@ func TestEventHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.
 		}`)
 
 		// when
-		queue <- event{eventType: "status_update_event", timestamp: time.Now(), body: body}
+		queue <- Event{EventType: "status_update_event", Timestamp: time.Now(), Body: body}
 		awaitFunc()
 
 		// then
@@ -217,7 +217,7 @@ func TestEventHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *test
 	body := healthStatusChangeEventForTask("test_app.1")
 
 	// when
-	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	queue <- Event{EventType: "health_status_changed_event", Timestamp: time.Now(), Body: body}
 	awaitFunc()
 
 	// then
@@ -237,7 +237,7 @@ func TestEventHandler_HandleHealthStatusEvent(t *testing.T) {
 	body := healthStatusChangeEventForTask("test_app.1")
 
 	// when
-	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	queue <- Event{EventType: "health_status_changed_event", Timestamp: time.Now(), Body: body}
 	awaitFunc()
 
 	// then
@@ -261,7 +261,7 @@ func TestEventHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing
 	body := healthStatusChangeEventForTask("test_app.1")
 
 	// when
-	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	queue <- Event{EventType: "health_status_changed_event", Timestamp: time.Now(), Body: body}
 	awaitFunc()
 
 	// then
@@ -281,7 +281,7 @@ func TestEventHandler_NotHandleHealthStatusEventForTaskWithNotAllHealthChecksPas
 	body := healthStatusChangeEventForTask("test_app.1")
 
 	// when
-	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	queue <- Event{EventType: "health_status_changed_event", Timestamp: time.Now(), Body: body}
 	awaitFunc()
 
 	// then
@@ -301,7 +301,7 @@ func TestEventHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *test
 	body := healthStatusChangeEventForTask("/test/app.0")
 
 	// when
-	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	queue <- Event{EventType: "health_status_changed_event", Timestamp: time.Now(), Body: body}
 	awaitFunc()
 
 	// then
@@ -327,7 +327,7 @@ func TestEventHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.T)
 	}`)
 
 	// when
-	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	queue <- Event{EventType: "health_status_changed_event", Timestamp: time.Now(), Body: body}
 	awaitFunc()
 
 	// then
@@ -353,7 +353,7 @@ func TestEventHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T) 
 	}`)
 
 	// when
-	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	queue <- Event{EventType: "health_status_changed_event", Timestamp: time.Now(), Body: body}
 	awaitFunc()
 
 	// then
@@ -379,7 +379,7 @@ func TestEventHandler_HandleHealthStatusEventReturn202WhenMarathonReturnedError(
 	}`)
 
 	// when
-	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	queue <- Event{EventType: "health_status_changed_event", Timestamp: time.Now(), Body: body}
 	awaitFunc()
 
 	// then
@@ -398,7 +398,7 @@ func TestEventHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.
 	body := healthStatusChangeEventForTask("unknown.1")
 
 	// when
-	queue <- event{eventType: "health_status_changed_event", timestamp: time.Now(), body: body}
+	queue <- Event{EventType: "health_status_changed_event", Timestamp: time.Now(), Body: body}
 	awaitFunc()
 
 	// then

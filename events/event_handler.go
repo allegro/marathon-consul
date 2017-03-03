@@ -1,4 +1,4 @@
-package web
+package events
 
 import (
 	"bytes"
@@ -7,28 +7,32 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
-	"github.com/allegro/marathon-consul/events"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/service"
 )
 
-type event struct {
-	timestamp time.Time
-	eventType string
-	body      []byte
+type Event struct {
+	Timestamp time.Time
+	EventType string
+	Body      []byte
 }
 
 type eventHandler struct {
 	id              int
 	serviceRegistry service.ServiceRegistry
 	marathon        marathon.Marathoner
-	eventQueue      <-chan event
+	eventQueue      <-chan Event
 }
 
-type stopEvent struct{}
+type StopEvent struct{}
 
-func newEventHandler(id int, serviceRegistry service.ServiceRegistry, marathon marathon.Marathoner, eventQueue <-chan event) *eventHandler {
+const (
+	StatusUpdateEventType        = "status_update_event"
+	HealthStatusChangedEventType = "health_status_changed_event"
+)
+
+func NewEventHandler(id int, serviceRegistry service.ServiceRegistry, marathon marathon.Marathoner, eventQueue <-chan Event) *eventHandler {
 	return &eventHandler{
 		id:              id,
 		serviceRegistry: serviceRegistry,
@@ -37,10 +41,10 @@ func newEventHandler(id int, serviceRegistry service.ServiceRegistry, marathon m
 	}
 }
 
-func (fh *eventHandler) start() chan<- stopEvent {
-	var e event
+func (fh *eventHandler) Start() chan<- StopEvent {
+	var e Event
 	process := func() {
-		err := fh.handleEvent(e.eventType, e.body)
+		err := fh.handleEvent(e.EventType, e.Body)
 		if err != nil {
 			metrics.Mark("events.processing.error")
 		} else {
@@ -48,7 +52,7 @@ func (fh *eventHandler) start() chan<- stopEvent {
 		}
 	}
 
-	quitChan := make(chan stopEvent)
+	quitChan := make(chan StopEvent)
 	log.WithField("Id", fh.id).Println("Starting worker")
 	go func() {
 		for {
@@ -66,8 +70,8 @@ func (fh *eventHandler) start() chan<- stopEvent {
 				}
 				metrics.UpdateGauge("events.queue.util", utilization)
 
-				metrics.UpdateGauge("events.queue.delay_ns", time.Since(e.timestamp).Nanoseconds())
-				metrics.Time("events.processing."+e.eventType, process)
+				metrics.UpdateGauge("events.queue.delay_ns", time.Since(e.Timestamp).Nanoseconds())
+				metrics.Time("events.processing."+e.EventType, process)
 			case <-quitChan:
 				log.WithField("Id", fh.id).Info("Stopping worker")
 			}
@@ -81,9 +85,9 @@ func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 	body = replaceTaskIDWithID(body)
 
 	switch eventType {
-	case statusUpdateEventType:
+	case StatusUpdateEventType:
 		return fh.handleStatusEvent(body)
-	case healthStatusChangedEventType:
+	case HealthStatusChangedEventType:
 		return fh.handleHealthyTask(body)
 	default:
 		err := fmt.Errorf("Unsuported event type: %s", eventType)
@@ -93,7 +97,7 @@ func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 }
 
 func (fh *eventHandler) handleHealthyTask(body []byte) error {
-	taskHealthChange, err := events.ParseTaskHealthChange(body)
+	taskHealthChange, err := ParseTaskHealthChange(body)
 	if err != nil {
 		log.WithError(err).Error("Body generated error")
 		return err

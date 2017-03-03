@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 
+	"github.com/allegro/marathon-consul/events"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/service"
 )
@@ -12,19 +13,19 @@ type Handler func(w http.ResponseWriter, r *http.Request)
 
 func NewHandler(config Config, marathon marathon.Marathoner, serviceOperations service.ServiceRegistry) (Handler, Stop) {
 
-	stopChannels := make([]chan<- stopEvent, config.WorkersCount, config.WorkersCount)
-	eventQueue := make(chan event, config.QueueSize)
+	stopChannels := make([]chan<- events.StopEvent, config.WorkersCount, config.WorkersCount)
+	eventQueue := make(chan events.Event, config.QueueSize)
 	for i := 0; i < config.WorkersCount; i++ {
-		handler := newEventHandler(i, serviceOperations, marathon, eventQueue)
-		stopChannels[i] = handler.start()
+		handler := events.NewEventHandler(i, serviceOperations, marathon, eventQueue)
+		stopChannels[i] = handler.Start()
 	}
 	return newWebHandler(eventQueue, config.MaxEventSize).Handle, stop(stopChannels)
 }
 
-func stop(channels []chan<- stopEvent) Stop {
+func stop(channels []chan<- events.StopEvent) Stop {
 	return func() {
 		for _, channel := range channels {
-			channel <- stopEvent{}
+			channel <- events.StopEvent{}
 		}
 	}
 }
