@@ -13,11 +13,11 @@ import (
 )
 
 type EventHandler struct {
-	eventQueue   chan event
+	eventQueue   chan events.Event
 	maxEventSize int64
 }
 
-func newWebHandler(eventQueue chan event, maxEventSize int64) *EventHandler {
+func newWebHandler(eventQueue chan events.Event, maxEventSize int64) *EventHandler {
 	if maxEventSize < 1000 {
 		log.WithField("maxEventSize", maxEventSize).Warning("Max event size is too small. Switching to 1000")
 		maxEventSize = 1000
@@ -27,11 +27,6 @@ func newWebHandler(eventQueue chan event, maxEventSize int64) *EventHandler {
 		maxEventSize: maxEventSize,
 	}
 }
-
-const (
-	statusUpdateEventType        = "status_update_event"
-	healthStatusChangedEventType = "health_status_changed_event"
-)
 
 // Handle is responsible for accepting events and passing them to event queue
 // for async processing. It always returns 2xx even if requests are malformed
@@ -59,13 +54,13 @@ func (h *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		metrics.UpdateGauge("events.requests.delay.current", delay)
 		log.WithFields(log.Fields{"EventType": e.Type, "OriginalTimestamp": e.Timestamp.String()}).Debug("Received event")
 
-		if e.Type != statusUpdateEventType && e.Type != healthStatusChangedEventType {
+		if e.Type != events.StatusUpdateEventType && e.Type != events.HealthStatusChangedEventType {
 			drop(fmt.Errorf("%s is not supported", e.Type), w)
 			return
 		}
 
 		select {
-		case h.eventQueue <- event{eventType: e.Type, body: body, timestamp: time.Now()}:
+		case h.eventQueue <- events.Event{EventType: e.Type, Body: body, Timestamp: time.Now()}:
 			accept(w)
 		default:
 			metrics.Mark("events.queue.drop")
