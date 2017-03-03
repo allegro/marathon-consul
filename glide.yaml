@@ -8,8 +8,6 @@ import:
   subpackages:
   - api
   - testutil
-- package: github.com/ogier/pflag
-  version: ^0.0.1
 - package: github.com/rcrowley/go-metrics
   version: bdb33529eca3e55eac7328e07c57012a797af602
 - package: github.com/stretchr/testify

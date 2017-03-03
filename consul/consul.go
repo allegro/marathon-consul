@@ -37,7 +37,7 @@ func (c *Consul) GetServices(name string) ([]*service.Service, error) {
 }
 
 func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide ServicesProvider) ([]*service.Service, error) {
-	for retry := uint32(0); retry <= c.config.RequestRetries; retry++ {
+	for retry := uint64(0); retry <= c.config.RequestRetries; retry++ {
 		agent, err := c.agents.GetAnyAgent()
 		if err != nil {
 			return nil, err

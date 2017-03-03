@@ -52,8 +52,6 @@ imports:
   version: cb45b412ee4f9d6cc2eeb2b2b7dd0f6cfd7545c1
   subpackages:
   - coordinate
-- name: github.com/ogier/pflag
-  version: 32a05c62658bd1d7c7e75cbc8195de5d585fde0f
 - name: github.com/pkg/errors
   version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
 - name: github.com/pmezard/go-difflib

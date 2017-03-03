@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"flag"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/consul"
@@ -14,7 +15,6 @@ import (
 	"github.com/allegro/marathon-consul/sentry"
 	"github.com/allegro/marathon-consul/sync"
 	"github.com/allegro/marathon-consul/web"
-	flag "github.com/ogier/pflag"
 )
 
 type Config struct {
@@ -35,9 +35,6 @@ type Config struct {
 var config = &Config{}
 
 func New() (*Config, error) {
-	if !flag.Parsed() {
-		config.parseFlags()
-	}
 	flag.Parse()
 	err := config.loadConfigFromFile()
 
@@ -58,7 +55,7 @@ func New() (*Config, error) {
 	return config, err
 }
 
-func (config *Config) parseFlags() {
+func init() {
 	// Consul
 	flag.StringVar(&config.Consul.Port, "consul-port", "8500", "Consul port")
 	flag.BoolVar(&config.Consul.Auth.Enabled, "consul-auth", false, "Use Consul with authentication")
@@ -71,8 +68,8 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Consul.Token, "consul-token", "", "The Consul ACL token")
 	flag.StringVar(&config.Consul.Tag, "consul-tag", "marathon", "Common tag name added to every service registered in Consul, should be unique for every Marathon-cluster connected to Consul")
 	flag.DurationVar(&config.Consul.Timeout.Duration, "consul-timeout", 3*time.Second, "Time limit for requests made by the Consul HTTP client. A Timeout of zero means no timeout")
-	flag.Uint32Var(&config.Consul.AgentFailuresTolerance, "consul-max-agent-failures", 3, "Max number of consecutive request failures for agent before removal from cache")
-	flag.Uint32Var(&config.Consul.RequestRetries, "consul-get-services-retry", 3, "Number of retries on failure when performing requests to Consul. Each retry uses different cached agent")
+	flag.Uint64Var(&config.Consul.AgentFailuresTolerance, "consul-max-agent-failures", 3, "Max number of consecutive request failures for agent before removal from cache")
+	flag.Uint64Var(&config.Consul.RequestRetries, "consul-get-services-retry", 3, "Number of retries on failure when performing requests to Consul. Each retry uses different cached agent")
 	flag.StringVar(&config.Consul.ConsulNameSeparator, "consul-name-separator", ".", "Separator used to create default service name for Consul")
 	flag.StringVar(&config.Consul.IgnoredHealthChecks, "consul-ignored-healthchecks", "", "A comma separated blacklist of Marathon health check types that will not be migrated to Consul, e.g. command,tcp")
 

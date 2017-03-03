@@ -12,8 +12,8 @@ type Config struct {
 	Token                  string
 	Tag                    string
 	Timeout                time.Interval
-	RequestRetries         uint32
-	AgentFailuresTolerance uint32
+	RequestRetries         uint64
+	AgentFailuresTolerance uint64
 	ConsulNameSeparator    string
 	IgnoredHealthChecks    string
 }

@@ -11,15 +11,15 @@ import (
 type Agent struct {
 	Client   *consulapi.Client
 	IP       string
-	failures uint32
+	failures uint64
 }
 
-func (a *Agent) IncFailures() uint32 {
-	return atomic.AddUint32(&a.failures, 1)
+func (a *Agent) IncFailures() uint64 {
+	return atomic.AddUint64(&a.failures, 1)
 }
 
 func (a *Agent) ClearFailures() {
-	atomic.StoreUint32(&a.failures, 0)
+	atomic.StoreUint64(&a.failures, 0)
 }
 
 func (a *ConcurrentAgents) createAgent(ipAddress string) (*Agent, error) {
