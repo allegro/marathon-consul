@@ -9,6 +9,7 @@ import (
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/sentry"
+	"github.com/allegro/marathon-consul/sse"
 	"github.com/allegro/marathon-consul/sync"
 	"github.com/allegro/marathon-consul/web"
 )
@@ -34,19 +35,26 @@ func main() {
 	}
 
 	consulInstance := consul.New(config.Consul)
-	remote, err := marathon.New(config.Marathon)
+	// TODO(tz) - move Leader from sync module to highest level config, access like config.Leader
+	remote, err := marathon.New(config.Marathon, config.Sync.Leader)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
 	sync.New(config.Sync, remote, consulInstance, consulInstance.AddAgentsFromApps).StartSyncServicesJob()
 
-	handler, stop := web.NewHandler(config.Web, remote, consulInstance)
-	defer stop()
+	if config.SSE.Enabled {
+		stopSSE := sse.NewHandler(config.SSE, config.Web, remote, consulInstance)
+		defer stopSSE()
+	}
 
-	// set up routes
+	if config.Web.Enabled {
+		handler, stop := web.NewHandler(config.Web, remote, consulInstance)
+		defer stop()
+		http.HandleFunc("/events", handler)
+	}
+
 	http.HandleFunc("/health", web.HealthHandler)
-	http.HandleFunc("/events", handler)
 
 	log.WithField("Port", config.Web.Listen).Info("Listening")
 	log.Fatal(http.ListenAndServe(config.Web.Listen, nil))

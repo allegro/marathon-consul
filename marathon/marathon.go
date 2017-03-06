@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
@@ -19,11 +20,14 @@ type Marathoner interface {
 	App(apps.AppID) (*apps.App, error)
 	Tasks(apps.AppID) ([]apps.Task, error)
 	Leader() (string, error)
+	EventStream([]string, int, int) (*Streamer, error)
+	AmILeader() (bool, error)
 }
 
 type Marathon struct {
 	Location string
 	Protocol string
+	MyLeader string
 	Auth     *url.Userinfo
 	client   *http.Client
 }
@@ -32,7 +36,7 @@ type LeaderResponse struct {
 	Leader string `json:"leader"`
 }
 
-func New(config Config) (*Marathon, error) {
+func New(config Config, leader string) (*Marathon, error) {
 	var auth *url.Userinfo
 	if len(config.Username) == 0 && len(config.Password) == 0 {
 		auth = nil
@@ -45,10 +49,12 @@ func New(config Config) (*Marathon, error) {
 			InsecureSkipVerify: !config.VerifySsl,
 		},
 	}
+	// TODO(tz) - consider passing desiredEvents as config
 	return &Marathon{
 		Location: config.Location,
 		Protocol: config.Protocol,
 		Auth:     auth,
+		MyLeader: leader,
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   config.Timeout.Duration,
@@ -59,7 +65,7 @@ func New(config Config) (*Marathon, error) {
 func (m Marathon) App(appID apps.AppID) (*apps.App, error) {
 	log.WithField("Location", m.Location).Debug("Asking Marathon for " + appID)
 
-	body, err := m.get(m.urlWithQuery(fmt.Sprintf("/v2/apps/%s", appID), params{"embed": "apps.tasks"}))
+	body, err := m.get(m.urlWithQuery(fmt.Sprintf("/v2/apps/%s", appID), params{"embed": []string{"apps.tasks"}}))
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +75,7 @@ func (m Marathon) App(appID apps.AppID) (*apps.App, error) {
 
 func (m Marathon) ConsulApps() ([]*apps.App, error) {
 	log.WithField("Location", m.Location).Debug("Asking Marathon for apps")
-	body, err := m.get(m.urlWithQuery("/v2/apps", params{"embed": "apps.tasks", "label": apps.MarathonConsulLabel}))
+	body, err := m.get(m.urlWithQuery("/v2/apps", params{"embed": []string{"apps.tasks"}, "label": []string{apps.MarathonConsulLabel}}))
 	if err != nil {
 		return nil, err
 	}
@@ -104,6 +110,53 @@ func (m Marathon) Leader() (string, error) {
 	err = json.Unmarshal(body, leaderResponse)
 
 	return leaderResponse.Leader, err
+}
+
+// EventStream method creates Streamer handler which is configured based on marathon
+// client and credentials.
+func (m Marathon) EventStream(desiredEvents []string, retries, retryBackoff int) (*Streamer, error) {
+	subURL := m.urlWithQuery("/v2/events", params{"event_type": desiredEvents})
+
+	// Before creating actual streamer, this function blocks until configured leader for this (m) reciever is elected.
+	// When leaderPoll function successfully exit this instance of marathon-consul,
+	// consider itself as a new leader and initializes Streamer.
+	err := m.leaderPoll()
+	if err != nil {
+		log.WithError(err).Fatal("Leader poll failed. Check marathon and previous errors. Exiting")
+	}
+
+	return &Streamer{
+		subURL: subURL,
+		client: &http.Client{
+			Transport: m.client.Transport,
+		},
+		retries:      retries,
+		retryBackoff: retryBackoff,
+	}, nil
+}
+
+// leaderPoll just blocks until configured myleader is equal to
+// leader returned from marathon (/v2/leader endpoint)
+func (m Marathon) leaderPoll() error {
+	pollTicker := time.Tick(1 * time.Second)
+	retries := 5
+	i := 0
+	for range pollTicker {
+		leading, err := m.AmILeader()
+		if err != nil {
+			if i >= retries {
+				return fmt.Errorf("Failed to get a leader after %d retries", i)
+			}
+			i++
+			log.WithError(err).Error("Error while getting leader")
+			continue
+		}
+		if leading {
+			return nil
+		}
+		log.Debug("I am not leader")
+	}
+	return nil
 }
 
 func (m Marathon) get(url string) ([]byte, error) {
@@ -157,7 +210,7 @@ func (m Marathon) url(path string) string {
 	return m.urlWithQuery(path, nil)
 }
 
-type params map[string]string
+type params map[string][]string
 
 func (m Marathon) urlWithQuery(path string, params params) string {
 	marathon := url.URL{
@@ -167,9 +220,16 @@ func (m Marathon) urlWithQuery(path string, params params) string {
 		Path:   path,
 	}
 	query := marathon.Query()
-	for key, value := range params {
-		query.Add(key, value)
+	for key, values := range params {
+		for _, value := range values {
+			query.Add(key, value)
+		}
 	}
 	marathon.RawQuery = query.Encode()
 	return marathon.String()
+}
+
+func (m Marathon) AmILeader() (bool, error) {
+	leader, err := m.Leader()
+	return m.MyLeader == leader, err
 }

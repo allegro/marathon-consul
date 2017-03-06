@@ -1,0 +1,112 @@
+package sse
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+
+	"github.com/allegro/marathon-consul/events"
+	"github.com/allegro/marathon-consul/marathon"
+	"github.com/allegro/marathon-consul/metrics"
+
+	log "github.com/Sirupsen/logrus"
+)
+
+// SSEHandler defines handler for marathon event stream, opening and closing
+// subscription
+type SSEHandler struct {
+	config      Config
+	eventQueue  chan events.Event
+	loc         string
+	client      *http.Client
+	close       context.CancelFunc
+	req         *http.Request
+	Streamer    *marathon.Streamer
+	maxLineSize int64
+}
+
+func newSSEHandler(eventQueue chan events.Event, service marathon.Marathoner, maxLineSize int64, config Config) *SSEHandler {
+
+	streamer, err := service.EventStream(
+		[]string{events.StatusUpdateEventType, events.HealthStatusChangedEventType},
+		config.Retries,
+		config.RetryBackoff,
+	)
+	if err != nil {
+		log.WithError(err).Fatal("Unable to start Streamer")
+	}
+
+	return &SSEHandler{
+		config:      config,
+		eventQueue:  eventQueue,
+		Streamer:    streamer,
+		maxLineSize: maxLineSize,
+	}
+}
+
+// Open connection to marathon v2/events
+func (h *SSEHandler) start() chan<- events.StopEvent {
+	stopChan := make(chan events.StopEvent)
+	go func() {
+		<-stopChan
+		h.stop()
+	}()
+
+	go func() {
+		defer h.stop()
+
+		err := h.Streamer.Start()
+		if err != nil {
+			log.WithError(err).Error("Unable to start streamer")
+		}
+		// buffer used for token storage,
+		// if token is greater than buffer, empty token is stored
+		buffer := make([]byte, h.maxLineSize)
+		// configure streamer scanner :)
+		h.Streamer.Scanner.Buffer(buffer, cap(buffer))
+		h.Streamer.Scanner.Split(events.ScanLines)
+		for {
+			metrics.Time("events.read", func() { h.handle() })
+		}
+	}()
+	return stopChan
+}
+
+func (h *SSEHandler) handle() {
+	e, err := events.ParseSSEEvent(h.Streamer.Scanner)
+	if err != nil {
+		if err == io.EOF {
+			// Event could be partial at this point
+			h.eventQueue <- events.Event{Timestamp: e.Timestamp.Time, EventType: e.Type, Body: e.Body}
+		}
+		log.Errorf("Error parsing event %s", err)
+		err = h.Streamer.Recover()
+		if err != nil {
+			log.WithError(err).Fatalf("Unable to recover streamer")
+		}
+	}
+	delay := time.Now().Unix() - e.Timestamp.Unix()
+	metrics.UpdateGauge("events.read.delay.current", delay)
+	if e.Type != events.StatusUpdateEventType && e.Type != events.HealthStatusChangedEventType {
+		drop(fmt.Errorf("%s is not supported", e.Type))
+		return
+	}
+	select {
+	case h.eventQueue <- events.Event{Timestamp: e.Timestamp.Time, EventType: e.Type, Body: e.Body}:
+		metrics.Mark("events.read.accept")
+	default:
+		drop(fmt.Errorf("Event queue full"))
+	}
+}
+
+func drop(err error) {
+	log.WithError(err).Debug("Malformed request")
+	metrics.Mark("events.read.drop")
+}
+
+// Close connections managed by context
+func (h *SSEHandler) stop() {
+	h.Streamer.Stop()
+}

@@ -7,6 +7,11 @@ Register [Marathon](https://mesosphere.github.io/marathon/) Tasks as [Consul](ht
 forwards it to Consul agents. It also re-syncs all the information from Marathon
 to Consul on startup and repeats it with given interval.
 
+Note: In the future release Event Bus (callbacks) will be considered deprecated and eventually
+removed in favor of Event Stream (SSE).
+Right now marathon-consul is supporting both solutions.
+SSE is provided as experimental feature, disabled by default ([more](#sse-support)).
+
 ## Code
 
 This project is based on
@@ -101,7 +106,6 @@ curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callback
 ```
 The event subscription should be set to `localhost` to reduce network traffic.
 
-
 ## Usage
 
 ### Marathon masters
@@ -165,10 +169,11 @@ for more details.
 ### Sync
 
 - The scheduled Marathon-consul sync may run in two modes:
-    - Only on node that is the current [Marathon-leader](https://mesosphere.github.io/marathon/docs/rest-api.html#get-v2-leader), `sync-leader` parameter should be set to `hostname:port` the current node appears in the Marathon cluster. 
+    - Only on node that is the current [Marathon-leader](https://mesosphere.github.io/marathon/docs/rest-api.html#get-v2-leader), `sync-leader` parameter should be set to `hostname:port` the current node appears in the Marathon cluster.
       This mode is **enabled by default** and the `sync-leader` property is set to the hostname resolved by OS.
       Note that there is a difference between `sync-leader` and `marathon-location`: `sync-leader` is used for node leadership detection (should be set to cluster-wide node name), while `marathon-location` is used for connection purpose (may be set to `localhost`)
     - On every node, `sync-force` parameter should be set to `true`
+
 
 ### Options
 
@@ -215,6 +220,8 @@ sync-force                  | `false`         | Force leadership-independent Mar
 sync-interval               | `15m0s`         | Marathon-consul sync interval
 sync-leader                 |                 | Marathon cluster-wide node name (defaults to <hostname>:8080), the sync will run only if the specified node is the current Marathon-leader
 workers-pool-size           | `10`            | Number of concurrent workers processing events
+sse-enabled                 | `false`         | Enable marathon-consul SSE on this node
+web-enabled                 | `true`          | Enable marathon-consul Web callbacks on this node
 
 ### Endpoints
 
@@ -227,7 +234,7 @@ Endpoint  | Description
 
 ### Register under multiple ports
 
-If you need to map your Marathon task into multiple service registrations in Consul, you can configure marathon-consul 
+If you need to map your Marathon task into multiple service registrations in Consul, you can configure marathon-consul
 via Marathon's `portDefinitions`:
 
 ```
@@ -276,15 +283,15 @@ curl -X GET http://localhost:8500/v1/catalog/service/my-app-other-name
 ],
 "ServicePort": 31293,
 ...
-``` 
+```
 
-If any port definition contains the `consul` label, then advanced configuration mode is enabled. As a result, only the ports 
+If any port definition contains the `consul` label, then advanced configuration mode is enabled. As a result, only the ports
 containing this label are registered, under the name specified as the label's value – with empty value resolved to default name.
-Names don't have to be unique – you can have multiple registrations under the same name, but on different ports, 
+Names don't have to be unique – you can have multiple registrations under the same name, but on different ports,
 perhaps with different tags. Note that the `consul` label still needs to be present in the top-level application labels, even
 though its value won't have any effect.
 
-Tags configured in the top-level application labels will be added to all registrations. Tags configured in the port definition 
+Tags configured in the top-level application labels will be added to all registrations. Tags configured in the port definition
 labels will be added only to corresponding registrations.
 
 All registrations share the same `marathon-task` tag.
@@ -294,8 +301,18 @@ All registrations share the same `marathon-task` tag.
 Until 1.x.x marathon-consul would register services in Consul with registration id equal to related Marathon task id. Since 1.x.x registration ids are different and
 an additional tag, `marathon-task`, is added to each registration.
 
-If you update marathon-consul from version 0.x.x to 1.x.x, expect the synchronization phase during the first startup to 
+If you update marathon-consul from version 0.x.x to 1.x.x, expect the synchronization phase during the first startup to
 reregister all healthy services managed by marathon-consul to the new format. Unhealthy services will get deregistered in the process.
+
+## SSE Support
+
+In future callback interface between marathon and marathon-consul will be replaced by SSE.
+While using SSE please consider:
+- SSE is using Web module config for queues, event sizes, in the future will be moved to sse module,
+- SSE is using sync-leader config for determining current leader, when this value match leader returned by marathon (/v2/leader endpoint)
+then SSE is started on this instance,
+- when enabled SSE is spawning its own own set of workers and separated dispatcher,
+- be advised to disable marathon callback subscription when enabling SSE, otherwise it might result in doubling registers and deregisers.
 
 ## Known limitations
 
