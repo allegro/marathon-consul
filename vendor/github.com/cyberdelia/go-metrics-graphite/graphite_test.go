@@ -21,9 +21,9 @@ func ExampleGraphite() {
 	go Graphite(metrics.DefaultRegistry, 1*time.Second, "some.prefix", addr)
 }
 
-func ExampleWithConfig() {
+func ExampleGraphiteWithConfig() {
 	addr, _ := net.ResolveTCPAddr("net", ":2003")
-	go WithConfig(Config{
+	go GraphiteWithConfig(GraphiteConfig{
 		Addr:          addr,
 		Registry:      metrics.DefaultRegistry,
 		FlushInterval: 1 * time.Second,
@@ -32,7 +32,7 @@ func ExampleWithConfig() {
 	})
 }
 
-func NewTestServer(t *testing.T, prefix string) (map[string]float64, net.Listener, metrics.Registry, Config, *sync.WaitGroup) {
+func NewTestServer(t *testing.T, prefix string) (map[string]float64, net.Listener, metrics.Registry, GraphiteConfig, *sync.WaitGroup) {
 	res := make(map[string]float64)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -65,7 +65,7 @@ func NewTestServer(t *testing.T, prefix string) (map[string]float64, net.Listene
 
 	r := metrics.NewRegistry()
 
-	c := Config{
+	c := GraphiteConfig{
 		Addr:          ln.Addr().(*net.TCPAddr),
 		Registry:      r,
 		FlushInterval: 10 * time.Millisecond,
@@ -86,7 +86,7 @@ func TestWrites(t *testing.T) {
 	// TODO: Use a mock meter rather than wasting 10s to get a QPS.
 	for i := 0; i < 10*4; i++ {
 		metrics.GetOrRegisterMeter("bar", r).Mark(1)
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(250 * time.Millisecond)
 	}
 
 	metrics.GetOrRegisterTimer("baz", r).Update(time.Second * 5)
@@ -96,7 +96,7 @@ func TestWrites(t *testing.T) {
 	metrics.GetOrRegisterTimer("baz", r).Update(time.Second * 1)
 
 	wg.Add(1)
-	Once(c)
+	GraphiteOnce(c)
 	wg.Wait()
 
 	if expected, found := 2.0, res["foobar.foo.count"]; !floatEquals(found, expected) {
@@ -107,7 +107,7 @@ func TestWrites(t *testing.T) {
 		t.Fatal("bad value:", expected, found)
 	}
 
-	if expected, found := 5.0, res["foobar.bar.one-minute"]; !floatEquals(found, expected) {
+	if expected, found := 4.0, res["foobar.bar.one-minute"]; !floatEquals(found, expected) {
 		t.Fatal("bad value:", expected, found)
 	}
 
