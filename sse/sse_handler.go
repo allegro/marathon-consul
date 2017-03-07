@@ -2,7 +2,6 @@ package sse
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -79,9 +78,9 @@ func (h *SSEHandler) handle() {
 	if err != nil {
 		if err == io.EOF {
 			// Event could be partial at this point
-			h.eventQueue <- events.Event{Timestamp: e.Timestamp.Time, EventType: e.Type, Body: e.Body}
+			h.enqueueEvent(e)
 		}
-		log.Errorf("Error parsing event %s", err)
+		log.WithError(err).Error("Error when parsing the event")
 		err = h.Streamer.Recover()
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to recover streamer")
@@ -90,20 +89,21 @@ func (h *SSEHandler) handle() {
 	delay := time.Now().Unix() - e.Timestamp.Unix()
 	metrics.UpdateGauge("events.read.delay.current", delay)
 	if e.Type != events.StatusUpdateEventType && e.Type != events.HealthStatusChangedEventType {
-		drop(fmt.Errorf("%s is not supported", e.Type))
+		log.Debugf("%s is not supported", e.Type)
+		metrics.Mark("events.read.drop")
 		return
 	}
-	select {
-	case h.eventQueue <- events.Event{Timestamp: e.Timestamp.Time, EventType: e.Type, Body: e.Body}:
-		metrics.Mark("events.read.accept")
-	default:
-		drop(fmt.Errorf("Event queue full"))
-	}
+	h.enqueueEvent(e)
 }
 
-func drop(err error) {
-	log.WithError(err).Debug("Malformed request")
-	metrics.Mark("events.read.drop")
+func (h *SSEHandler) enqueueEvent(e events.SSEEvent) {
+	select {
+	case h.eventQueue <- events.Event{Timestamp: time.Now(), EventType: e.Type, Body: e.Body}:
+		metrics.Mark("events.read.accept")
+	default:
+		log.Error("Events queue full. Dropping the event")
+		metrics.Mark("events.read.drop")
+	}
 }
 
 // Close connections managed by context
