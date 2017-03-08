@@ -4,6 +4,8 @@ sudo: false
 
 go:
   - 1.8
+env:
+  - GOMAXPROCS=2
 before_install:
   - gem install fpm
   - go get github.com/mattn/goveralls
