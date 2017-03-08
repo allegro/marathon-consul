@@ -24,6 +24,8 @@ func CreateTestServer(t *testing.T) *testutil.TestServer {
 			SerfWan: ports[4],
 			Server:  ports[5],
 		}
+		c.DisableCheckpoint = true
+		c.Performance.RaftMultiplier = 1
 	})
 }
 
