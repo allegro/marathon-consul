@@ -86,6 +86,7 @@ func (h *SSEHandler) handle() {
 			log.WithError(err).Fatalf("Unable to recover streamer")
 		}
 	}
+	metrics.Mark("events.read." + e.Type)
 	delay := time.Now().Unix() - e.Timestamp.Unix()
 	metrics.UpdateGauge("events.read.delay.current", delay)
 	if e.Type != events.StatusUpdateEventType && e.Type != events.HealthStatusChangedEventType {
