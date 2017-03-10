@@ -3,10 +3,16 @@ package apps
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/allegro/marathon-consul/time"
 )
 
 type Task struct {
-	ID                 TaskID              `json:"id"`
+	ID TaskID `json:"id"`
+	// Timestamp field is not a part of a Marathon task object.
+	// It's only present in StatusUpdateEventType and we are using this struct for decoding it.
+	// As well as for Marathon Task.
+	Timestamp          time.Timestamp      `json:"timestamp"`
 	TaskStatus         string              `json:"taskStatus"`
 	AppID              AppID               `json:"appId"`
 	Host               string              `json:"host"`

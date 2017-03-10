@@ -14,7 +14,7 @@ import (
 func TestEvent_IfEventIsEmptyReturnsFalse(t *testing.T) {
 	t.Parallel()
 	// given
-	event := &SSEEvent{Timestamp: Timestamp{},
+	event := &SSEEvent{
 		Type: "status_update_event",
 		Body: []byte(`{"id": "simpleId"}`),
 		ID:   "id",
