@@ -25,8 +25,16 @@ func (t Timestamp) MarshalJSON() ([]byte, error) {
 	return json.Marshal(t.String())
 }
 
+func (t *Timestamp) Delay() time.Duration {
+	return time.Now().Sub(t.Time)
+}
+
 func (t *Timestamp) String() string {
 	return t.Format(time.RFC3339Nano)
+}
+
+func (t *Timestamp) Missing() bool {
+	return t.Unix() == (time.Time{}).Unix()
 }
 
 type Interval struct {

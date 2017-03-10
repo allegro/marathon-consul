@@ -102,6 +102,8 @@ func (fh *eventHandler) handleHealthyTask(body []byte) error {
 		log.WithError(err).Error("Body generated error")
 		return err
 	}
+	delay := taskHealthChange.Timestamp.Delay()
+	metrics.UpdateGauge("events.read.delay.current", int64(delay))
 
 	appID := taskHealthChange.AppID
 	taskID := taskHealthChange.TaskID()
@@ -146,11 +148,12 @@ func (fh *eventHandler) handleHealthyTask(body []byte) error {
 
 func (fh *eventHandler) handleStatusEvent(body []byte) error {
 	task, err := apps.ParseTask(body)
-
 	if err != nil {
 		log.WithError(err).WithField("Body", body).Error("Could not parse event body")
 		return err
 	}
+	delay := task.Timestamp.Delay()
+	metrics.UpdateGauge("events.read.delay.current", int64(delay))
 
 	log.WithFields(log.Fields{
 		"Id":         task.ID,

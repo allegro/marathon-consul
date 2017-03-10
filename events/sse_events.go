@@ -10,7 +10,6 @@ import (
 // Event holds state of parsed fields from marathon EventStream
 type SSEEvent struct {
 	Type        string
-	Timestamp   Timestamp
 	Body        []byte
 	ID          string
 	Delay       string

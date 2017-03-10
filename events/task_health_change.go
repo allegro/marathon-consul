@@ -6,10 +6,11 @@ import (
 	"regexp"
 
 	"github.com/allegro/marathon-consul/apps"
+	"github.com/allegro/marathon-consul/time"
 )
 
 type TaskHealthChange struct {
-	Timestamp string `json:"timestamp"`
+	Timestamp time.Timestamp `json:"timestamp"`
 	// Prefer TaskID() instead of ID
 	ID         apps.TaskID `json:"id"`
 	InstanceID string      `json:"instanceId"`

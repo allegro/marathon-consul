@@ -87,8 +87,6 @@ func (h *SSEHandler) handle() {
 		}
 	}
 	metrics.Mark("events.read." + e.Type)
-	delay := time.Now().Unix() - e.Timestamp.Unix()
-	metrics.UpdateGauge("events.read.delay.current", delay)
 	if e.Type != events.StatusUpdateEventType && e.Type != events.HealthStatusChangedEventType {
 		log.Debugf("%s is not supported", e.Type)
 		metrics.Mark("events.read.drop")
