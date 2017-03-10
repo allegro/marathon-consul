@@ -12,6 +12,7 @@ import (
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/sentry"
+	"github.com/allegro/marathon-consul/sse"
 	"github.com/allegro/marathon-consul/sync"
 	"github.com/allegro/marathon-consul/web"
 	flag "github.com/ogier/pflag"
@@ -20,6 +21,7 @@ import (
 type Config struct {
 	Consul   consul.Config
 	Web      web.Config
+	SSE      sse.Config
 	Sync     sync.Config
 	Marathon marathon.Config
 	Metrics  metrics.Config
@@ -81,6 +83,10 @@ func (config *Config) parseFlags() {
 	flag.IntVar(&config.Web.QueueSize, "events-queue-size", 1000, "Size of events queue")
 	flag.IntVar(&config.Web.WorkersCount, "workers-pool-size", 10, "Number of concurrent workers processing events")
 	flag.Int64Var(&config.Web.MaxEventSize, "event-max-size", 4096, "Maximum size of event to process (bytes)")
+	flag.BoolVar(&config.Web.Enabled, "web-enabled", true, "Enable web events (callbacks).")
+
+	// SSE
+	flag.BoolVar(&config.SSE.Enabled, "sse-enabled", false, "Enable sse event stream.")
 
 	// Sync
 	flag.BoolVar(&config.Sync.Enabled, "sync-enabled", true, "Enable Marathon-consul scheduled sync")

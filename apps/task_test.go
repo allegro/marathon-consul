@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/allegro/marathon-consul/time"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,6 +14,7 @@ func TestParseTask(t *testing.T) {
 
 	testTask := &Task{
 		ID:                 "my-app_0-1396592784349",
+		Timestamp:          time.Timestamp{},
 		AppID:              "/my-app",
 		Host:               "slave-1234.acme.org",
 		Ports:              []int{31372},
@@ -40,6 +42,7 @@ func TestParseTasks(t *testing.T) {
 	expectedTasks := []Task{
 		{
 			ID:                 "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8",
+			Timestamp:          time.Timestamp{},
 			AppID:              "/test",
 			Host:               "192.168.2.114",
 			Ports:              []int{31315},

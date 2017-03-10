@@ -3,12 +3,22 @@ package events
 import (
 	"encoding/json"
 	"testing"
+	gotime "time"
 
+	"github.com/allegro/marathon-consul/time"
 	"github.com/stretchr/testify/assert"
 )
 
+func StringToTimestamp(date string) time.Timestamp {
+	t, err := gotime.Parse(gotime.RFC3339Nano, date)
+	if err != nil {
+		return time.Timestamp{Time: gotime.Time{}}
+	}
+	return time.Timestamp{Time: t}
+}
+
 var testHealthChange = &TaskHealthChange{
-	Timestamp: "2014-03-01T23:29:30.158Z",
+	Timestamp: StringToTimestamp("2014-03-01T23:29:30.158Z"),
 	ID:        "my-app_0-1396592784349",
 	Alive:     true,
 	AppID:     "/my-app",

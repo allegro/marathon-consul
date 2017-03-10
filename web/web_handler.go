@@ -50,8 +50,6 @@ func (h *EventHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		}
 
 		metrics.Mark("events.requests." + e.Type)
-		delay := time.Now().Unix() - e.Timestamp.Unix()
-		metrics.UpdateGauge("events.requests.delay.current", delay)
 		log.WithFields(log.Fields{"EventType": e.Type, "OriginalTimestamp": e.Timestamp.String()}).Debug("Received event")
 
 		if e.Type != events.StatusUpdateEventType && e.Type != events.HealthStatusChangedEventType {
