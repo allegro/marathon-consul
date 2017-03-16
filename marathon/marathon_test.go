@@ -408,6 +408,30 @@ func TestEventStream_PassingStreamerCreated(t *testing.T) {
 	assert.IsType(t, &Streamer{}, streamer)
 }
 
+func TestUrlWithQuery_NoProxyMarathon(t *testing.T) {
+	t.Parallel()
+
+	// given
+	m, _ := New(Config{Location: "localhost:8080", Protocol: "HTTP"}, "")
+	// when
+	path := m.urlWithQuery("/testpath", params{})
+
+	// then
+	assert.Equal(t, "HTTP://localhost:8080/testpath", path)
+}
+
+func TestUrlWithQuery_ProxyMarathon(t *testing.T) {
+	t.Parallel()
+
+	// given
+	m, _ := New(Config{Location: "localhost:8080/proxy/url/segments", Protocol: "HTTP"}, "")
+	// when
+	path := m.urlWithQuery("/testpath", params{})
+
+	// then
+	assert.Equal(t, "HTTP://localhost:8080/proxy/url/segments/testpath", path)
+}
+
 // http://keighl.com/post/mocking-http-responses-in-golang/
 func stubServer(uri string, body string) (*httptest.Server, *http.Transport) {
 	return mockServer(func(w http.ResponseWriter, r *http.Request) {

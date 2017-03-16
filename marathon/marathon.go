@@ -212,13 +212,28 @@ func (m Marathon) url(path string) string {
 
 type params map[string][]string
 
+// urlWithQuery returns absolute path to marathon endpoint
+// if location is given with path e.g. "localhost:8080/proxy/url", then
+// host and path parts are appended to respective url.URL fields
 func (m Marathon) urlWithQuery(path string, params params) string {
-	marathon := url.URL{
-		Scheme: m.Protocol,
-		User:   m.Auth,
-		Host:   m.Location,
-		Path:   path,
+	var marathon url.URL
+	if strings.Contains(m.Location, "/") {
+		parts := strings.SplitN(m.Location, "/", 2)
+		marathon = url.URL{
+			Scheme: m.Protocol,
+			User:   m.Auth,
+			Host:   parts[0],
+			Path:   "/" + parts[1] + path,
+		}
+	} else {
+		marathon = url.URL{
+			Scheme: m.Protocol,
+			User:   m.Auth,
+			Host:   m.Location,
+			Path:   path,
+		}
 	}
+
 	query := marathon.Query()
 	for key, values := range params {
 		for _, value := range values {
