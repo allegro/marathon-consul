@@ -212,10 +212,9 @@ func (m Marathon) url(path string) string {
 
 type params map[string][]string
 
-// urlWithQuery was altered to handle a case when marathon location has a path in addition
-// to the ususal host & port. This was necessary in order to accommodate linkerd
-// (https://linkerd.io/documentation/) service discovery of marathon instance
-// eg. --marathon-location=localhost:4141/ops-staging/marathon-devteam-1
+// urlWithQuery returns absolute path to marathon endpoint
+// if location is given with path e.g. "localhost:8080/proxy/url", then
+// host and path parts are appended to respective url.URL fields
 func (m Marathon) urlWithQuery(path string, params params) string {
 	var marathon url.URL
 	if strings.Contains(m.Location, "/") {
@@ -234,6 +233,7 @@ func (m Marathon) urlWithQuery(path string, params params) string {
 			Path:   path,
 		}
 	}
+
 	query := marathon.Query()
 	for key, values := range params {
 		for _, value := range values {
