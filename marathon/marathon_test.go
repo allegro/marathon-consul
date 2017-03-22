@@ -17,7 +17,7 @@ func TestMarathon_AppsWhenMarathonReturnEmptyList(t *testing.T) {
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
 	apps, err := m.ConsulApps()
@@ -29,7 +29,7 @@ func TestMarathon_AppsWhenMarathonReturnEmptyList(t *testing.T) {
 func TestMarathon_AppsWhenConfigIsWrong(t *testing.T) {
 	t.Parallel()
 	// given
-	m, _ := New(Config{Location: "not::valid/location", Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: "not::valid/location", Protocol: "HTTP"})
 	// when
 	apps, err := m.ConsulApps()
 	//then
@@ -43,7 +43,7 @@ func TestMarathon_AppsWhenServerIsNotResponding(t *testing.T) {
 	}
 	t.Parallel()
 	// given
-	m, _ := New(Config{Location: "unknown:22", Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: "unknown:22", Protocol: "HTTP"})
 	// when
 	apps, err := m.ConsulApps()
 	//then
@@ -62,7 +62,7 @@ func TestMarathon_AppsWhenMarathonConnectionFailedShouldNotRetry(t *testing.T) {
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
 	apps, err := m.ConsulApps()
@@ -83,7 +83,7 @@ func TestMarathon_TasksWhenMarathonConnectionFailedShouldNotRetry(t *testing.T) 
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
 	tasks, err := m.Tasks("/app/id")
@@ -104,7 +104,7 @@ func TestMarathon_AppWhenMarathonConnectionFailedShouldNotRetry(t *testing.T) {
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
 	app, err := m.App("/app/id")
@@ -121,7 +121,7 @@ func TestMarathon_AppsWhenMarathonReturnEmptyResponse(t *testing.T) {
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
 	apps, err := m.ConsulApps()
@@ -137,7 +137,7 @@ func TestMarathon_AppsWhenMarathonReturnMalformedJsonResponse(t *testing.T) {
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
 	app, err := m.App("/test/app")
@@ -153,7 +153,7 @@ func TestMarathon_AppWhenMarathonReturnEmptyApp(t *testing.T) {
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
 	app, err := m.App("/test/app")
@@ -169,7 +169,7 @@ func TestMarathon_AppWhenMarathonReturnEmptyResponse(t *testing.T) {
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
 	app, err := m.App("/test/app")
@@ -185,7 +185,7 @@ func TestMarathon_AppWhenMarathonReturnMalformedJsonResponse(t *testing.T) {
 	defer server.Close()
 
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
 	apps, err := m.ConsulApps()
@@ -207,7 +207,7 @@ func TestMarathon_TasksWhenMarathonReturnEmptyList(t *testing.T) {
 	}]}`)
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
 	tasks, err := m.Tasks("//test/app")
@@ -222,7 +222,7 @@ func TestMarathon_TasksWhenMarathonReturnEmptyResponse(t *testing.T) {
 	server, transport := stubServer("/v2/apps/test/app/tasks", ``)
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
 	tasks, err := m.Tasks("/test/app")
@@ -237,7 +237,7 @@ func TestMarathon_TasksWhenMarathonReturnMalformedJsonResponse(t *testing.T) {
 	server, transport := stubServer("/v2/apps/test/app/tasks", ``)
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 	// when
 	tasks, err := m.Tasks("/test/app")
@@ -251,7 +251,7 @@ func TestConfig_transport(t *testing.T) {
 	// given
 	config := Config{VerifySsl: false}
 	// when
-	marathon, _ := New(config, "")
+	marathon, _ := New(config)
 	// then
 	transport, ok := marathon.client.Transport.(*http.Transport)
 	assert.True(t, ok)
@@ -263,7 +263,7 @@ func TestUrl_WithoutAuth(t *testing.T) {
 	// given
 	config := Config{Location: "localhost:8080", Protocol: "http"}
 	// when
-	m, _ := New(config, "")
+	m, _ := New(config)
 	// then
 	assert.Equal(t, "http://localhost:8080/v2/apps", m.url("/v2/apps"))
 }
@@ -273,7 +273,7 @@ func TestUrl_WithAuth(t *testing.T) {
 	// given
 	config := Config{Location: "localhost:8080", Protocol: "http", Username: "peter", Password: "parker"}
 	// when
-	m, _ := New(config, "")
+	m, _ := New(config)
 	// then
 	assert.Equal(t, "http://peter:parker@localhost:8080/v2/apps", m.url("/v2/apps"))
 }
@@ -285,7 +285,7 @@ func TestLeader_SuccessfulResponse(t *testing.T) {
 	server, transport := stubServer("/v2/leader", `{"leader": "some.leader.host:8081"}`)
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 
 	// when
@@ -303,7 +303,7 @@ func TestLeader_ErrorOnMalformedJsonResponse(t *testing.T) {
 	server, transport := stubServer("/v2/leader", "{")
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 
 	// when
@@ -325,7 +325,7 @@ func TestLeader_NotRetryOnFailingResponse(t *testing.T) {
 	})
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"})
 	m.client.Transport = transport
 
 	// when
@@ -344,7 +344,7 @@ func TestLeaderPoll_PassingRunningOnLeader(t *testing.T) {
 	server, transport := stubServer("/v2/leader", `{"leader": "this.leader:8080"}`)
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "this.leader:8080")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP", Leader: "this.leader:8080"})
 	m.client.Transport = transport
 
 	// when
@@ -354,38 +354,61 @@ func TestLeaderPoll_PassingRunningOnLeader(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestAMILeader_PassingRunningOnLeader(t *testing.T) {
+func TestIsLeader_PassingRunningOnLeader(t *testing.T) {
 	t.Parallel()
 
 	// given
 	server, transport := stubServer("/v2/leader", `{"leader": "this.leader:8080"}`)
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "this.leader:8080")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP", Leader: "this.leader:8080"})
 	m.client.Transport = transport
 
 	// when
-	leading, err := m.AmILeader()
+	leading, err := m.IsLeader()
 
 	//then
 	assert.True(t, leading)
 	assert.NoError(t, err)
 }
 
-func TestAMILeader_NotPassingNotRunningOnLeader(t *testing.T) {
+func TestIsLeader_NotPassingNotRunningOnLeader(t *testing.T) {
 	t.Parallel()
 
 	// given
 	server, transport := stubServer("/v2/leader", `{"leader": "other.leader:8080"}`)
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "this.leader:8080")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP", Leader: "this.leader:8080"})
 	m.client.Transport = transport
 
 	// when
-	leading, err := m.AmILeader()
+	leading, err := m.IsLeader()
 
 	//then
+	assert.False(t, leading)
+	assert.NoError(t, err)
+}
+
+func TestIsLeader_NotPassingMyLeaderIsEmptyStringShouldFillItWithLocalHostname(t *testing.T) {
+	t.Parallel()
+
+	// given
+	server, transport := stubServer("/v2/leader", `{"leader": "other.leader:8080"}`)
+	defer server.Close()
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP", Leader: ""})
+	m.client.Transport = transport
+	myHostname := "localhost"
+	hostname = func() (string, error) {
+		return myHostname, nil
+	}
+
+	// when
+	leading, err := m.IsLeader()
+
+	//then
+	assert.Equal(t, m.MyLeader, fmt.Sprintf("%s:8080", myHostname))
 	assert.False(t, leading)
 	assert.NoError(t, err)
 }
@@ -397,7 +420,7 @@ func TestEventStream_PassingStreamerCreated(t *testing.T) {
 	server, transport := stubServer("/v2/leader", `{"leader": "this.leader:8080"}`)
 	defer server.Close()
 	url, _ := url.Parse(server.URL)
-	m, _ := New(Config{Location: url.Host, Protocol: "HTTP"}, "this.leader:8080")
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP", Leader: "this.leader:8080"})
 	m.client.Transport = transport
 
 	// when
@@ -412,7 +435,7 @@ func TestUrlWithQuery_NoProxyMarathon(t *testing.T) {
 	t.Parallel()
 
 	// given
-	m, _ := New(Config{Location: "localhost:8080", Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: "localhost:8080", Protocol: "HTTP"})
 	// when
 	path := m.urlWithQuery("/testpath", params{})
 
@@ -424,7 +447,7 @@ func TestUrlWithQuery_ProxyMarathon(t *testing.T) {
 	t.Parallel()
 
 	// given
-	m, _ := New(Config{Location: "localhost:8080/proxy/url/segments", Protocol: "HTTP"}, "")
+	m, _ := New(Config{Location: "localhost:8080/proxy/url/segments", Protocol: "HTTP"})
 	// when
 	path := m.urlWithQuery("/testpath", params{})
 

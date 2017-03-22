@@ -11,7 +11,7 @@ import (
 func TestMarathonStub(t *testing.T) {
 	t.Parallel()
 	// given
-	m := marathon.MarathonerStubWithLeaderForApps("some.host:1234", utils.ConsulApp("/test/app", 3))
+	m := marathon.MarathonerStubWithLeaderForApps("some.host:1234", "some.host:1234", utils.ConsulApp("/test/app", 3))
 	// then
 	assert.False(t, m.Interactions())
 	// when

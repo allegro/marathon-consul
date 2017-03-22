@@ -30,6 +30,6 @@ func (m errorMarathon) EventStream([]string, int, int) (*marathon.Streamer, erro
 	return &marathon.Streamer{}, errors.New("Error")
 }
 
-func (m errorMarathon) AmILeader() (bool, error) {
+func (m errorMarathon) IsLeader() (bool, error) {
 	return false, errors.New("Error")
 }

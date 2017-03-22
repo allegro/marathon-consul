@@ -2,7 +2,6 @@ package sync
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -94,31 +93,16 @@ func (s *Sync) shouldPerformSync() (bool, error) {
 		log.Debug("Forcing sync")
 		return true, nil
 	}
-	leader, err := s.marathon.Leader()
+	leading, err := s.marathon.IsLeader()
 	if err != nil {
 		return false, fmt.Errorf("Could not get Marathon leader: %v", err)
 	}
-	if s.config.Leader == "" {
-		if err = s.resolveHostname(); err != nil {
-			return false, fmt.Errorf("Could not resolve hostname: %v", err)
-		}
+	if leading {
+		log.Debug("Node has leadership")
+		return true, nil
 	}
-	if leader != s.config.Leader {
-		log.WithField("Leader", leader).WithField("Node", s.config.Leader).Debug("Node is not a leader, skipping sync")
-		return false, nil
-	}
-	log.WithField("Node", s.config.Leader).Debug("Node has leadership")
-	return true, nil
-}
-
-func (s *Sync) resolveHostname() error {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return err
-	}
-	s.config.Leader = fmt.Sprintf("%s:8080", hostname)
-	log.WithField("Leader", s.config.Leader).Info("Marathon-consul sync leader mode set to resolved hostname")
-	return nil
+	log.Debug("Node is not a leader, skipping sync")
+	return false, nil
 }
 
 func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.App, services []*service.Service) (deregisterCount int, errorCount int) {

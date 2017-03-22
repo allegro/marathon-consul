@@ -7,6 +7,7 @@ type Config struct {
 	Protocol  string
 	Username  string
 	Password  string
+	Leader    string
 	VerifySsl bool
 	Timeout   time.Interval
 }

@@ -2,7 +2,6 @@ package sync
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -23,12 +22,11 @@ func TestSyncJob_ShouldSyncOnLeadership(t *testing.T) {
 	t.Parallel()
 	// given
 	app := ConsulApp("app1", 1)
-	marathon := marathon.MarathonerStubWithLeaderForApps("current.leader:8080", app)
+	marathon := marathon.MarathonerStubWithLeaderForApps("current.leader:8080", "current.leader:8080", app)
 	services := newConsulServicesMock()
 	sync := New(Config{
 		Enabled:  true,
 		Interval: timeutil.Interval{Duration: 10 * time.Millisecond},
-		Leader:   "current.leader:8080",
 	}, marathon, services, noopSyncStartedListener)
 
 	// when
@@ -43,12 +41,11 @@ func TestSyncJob_ShouldNotSyncWhenDisabled(t *testing.T) {
 	t.Parallel()
 	// given
 	app := ConsulApp("app1", 1)
-	marathon := marathon.MarathonerStubWithLeaderForApps("current.leader:8080", app)
+	marathon := marathon.MarathonerStubWithLeaderForApps("current.leader:8080", "current.leader:8080", app)
 	services := newConsulServicesMock()
 	sync := New(Config{
 		Enabled:  false,
 		Interval: timeutil.Interval{Duration: 10 * time.Millisecond},
-		Leader:   "current.leader:8080",
 	}, marathon, services, noopSyncStartedListener)
 
 	// when
@@ -59,31 +56,11 @@ func TestSyncJob_ShouldNotSyncWhenDisabled(t *testing.T) {
 	assert.Equal(t, 0, services.RegistrationsCount(app.Tasks[0].ID.String()))
 }
 
-func TestSyncJob_ShouldDefaultLeaderConfigurationToResolvedHostname(t *testing.T) {
-	t.Parallel()
-	// given
-	hostname, _ := os.Hostname()
-	app := ConsulApp("app1", 1)
-	marathon := marathon.MarathonerStubWithLeaderForApps(fmt.Sprintf("%s:8080", hostname), app)
-	services := newConsulServicesMock()
-	sync := New(Config{
-		Enabled:  true,
-		Interval: timeutil.Interval{Duration: 10 * time.Millisecond},
-	}, marathon, services, noopSyncStartedListener)
-
-	// when
-	sync.StartSyncServicesJob()
-
-	// then
-	<-time.After(15 * time.Millisecond)
-	assert.Equal(t, 2, services.RegistrationsCount(app.Tasks[0].ID.String()))
-}
-
 func TestSyncServices_ShouldNotSyncOnNoForceNorLeaderSpecified(t *testing.T) {
 	t.Parallel()
 	// given
 	app := ConsulApp("app1", 1)
-	marathon := marathon.MarathonerStubWithLeaderForApps("localhost:8080", app)
+	marathon := marathon.MarathonerStubWithLeaderForApps("localhost:8080", "", app)
 	services := newConsulServicesMock()
 	sync := New(Config{}, marathon, services, noopSyncStartedListener)
 
@@ -98,9 +75,9 @@ func TestSyncServices_ShouldNotSyncOnNoLeadership(t *testing.T) {
 	t.Parallel()
 	// given
 	app := ConsulApp("app1", 1)
-	marathon := marathon.MarathonerStubWithLeaderForApps("leader:8080", app)
+	marathon := marathon.MarathonerStubWithLeaderForApps("leader:8080", "different.node:8090", app)
 	services := newConsulServicesMock()
-	sync := New(Config{Leader: "different.node:8090"}, marathon, services, noopSyncStartedListener)
+	sync := New(Config{}, marathon, services, noopSyncStartedListener)
 
 	// when
 	err := sync.SyncServices()
@@ -114,9 +91,9 @@ func TestSyncServices_ShouldSyncOnForceWithoutLeadership(t *testing.T) {
 	t.Parallel()
 	// given
 	app := ConsulApp("app1", 1)
-	marathon := marathon.MarathonerStubWithLeaderForApps("leader:8080", app)
+	marathon := marathon.MarathonerStubWithLeaderForApps("leader:8080", "different.node:8090", app)
 	services := newConsulServicesMock()
-	sync := New(Config{Leader: "different.node:8090", Force: true}, marathon, services, noopSyncStartedListener)
+	sync := New(Config{Force: true}, marathon, services, noopSyncStartedListener)
 
 	// when
 	err := sync.SyncServices()
@@ -479,8 +456,8 @@ func TestSync_AddingAgentsFromMarathonTasks(t *testing.T) {
 	app := ConsulApp("serviceA", 2)
 	app.Tasks[0].Host = consulServer.Config.Bind
 	app.Tasks[1].Host = consulServer.Config.Bind
-	marathon := marathon.MarathonerStubWithLeaderForApps("localhost:8080", app)
-	sync := New(Config{Leader: "localhost:8080"}, marathon, consulInstance, consulInstance.AddAgentsFromApps)
+	marathon := marathon.MarathonerStubWithLeaderForApps("localhost:8080", "localhost:8080", app)
+	sync := New(Config{}, marathon, consulInstance, consulInstance.AddAgentsFromApps)
 
 	// when
 	err := sync.SyncServices()

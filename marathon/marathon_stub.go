@@ -11,6 +11,7 @@ type MarathonerStub struct {
 	AppsStub       []*apps.App
 	AppStub        map[apps.AppID]*apps.App
 	TasksStub      map[apps.AppID][]apps.Task
+	MyLeader       string
 	leader         string
 	interactionsMu sync.RWMutex
 	interactions   bool
@@ -46,8 +47,8 @@ func (m *MarathonerStub) EventStream([]string, int, int) (*Streamer, error) {
 	return &Streamer{}, nil
 }
 
-func (m *MarathonerStub) AmILeader() (bool, error) {
-	return false, nil
+func (m *MarathonerStub) IsLeader() (bool, error) {
+	return m.leader == m.MyLeader, nil
 }
 
 func (m *MarathonerStub) Interactions() bool {
@@ -62,9 +63,10 @@ func (m *MarathonerStub) noteInteraction() {
 	m.interactions = true
 }
 
-func MarathonerStubWithLeaderForApps(leader string, args ...*apps.App) *MarathonerStub {
+func MarathonerStubWithLeaderForApps(leader, myLeader string, args ...*apps.App) *MarathonerStub {
 	stub := MarathonerStubForApps(args...)
 	stub.leader = leader
+	stub.MyLeader = myLeader
 	return stub
 }
 
@@ -86,6 +88,7 @@ func MarathonerStubForApps(args ...*apps.App) *MarathonerStub {
 		AppsStub:  args,
 		AppStub:   appsMap,
 		TasksStub: tasksMap,
+		MyLeader:  "localhost:8080",
 		leader:    "localhost:8080",
 	}
 }
