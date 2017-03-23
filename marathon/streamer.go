@@ -14,6 +14,8 @@ type Streamer struct {
 	Scanner      *bufio.Scanner
 	cancel       context.CancelFunc
 	client       *http.Client
+	username     string
+	password     string
 	subURL       string
 	retries      int
 	retryBackoff int
@@ -34,6 +36,7 @@ func (s *Streamer) Start() error {
 		log.Fatal("Unable to create Streamer request")
 		return nil
 	}
+	req.SetBasicAuth(s.username, s.password)
 	req.Header.Set("Accept", "text/event-stream")
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
@@ -45,12 +48,14 @@ func (s *Streamer) Start() error {
 	}
 	if res.StatusCode != http.StatusOK {
 		log.WithFields(log.Fields{
-			"Location": s.subURL,
-			"Method":   "GET",
+			"Host":   req.Host,
+			"URI":    req.URL.RequestURI(),
+			"Method": "GET",
 		}).Errorf("Got status code : %d", res.StatusCode)
 	}
 	log.WithFields(log.Fields{
-		"SubUrl": s.subURL,
+		"Host":   req.Host,
+		"URI":    req.URL.RequestURI(),
 		"Method": "GET",
 	}).Debug("Subsciption success")
 	s.Scanner = bufio.NewScanner(res.Body)
