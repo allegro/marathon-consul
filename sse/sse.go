@@ -53,7 +53,7 @@ func leaderGuard(s *marathon.Streamer, m marathon.Marathoner) chan<- events.Stop
 		for {
 			select {
 			case <-ticker:
-				if iAMLeader, err := m.AmILeader(); !iAMLeader && err != nil {
+				if iAMLeader, err := m.IsLeader(); !iAMLeader && err != nil {
 					// Leader changed, not revocerable.
 					s.Stop()
 					log.Error("Tearing down SSE stream, marathon leader changed.")

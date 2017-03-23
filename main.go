@@ -36,7 +36,7 @@ func main() {
 
 	consulInstance := consul.New(config.Consul)
 	// TODO(tz) - move Leader from sync module to highest level config, access like config.Leader
-	remote, err := marathon.New(config.Marathon, config.Sync.Leader)
+	remote, err := marathon.New(config.Marathon)
 	if err != nil {
 		log.Fatal(err.Error())
 	}

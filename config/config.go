@@ -91,7 +91,6 @@ func (config *Config) parseFlags() {
 	// Sync
 	flag.BoolVar(&config.Sync.Enabled, "sync-enabled", true, "Enable Marathon-consul scheduled sync")
 	flag.DurationVar(&config.Sync.Interval.Duration, "sync-interval", 15*time.Minute, "Marathon-consul sync interval")
-	flag.StringVar(&config.Sync.Leader, "sync-leader", "", "Marathon cluster-wide node name (defaults to <hostname>:8080), the sync will run only if the specified node is the current Marathon-leader")
 	flag.BoolVar(&config.Sync.Force, "sync-force", false, "Force leadership-independent Marathon-consul sync (run always)")
 
 	// Marathon
@@ -99,6 +98,7 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Marathon.Protocol, "marathon-protocol", "http", "Marathon protocol (http or https)")
 	flag.StringVar(&config.Marathon.Username, "marathon-username", "", "Marathon username for basic auth")
 	flag.StringVar(&config.Marathon.Password, "marathon-password", "", "Marathon password for basic auth")
+	flag.StringVar(&config.Marathon.Leader, "marathon-leader", "", "Marathon cluster-wide node name (defaults to <hostname>:8080), the some leader specific calls will be made only if the specified node is the current Marathon-leader")
 	flag.BoolVar(&config.Marathon.VerifySsl, "marathon-ssl-verify", true, "Verify certificates when connecting via SSL")
 	flag.DurationVar(&config.Marathon.Timeout.Duration, "marathon-timeout", 30*time.Second, "Time limit for requests made by the Marathon HTTP client. A Timeout of zero means no timeout")
 

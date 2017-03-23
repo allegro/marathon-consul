@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -15,13 +16,15 @@ import (
 	"github.com/allegro/marathon-consul/metrics"
 )
 
+var hostname = os.Hostname
+
 type Marathoner interface {
 	ConsulApps() ([]*apps.App, error)
 	App(apps.AppID) (*apps.App, error)
 	Tasks(apps.AppID) ([]apps.Task, error)
 	Leader() (string, error)
 	EventStream([]string, int, int) (*Streamer, error)
-	AmILeader() (bool, error)
+	IsLeader() (bool, error)
 }
 
 type Marathon struct {
@@ -36,7 +39,7 @@ type LeaderResponse struct {
 	Leader string `json:"leader"`
 }
 
-func New(config Config, leader string) (*Marathon, error) {
+func New(config Config) (*Marathon, error) {
 	var auth *url.Userinfo
 	if len(config.Username) == 0 && len(config.Password) == 0 {
 		auth = nil
@@ -53,8 +56,8 @@ func New(config Config, leader string) (*Marathon, error) {
 	return &Marathon{
 		Location: config.Location,
 		Protocol: config.Protocol,
+		MyLeader: config.Leader,
 		Auth:     auth,
-		MyLeader: leader,
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   config.Timeout.Duration,
@@ -142,7 +145,7 @@ func (m Marathon) leaderPoll() error {
 	retries := 5
 	i := 0
 	for range pollTicker {
-		leading, err := m.AmILeader()
+		leading, err := m.IsLeader()
 		if err != nil {
 			if i >= retries {
 				return fmt.Errorf("Failed to get a leader after %d retries", i)
@@ -244,7 +247,22 @@ func (m Marathon) urlWithQuery(path string, params params) string {
 	return marathon.String()
 }
 
-func (m Marathon) AmILeader() (bool, error) {
+func (m *Marathon) IsLeader() (bool, error) {
+	if m.MyLeader == "" {
+		if err := m.resolveHostname(); err != nil {
+			return false, fmt.Errorf("Could not resolve hostname: %v", err)
+		}
+	}
 	leader, err := m.Leader()
 	return m.MyLeader == leader, err
+}
+
+func (m *Marathon) resolveHostname() error {
+	hostname, err := hostname()
+	if err != nil {
+		return err
+	}
+	m.MyLeader = fmt.Sprintf("%s:8080", hostname)
+	log.WithField("Leader", m.MyLeader).Info("Marathon Leader mode set to resolved hostname")
+	return nil
 }
