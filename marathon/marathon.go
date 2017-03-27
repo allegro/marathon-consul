@@ -31,7 +31,8 @@ type Marathon struct {
 	Location string
 	Protocol string
 	MyLeader string
-	Auth     *url.Userinfo
+	username string
+	password string
 	client   *http.Client
 }
 
@@ -40,12 +41,6 @@ type LeaderResponse struct {
 }
 
 func New(config Config) (*Marathon, error) {
-	var auth *url.Userinfo
-	if len(config.Username) == 0 && len(config.Password) == 0 {
-		auth = nil
-	} else {
-		auth = url.UserPassword(config.Username, config.Password)
-	}
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		TLSClientConfig: &tls.Config{
@@ -57,7 +52,8 @@ func New(config Config) (*Marathon, error) {
 		Location: config.Location,
 		Protocol: config.Protocol,
 		MyLeader: config.Leader,
-		Auth:     auth,
+		username: config.Username,
+		password: config.Password,
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   config.Timeout.Duration,
@@ -129,7 +125,9 @@ func (m Marathon) EventStream(desiredEvents []string, retries, retryBackoff int)
 	}
 
 	return &Streamer{
-		subURL: subURL,
+		subURL:   subURL,
+		username: m.username,
+		password: m.password,
 		client: &http.Client{
 			Transport: m.client.Transport,
 		},
@@ -177,6 +175,7 @@ func (m Marathon) get(url string) ([]byte, error) {
 		"Protocol": m.Protocol,
 	}).Debug("Sending GET request to marathon")
 
+	request.SetBasicAuth(m.username, m.password)
 	var response *http.Response
 	metrics.Time("marathon.get", func() { response, err = m.client.Do(request) })
 	if err != nil {
@@ -206,7 +205,7 @@ func (m Marathon) logHTTPError(resp *http.Response, err error) {
 		"Location":   m.Location,
 		"Protocol":   m.Protocol,
 		"statusCode": statusCode,
-	}).Error(err)
+	}).WithError(err).Warning("Error on http request")
 }
 
 func (m Marathon) url(path string) string {
@@ -224,14 +223,12 @@ func (m Marathon) urlWithQuery(path string, params params) string {
 		parts := strings.SplitN(m.Location, "/", 2)
 		marathon = url.URL{
 			Scheme: m.Protocol,
-			User:   m.Auth,
 			Host:   parts[0],
 			Path:   "/" + parts[1] + path,
 		}
 	} else {
 		marathon = url.URL{
 			Scheme: m.Protocol,
-			User:   m.Auth,
 			Host:   m.Location,
 			Path:   path,
 		}

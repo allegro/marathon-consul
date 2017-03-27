@@ -268,14 +268,14 @@ func TestUrl_WithoutAuth(t *testing.T) {
 	assert.Equal(t, "http://localhost:8080/v2/apps", m.url("/v2/apps"))
 }
 
-func TestUrl_WithAuth(t *testing.T) {
+func TestUrl_AuthURLShouldBeWithoutCreds(t *testing.T) {
 	t.Parallel()
 	// given
 	config := Config{Location: "localhost:8080", Protocol: "http", Username: "peter", Password: "parker"}
 	// when
 	m, _ := New(config)
 	// then
-	assert.Equal(t, "http://peter:parker@localhost:8080/v2/apps", m.url("/v2/apps"))
+	assert.Equal(t, "http://localhost:8080/v2/apps", m.url("/v2/apps"))
 }
 
 func TestLeader_SuccessfulResponse(t *testing.T) {
@@ -453,6 +453,28 @@ func TestUrlWithQuery_ProxyMarathon(t *testing.T) {
 
 	// then
 	assert.Equal(t, "HTTP://localhost:8080/proxy/url/segments/testpath", path)
+}
+
+func TestGET_WithAuthOnErrorErrShouldNotContainUserAndPass(t *testing.T) {
+	t.Parallel()
+	// given
+	server, transport := mockServer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	})
+	defer server.Close()
+	srvURL, _ := url.Parse(server.URL)
+	config := Config{Location: srvURL.Host, Protocol: "HTTP", Username: "peter", Password: "parker"}
+	m, _ := New(config)
+	m.client.Transport = transport
+
+	// when
+	res, err := m.get("http://" + srvURL.Host)
+	auth := url.UserPassword(config.Username, config.Password)
+
+	//then
+	assert.Error(t, err)
+	assert.NotContains(t, err.Error(), auth.String())
+	assert.Nil(t, res)
 }
 
 // http://keighl.com/post/mocking-http-responses-in-golang/
