@@ -19,6 +19,7 @@ type Service struct {
 	Name                    string
 	Tags                    []string
 	RegisteringAgentAddress string
+	EnableTagOverride       bool
 }
 
 func (s *Service) TaskId() (apps.TaskID, error) {

@@ -133,6 +133,32 @@ func TestGetService_FailingAgent_GivingUp(t *testing.T) {
 	assert.Nil(t, services)
 }
 
+func TestServiceHasEnabledTagOverriding(t *testing.T) {
+	t.Parallel()
+
+	server := CreateTestServer(t)
+	defer server.Stop()
+
+	consul := ClientAtServer(server)
+
+	app := utils.ConsulApp("serviceA", 1)
+	app.Tasks[0].Host = server.Config.Bind
+	app.Labels["test"] = "tag"
+
+	err := consul.Register(&app.Tasks[0], app)
+
+	assert.NoError(t, err)
+
+	consul_services, err := consul.GetServices("serviceA")
+	services := make(map[string]*service.Service)
+	for _, s := range consul_services {
+		services[s.Name] = s
+	}
+
+	assert.NoError(t, err)
+	assert.True(t, services["serviceA"].EnableTagOverride)
+}
+
 func TestGetServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	t.Parallel()
 	// create server
