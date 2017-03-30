@@ -142,7 +142,7 @@ func TestGetServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	// create client
 	consul := ClientAtServer(server1)
 	consul.config.Tag = "marathon"
-	consul.config.RequestRetries = 100
+	consul.config.RequestRetries = 10
 
 	// given
 	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
@@ -298,7 +298,7 @@ func TestGetAllServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	// create client
 	consul := ClientAtServer(server1)
 	consul.config.Tag = "marathon"
-	consul.config.RequestRetries = 100
+	consul.config.RequestRetries = 10
 
 	// add failing clients
 	for i := uint32(2); i < consul.config.RequestRetries; i++ {
