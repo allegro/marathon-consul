@@ -126,6 +126,7 @@ func consulServiceToService(consulService *consulapi.CatalogService) *service.Se
 		Name: consulService.ServiceName,
 		Tags: consulService.ServiceTags,
 		RegisteringAgentAddress: consulService.Address,
+		EnableTagOverride: consulService.ServiceEnableTagOverride,
 	}
 }
 
@@ -186,6 +187,7 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 		"Tags":    service.Tags,
 		"Address": service.Address,
 		"Port":    service.Port,
+		"EnableTagOverride": service.EnableTagOverride,
 	}
 	log.WithFields(fields).Info("Registering")
 
@@ -291,6 +293,7 @@ func (c *Consul) marathonTaskToConsulServices(task *apps.Task, app *apps.App) ([
 			Address: serviceAddress,
 			Tags:    tags,
 			Checks:  checks,
+			EnableTagOverride: true,
 		})
 	}
 	return registrations, nil
