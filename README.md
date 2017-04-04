@@ -169,9 +169,12 @@ for more details.
 ### Sync
 
 - The scheduled Marathon-consul sync may run in two modes:
-    - Only on node that is the current [Marathon-leader](https://mesosphere.github.io/marathon/docs/rest-api.html#get-v2-leader), `sync-leader` parameter should be set to `hostname:port` the current node appears in the Marathon cluster.
-      This mode is **enabled by default** and the `sync-leader` property is set to the hostname resolved by OS.
-      Note that there is a difference between `sync-leader` and `marathon-location`: `sync-leader` is used for node leadership detection (should be set to cluster-wide node name), while `marathon-location` is used for connection purpose (may be set to `localhost`)
+    - Only on node that is the current [Marathon-leader](https://mesosphere.github.io/marathon/docs/rest-api.html#get-v2-leader),
+     `marathon-leader` parameter should be set to `hostname:port` the current node appears in the Marathon cluster.
+      This mode is **enabled by default** and the `marathon-leader` property is set to the hostname resolved by OS.
+      Note that there is a difference between `marathon-leader` and `marathon-location`: `marathon-leader` is used for
+      node leadership detection (should be set to cluster-wide node name), while `marathon-location` is used for
+      connection purpose (may be set to `localhost`)
     - On every node, `sync-force` parameter should be set to `true`
 
 
@@ -219,7 +222,6 @@ sentry-timeout              | `1s`            | Sentry hook initialization timeo
 sync-enabled                | `true`          | Enable Marathon-consul scheduled sync
 sync-force                  | `false`         | Force leadership-independent Marathon-consul sync (run always)
 sync-interval               | `15m0s`         | Marathon-consul sync interval
-sync-leader                 |                 | Marathon cluster-wide node name (defaults to <hostname>:8080), the sync will run only if the specified node is the current Marathon-leader
 workers-pool-size           | `10`            | Number of concurrent workers processing events
 sse-enabled                 | `false`         | Enable marathon-consul SSE on this node
 web-enabled                 | `true`          | Enable marathon-consul Web callbacks on this node
@@ -310,7 +312,7 @@ reregister all healthy services managed by marathon-consul to the new format. Un
 In future callback interface between marathon and marathon-consul will be replaced by SSE.
 While using SSE please consider:
 - SSE is using Web module config for queues, event sizes, in the future will be moved to sse module,
-- SSE is using sync-leader config for determining current leader, when this value match leader returned by marathon (/v2/leader endpoint)
+- SSE is using marathon-leader config for determining current leader, when this value match leader returned by marathon (/v2/leader endpoint)
 then SSE is started on this instance,
 - when enabled SSE is spawning its own own set of workers and separated dispatcher,
 - be advised to disable marathon callback subscription when enabling SSE, otherwise it might result in doubling registers and deregisers.
