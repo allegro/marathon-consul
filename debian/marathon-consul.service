@@ -4,7 +4,7 @@ Requires=network-online.target
 After=network-online.target
 
 [Service]
-ExecStart=/usr/bin/marathon-consul --config-file=/etc/marathon-consul.d/config.json
+ExecStart=/usr/bin/marathon-consul -config-file=/etc/marathon-consul.d/config.json
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 KillSignal=SIGINT

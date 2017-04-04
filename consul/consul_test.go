@@ -175,7 +175,7 @@ func TestGetServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	server1.AddService("serviceB", "passing", []string{"marathon"})
 
 	// add failing clients
-	for i := uint32(2); i < consul.config.RequestRetries; i++ {
+	for i := uint64(2); i < consul.config.RequestRetries; i++ {
 		consul.AddAgent(fmt.Sprintf("127.0.0.%d", i))
 	}
 
@@ -277,7 +277,7 @@ func TestGetServicesUsingProviderWithRetriesOnAgentFailure_ShouldRetryConfigured
 	consul.config.AgentFailuresTolerance = 2
 	consul.config.RequestRetries = 4
 
-	var called uint32
+	var called uint64
 	provider := func(agent *consulapi.Client) ([]*service.Service, error) {
 		called++
 		return nil, fmt.Errorf("error")
@@ -327,7 +327,7 @@ func TestGetAllServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	consul.config.RequestRetries = 10
 
 	// add failing clients
-	for i := uint32(2); i < consul.config.RequestRetries; i++ {
+	for i := uint64(2); i < consul.config.RequestRetries; i++ {
 		consul.AddAgent(fmt.Sprintf("127.0.0.%d", i))
 	}
 

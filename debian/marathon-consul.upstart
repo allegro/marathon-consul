@@ -7,7 +7,7 @@ respawn
 
 script
    echo $$ > /var/run/marathon-consul.pid
-   exec marathon-consul --config-file=/etc/marathon-consul.d/config.json
+   exec marathon-consul -config-file=/etc/marathon-consul.d/config.json
 end script
 
 post-stop script

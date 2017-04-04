@@ -21,7 +21,7 @@ func TestConfig_NewReturnsErrorWhenFileNotExist(t *testing.T) {
 	clear()
 
 	// given
-	os.Args = []string{"./marathon-consul", "--config-file=unknown.json"}
+	os.Args = []string{"./marathon-consul", "-config-file=unknown.json"}
 
 	// when
 	_, err := New()
@@ -34,7 +34,7 @@ func TestConfig_NewReturnsErrorWhenFileIsNotJson(t *testing.T) {
 	clear()
 
 	// given
-	os.Args = []string{"./marathon-consul", "--config-file=config.go"}
+	os.Args = []string{"./marathon-consul", "-config-file=config.go"}
 
 	// when
 	_, err := New()
@@ -47,7 +47,7 @@ func TestConfig_ShouldReturnErrorForBadLogLevel(t *testing.T) {
 	clear()
 
 	// given
-	os.Args = []string{"./marathon-consul", "--log-level=bad"}
+	os.Args = []string{"./marathon-consul", "-log-level=bad"}
 
 	// when
 	_, err := New()
@@ -60,7 +60,7 @@ func TestConfig_ShouldParseFlags(t *testing.T) {
 	clear()
 
 	// given
-	os.Args = []string{"./marathon-consul", "--log-level=debug", "--marathon-location=test.host:8080", "--log-format=json"}
+	os.Args = []string{"./marathon-consul", "-log-level=debug", "-marathon-location=test.host:8080", "-log-format=json"}
 
 	// when
 	actual, err := New()
@@ -76,7 +76,7 @@ func TestConfig_ShouldUseTextFormatterWhenFormatterIsUnknown(t *testing.T) {
 	clear()
 
 	// given
-	os.Args = []string{"./marathon-consul", "--log-level=debug", "--log-format=unknown"}
+	os.Args = []string{"./marathon-consul", "-log-level=debug", "-log-format=unknown"}
 
 	// when
 	_, err := New()
@@ -147,7 +147,7 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 		configFile: "../debian/config.json",
 	}
 
-	os.Args = []string{"./marathon-consul", "--log-level=debug", "--config-file=../debian/config.json", "--marathon-location=localhost:8080"}
+	os.Args = []string{"./marathon-consul", "-log-level=debug", "-config-file=../debian/config.json", "-marathon-location=localhost:8080"}
 	actual, err := New()
 
 	assert.NoError(t, err)
