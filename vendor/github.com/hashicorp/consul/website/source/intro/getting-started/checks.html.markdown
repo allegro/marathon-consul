@@ -21,7 +21,7 @@ At this point, you should have a two-node cluster running.
 
 Similar to a service, a check can be registered either by providing a
 [check definition](/docs/agent/checks.html) or by making the
-appropriate calls to the [HTTP API](/docs/agent/http/health.html).
+appropriate calls to the [HTTP API](/api/health.html).
 
 We will use the check definition approach because, just like with
 services, definitions are the most common way to set up checks.
@@ -50,7 +50,7 @@ request every 10 seconds via curl to verify that the web server is accessible.
 As with the host-level health check, if the script exits with a non-zero exit code,
 the service will be flagged unhealthy.
 
-Now, restart the second agent or send it a `SIGHUP` signal. You should see the
+Now, restart the second agent, reload it with `consul reload`, or send it a `SIGHUP` signal. You should see the
 following log lines:
 
 ```text

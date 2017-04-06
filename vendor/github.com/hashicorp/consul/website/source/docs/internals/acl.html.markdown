@@ -34,7 +34,7 @@ The type is either "client" (meaning the token cannot modify ACL rules) or "mana
 The token ID is passed along with each RPC request to the servers. Agents
 can be configured with an [`acl_token`](/docs/agent/options.html#acl_token) property
 to provide a default token, but the token can also be specified by a client on a
-[per-request basis](/docs/agent/http.html). ACLs were added in Consul 0.4, meaning
+[per-request basis](/api/index.html). ACLs were added in Consul 0.4, meaning
 prior versions do not provide a token. This is handled by the special "anonymous"
 token. If no token is provided, the rules associated with the anonymous token are
 automatically applied: this allows policy to be enforced on legacy clients.
@@ -96,7 +96,7 @@ a large set of ACLs.
 If there's a partition or other outage affecting the authoritative datacenter,
 and the [`acl_down_policy`](/docs/agent/options.html#acl_down_policy)
 is set to "extend-cache", tokens will be resolved during the outage using the
-replicated set of ACLs. An [ACL replication status](/docs/agent/http/acl.html#acl_replication_status)
+replicated set of ACLs. An [ACL replication status](/api/acl.html#acl_replication_status)
 endpoint is available to monitor the health of the replication process.
 
 Locally-resolved ACLs will be cached using the [`acl_ttl`](/docs/agent/options.html#acl_ttl)
@@ -109,7 +109,7 @@ using a process like this:
 1. Enable ACL replication in all datacenters to allow continuation of service
 during the migration, and to populate the target datacenter. Verify replication
 is healthy and caught up to the current ACL index in the target datacenter
-using the [ACL replication status](/docs/agent/http/acl.html#acl_replication_status)
+using the [ACL replication status](/api/acl.html#acl_replication_status)
 endpoint.
 2. Turn down the old authoritative datacenter servers.
 3. Rolling restart the servers in the target datacenter and change the
@@ -366,7 +366,7 @@ per-token policy is applied to maximize security.
 Consul 0.7 added special Consul operator actions which are protected by a new
 `operator` ACL policy. The operator actions cover:
 
-* [Operator HTTP endpoint](/docs/agent/http/operator.html)
+* [Operator HTTP endpoint](/api/operator.html)
 * [Operator CLI command](/docs/commands/operator.html)
 
 If your [`acl_default_policy`](/docs/agent/options.html#acl_default_policy) is
@@ -400,7 +400,7 @@ methods of configuring ACL tokens to use for registration events:
    of multiple tokens on the same agent. Examples of what this looks like are
    available for both [services](/docs/agent/services.html) and
    [checks](/docs/agent/checks.html). Tokens may also be passed to the
-   [HTTP API](/docs/agent/http.html) for operations that require them.
+   [HTTP API](/api/index.html) for operations that require them.
 
 <a name="discovery_acls"></a>
 #### Restricting service discovery with ACLs
@@ -453,7 +453,7 @@ These variations are covered here, with examples:
   that is used and known by many clients to provide geo-failover behavior for
   a database.
 
-* [Template queries](https://www.consul.io/docs/agent/http/query.html#templates)
+* [Template queries](https://www.consul.io/api/query.html#templates)
   queries work like static queries with a `Name` defined, except that a catch-all
   template with an empty `Name` requires an ACL token that can write to any query
   prefix.
@@ -571,23 +571,26 @@ Two new configuration options are used once complete ACLs are enabled:
   tokens during normal operation.
 * [`acl_agent_token`](/docs/agent/options.html#acl_agent_token) is used internally by
   Consul agents to perform operations to the service catalog when registering themselves
-  or sending network coordinates to the servers.
-  <br>
-  <br>
-  For clients, this token must at least have `node` ACL policy `write` access to the node
-  name it will register as. For servers, this must have `node` ACL policy `write` access to
-  all nodes that are expected to join the cluster, as well as `service` ACL policy `write`
-  access to the `consul` service, which will be registered automatically on its behalf.
+  or sending network coordinates to the servers. This token must at least have `node` ACL
+  policy `write` access to the node name it will register as in order to register any
+  node-level information like metadata or tagged addresses.
 
 Since clients now resolve ACLs locally, the [`acl_down_policy`](/docs/agent/options.html#acl_down_policy)
 now applies to Consul clients as well as Consul servers. This will determine what the
 client will do in the event that the servers are down.
 
-Consul clients *do not* need to have the [`acl_master_token`](/docs/agent/options.html#acl_agent_master_token)
-or the [`acl_datacenter`](/docs/agent/options.html#acl_datacenter) configured. They will
-contact the Consul servers to determine if ACLs are enabled. If they detect that ACLs are
-not enabled, they will check at most every 2 minutes to see if they have become enabled, and
-will start enforcing ACLs automatically.
+Consul clients must have [`acl_datacenter`](/docs/agent/options.html#acl_datacenter) configured
+in order to enable agent-level ACL features. If this is set, the agents will contact the Consul
+servers to determine if ACLs are enabled at the cluster level. If they detect that ACLs are not
+enabled, they will check at most every 2 minutes to see if they have become enabled, and will
+start enforcing ACLs automatically. If an agent has an `acl_datacenter` defined, operators will
+need to use the [`acl_agent_master_token`](/docs/agent/options.html#acl_agent_master_token) to
+perform agent-level operations if the Consul servers aren't present (such as for a manual join
+to the cluster), unless the [`acl_down_policy`](/docs/agent/options.html#acl_down_policy) on the
+agent is set to "allow".
+
+Non-server agents do not need to have the [`acl_master_token`](/docs/agent/options.html#acl_agent_master_token)
+configured; it is not used by agents in any way.
 
 #### New ACL Policies
 

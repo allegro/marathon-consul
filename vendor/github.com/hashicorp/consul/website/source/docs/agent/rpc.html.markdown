@@ -8,6 +8,10 @@ description: |-
 
 # RPC Protocol
 
+~> The RPC Protocol is deprecated and support will be removed in Consul
+   0.8.0. Please use the [HTTP API](/api/index.html), which has
+   support for all features of the RPC Protocol.
+
 The Consul agent provides a complete RPC mechanism that can
 be used to control the agent programmatically. This RPC
 mechanism is the same one used by the CLI but can be
@@ -15,7 +19,7 @@ used by other applications to easily leverage the power
 of Consul without directly embedding.
 
 It is important to note that the RPC protocol does not support
-all the same operations as the [HTTP API](/docs/agent/http.html).
+all the same operations as the [HTTP API](/api/index.html).
 
 ## Implementation Details
 
