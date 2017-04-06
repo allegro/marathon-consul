@@ -16,6 +16,7 @@ type Config struct {
 	AgentFailuresTolerance uint32
 	ConsulNameSeparator    string
 	IgnoredHealthChecks    string
+	EnableTagOverride      bool
 }
 
 type Auth struct {

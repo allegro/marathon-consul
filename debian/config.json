@@ -16,7 +16,8 @@
     "Timeout": "3s",
     "AgentFailuresTolerance": 3,
     "RequestRetries": 5,
-    "IgnoredHealthChecks": ""
+    "IgnoredHealthChecks": "",
+    "EnableTagOverride": false
   },
   "Web": {
     "Listen": ":4000",
