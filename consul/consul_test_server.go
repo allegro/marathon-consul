@@ -70,6 +70,7 @@ func consulClientAtAddress(host string, port int) *Consul {
 		Timeout:             timeutil.Interval{Duration: 10 * time.Second},
 		Port:                fmt.Sprintf("%d", port),
 		ConsulNameSeparator: ".",
+		EnableTagOverride:   true,
 	}
 	consul := New(config)
 	// initialize the agents cache with a single client pointing at provided location

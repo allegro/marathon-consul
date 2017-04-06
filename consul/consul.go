@@ -293,7 +293,7 @@ func (c *Consul) marathonTaskToConsulServices(task *apps.Task, app *apps.App) ([
 			Address:           serviceAddress,
 			Tags:              tags,
 			Checks:            checks,
-			EnableTagOverride: true,
+			EnableTagOverride: c.config.EnableTagOverride,
 		})
 	}
 	return registrations, nil

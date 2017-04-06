@@ -103,6 +103,7 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			RequestRetries:         5,
 			AgentFailuresTolerance: 3,
 			ConsulNameSeparator:    ".",
+			EnableTagOverride:      false,
 		},
 		Web: web.Config{
 			Listen:       ":4000",
