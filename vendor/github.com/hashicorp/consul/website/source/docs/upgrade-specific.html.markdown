@@ -14,6 +14,69 @@ details provided for their upgrades as a result of new features or changed
 behavior. This page is used to document those details separately from the
 standard upgrade flow.
 
+## Consul 0.8.0
+
+#### Command-Line Interface RPC Deprecation
+
+The RPC client interface has been removed. All CLI commands that used RPC and the
+`-rpc-addr` flag to communicate with Consul have been converted to use the HTTP API
+and the appropriate flags for it, and the `rpc` field has been removed from the port
+and address binding configs. You will need to remove these fields from your config files
+and update any scripts that passed a custom `-rpc-addr` to the following commands:
+
+* `force-leave`
+* `info`
+* `join`
+* `keyring`
+* `leave`
+* `members`
+* `monitor`
+* `reload`
+
+#### Version 8 ACLs Are Now Opt-Out
+
+The [`acl_enforce_version_8`](/docs/agent/options.html#acl_enforce_version_8) configuration now defaults to `true` to enable [full version 8 ACL support](/docs/internals/acl.html#version_8_acls) by default. If you are upgrading an existing cluster with ACLs enabled, you will need to set this to `false` during the upgrade on **both Consul agents and Consul servers**. Version 8 ACLs were also changed so that [`acl_datacenter`](/docs/agent/options.html#acl_datacenter) must be set on agents in order to enable the agent-side enforcement of ACLs. This makes for a smoother experience in clusters where ACLs aren't enabled at all, but where the agents would have to wait to contact a Consul server before learning that.
+
+#### Remote Exec Is Now Opt-In
+
+The default for [`disable_remote_exec`](/docs/agent/options.html#disable_remote_exec) was
+changed to "true", so now operators need to opt-in to having agents support running
+commands remotely via [`consul exec`](/docs/commands/exec.html).
+
+#### Raft Protocol Version Compatibility
+
+When upgrading to Consul 0.8.0 from a version lower than 0.7.0, users will need to
+set the [`-raft-protocol`](/docs/agent/options.html#_raft_protocol) option to 1 in
+order to maintain backwards compatibility with the old servers during the upgrade.
+After the servers have been migrated to version 0.8.0, `-raft-protocol` can be moved
+up to 2 and the servers restarted to match the default.
+
+The Raft protocol must be stepped up in this way; only adjacent version numbers are
+compatible (for example, version 1 cannot talk to version 3). Here is a table of the
+Raft Protocol versions supported by each Consul version:
+
+<table class="table table-bordered table-striped">
+  <tr>
+    <th>Version</th>
+    <th>Supported Raft Protocols</th>
+  </tr>
+  <tr>
+    <td>0.6 and earlier</td>
+    <td>0</td>
+  </tr>
+  <tr>
+    <td>0.7</td>
+    <td>1</td>
+  </tr>
+  <tr>
+    <td>0.8</td>
+    <td>1, 2, 3</td>
+  </tr>
+</table>
+
+In order to enable all [Autopilot](/docs/guides/autopilot.html) features, all servers
+in a Consul cluster must be running with Raft protocol version 3 or later.
+
 ## Consul 0.7.1
 
 #### Child Process Reaping
@@ -90,7 +153,7 @@ to upgrade all agents to a newer version of Consul before upgrading to Consul
 #### Prepared Query Changes
 
 Consul version 0.7 adds a feature which allows prepared queries to store a
-[`Near` parameter](/docs/agent/http/query.html#near) in the query definition
+[`Near` parameter](/api/query.html#near) in the query definition
 itself. This feature enables using the distance sorting features of prepared
 queries without explicitly providing the node to sort near in requests, but
 requires the agent servicing a request to send additional information about
@@ -110,7 +173,7 @@ and the agents need to be running version 0.7 or later in order to use this
 feature.
 
 These translated addresses could break HTTP endpoint consumers that are
-expecting local addresses, so a new [`X-Consul-Translate-Addresses`](/docs/agent/http.html#translate_header)
+expecting local addresses, so a new [`X-Consul-Translate-Addresses`](/api/index.html#translate_header)
 header was added to allow clients to detect if translation is enabled for HTTP
 responses. A "lan" tag was added to `TaggedAddresses` for clients that need
 the local address regardless of translation.

@@ -176,23 +176,10 @@ func (p *printer) output(n interface{}) []byte {
 				// Always write a newline to separate us from the next item
 				buf.WriteByte(newline)
 
-				// Need to determine if we're going to separate the next item
-				// with a blank line. The logic here is simple, though there
-				// are a few conditions:
-				//
-				//   1. The next object is more than one line away anyways,
-				//      so we need an empty line.
-				//
-				//   2. The next object is not a "single line" object, so
-				//      we need an empty line.
-				//
-				//   3. This current object is not a single line object,
-				//      so we need an empty line.
-				current := t.Items[index]
+				// If the next item is an object that is exactly one line,
+				// then we don't output another newline.
 				next := t.Items[index+1]
-				if next.Pos().Line != t.Items[index].Pos().Line+1 ||
-					!p.isSingleLineObject(next) ||
-					!p.isSingleLineObject(current) {
+				if next.Pos().Line != t.Items[index].Pos().Line+1 || !p.isSingleLineObject(next) {
 					buf.WriteByte(newline)
 				}
 			}

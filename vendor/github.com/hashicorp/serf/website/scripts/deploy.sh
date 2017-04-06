@@ -48,9 +48,6 @@ if [ -z "$NO_UPLOAD" ]; then
     exit 1
   fi
 
-  # Set browser-side cache-control to ~4h, but tell Fastly to cache for much
-  # longer. We manually purge the Fastly cache, so setting it to a year is more
-  # than fine.
   s3cmd \
     --quiet \
     --delete-removed \
@@ -59,7 +56,6 @@ if [ -z "$NO_UPLOAD" ]; then
     --acl-public \
     --recursive \
     --add-header="Cache-Control: max-age=14400" \
-    --add-header="x-amz-meta-surrogate-control: max-age=31536000, stale-white-revalidate=86400, stale-if-error=604800" \
     --add-header="x-amz-meta-surrogate-key: site-$PROJECT" \
     sync "$DIR/build/" "s3://hc-sites/$PROJECT/latest/"
 
@@ -93,7 +89,7 @@ if [ -z "$NO_UPLOAD" ]; then
     modify "s3://hc-sites/$PROJECT/latest/"
 fi
 
-# Perform a purge of the surrogate key.
+# Perform a soft-purge of the surrogate key.
 if [ -z "$NO_PURGE" ]; then
   echo "Purging Fastly cache..."
   curl \

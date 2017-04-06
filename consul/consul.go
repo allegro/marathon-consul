@@ -126,7 +126,7 @@ func consulServiceToService(consulService *consulapi.CatalogService) *service.Se
 		Name: consulService.ServiceName,
 		Tags: consulService.ServiceTags,
 		RegisteringAgentAddress: consulService.Address,
-		EnableTagOverride: consulService.ServiceEnableTagOverride,
+		EnableTagOverride:       consulService.ServiceEnableTagOverride,
 	}
 }
 
@@ -182,11 +182,11 @@ func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
 		return err
 	}
 	fields := log.Fields{
-		"Name":    service.Name,
-		"Id":      service.ID,
-		"Tags":    service.Tags,
-		"Address": service.Address,
-		"Port":    service.Port,
+		"Name":              service.Name,
+		"Id":                service.ID,
+		"Tags":              service.Tags,
+		"Address":           service.Address,
+		"Port":              service.Port,
 		"EnableTagOverride": service.EnableTagOverride,
 	}
 	log.WithFields(fields).Info("Registering")
@@ -287,12 +287,12 @@ func (c *Consul) marathonTaskToConsulServices(task *apps.Task, app *apps.App) ([
 		tags := append([]string{c.config.Tag}, intent.Tags...)
 		tags = append(tags, service.MarathonTaskTag(task.ID))
 		registrations = append(registrations, &consulapi.AgentServiceRegistration{
-			ID:      c.serviceID(task, intent.Name, intent.Port),
-			Name:    intent.Name,
-			Port:    intent.Port,
-			Address: serviceAddress,
-			Tags:    tags,
-			Checks:  checks,
+			ID:                c.serviceID(task, intent.Name, intent.Port),
+			Name:              intent.Name,
+			Port:              intent.Port,
+			Address:           serviceAddress,
+			Tags:              tags,
+			Checks:            checks,
 			EnableTagOverride: true,
 		})
 	}

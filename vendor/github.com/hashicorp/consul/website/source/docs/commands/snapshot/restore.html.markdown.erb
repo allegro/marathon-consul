@@ -27,7 +27,8 @@ Usage: `consul snapshot restore [options] FILE`
 
 #### API Options
 
-<%= partial "docs/commands/http_api_options" %>
+<%= partial "docs/commands/http_api_options_client" %>
+<%= partial "docs/commands/http_api_options_server" %>
 
 ## Examples
 
@@ -38,5 +39,5 @@ $ consul snapshot restore backup.snap
 Restored snapshot
 ```
 
-Please see the [HTTP API](/docs/agent/http/snapshot.html) documentation for
+Please see the [HTTP API](/api/snapshot.html) documentation for
 more details about snapshot internals.

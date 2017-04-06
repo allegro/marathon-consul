@@ -14,7 +14,8 @@ import (
 func CreateTestServer(t *testing.T) *testutil.TestServer {
 	ports, err := getPorts(6)
 	assert.NoError(t, err)
-	return testutil.NewTestServerConfig(t, func(c *testutil.TestServerConfig) {
+
+	server, err := testutil.NewTestServerConfig(func(c *testutil.TestServerConfig) {
 		c.Datacenter = fmt.Sprint("dc-", time.Now().UnixNano())
 		c.Ports = &testutil.TestPortConfig{
 			DNS:     ports[0],
@@ -25,6 +26,10 @@ func CreateTestServer(t *testing.T) *testutil.TestServer {
 			Server:  ports[5],
 		}
 	})
+
+	assert.NoError(t, err)
+
+	return server
 }
 
 // Ask the kernel for free open ports that are ready to use

@@ -105,6 +105,8 @@ func (c *consulFSM) Apply(log *raft.Log) interface{} {
 		return c.applyPreparedQueryOperation(buf[1:], log.Index)
 	case structs.TxnRequestType:
 		return c.applyTxn(buf[1:], log.Index)
+	case structs.AutopilotRequestType:
+		return c.applyAutopilotUpdate(buf[1:], log.Index)
 	default:
 		if ignoreUnknown {
 			c.logger.Printf("[WARN] consul.fsm: ignoring unknown message type (%d), upgrade to newer version", msgType)
@@ -307,7 +309,29 @@ func (c *consulFSM) applyTxn(buf []byte, index uint64) interface{} {
 	}
 	defer metrics.MeasureSince([]string{"consul", "fsm", "txn"}, time.Now())
 	results, errors := c.state.TxnRW(index, req.Ops)
-	return structs.TxnResponse{results, errors}
+	return structs.TxnResponse{
+		Results: results,
+		Errors:  errors,
+	}
+}
+
+func (c *consulFSM) applyAutopilotUpdate(buf []byte, index uint64) interface{} {
+	var req structs.AutopilotSetConfigRequest
+	if err := structs.Decode(buf, &req); err != nil {
+		panic(fmt.Errorf("failed to decode request: %v", err))
+	}
+	defer metrics.MeasureSince([]string{"consul", "fsm", "autopilot"}, time.Now())
+
+	if req.CAS {
+		act, err := c.state.AutopilotCASConfig(index, req.Config.ModifyIndex, &req.Config)
+		if err != nil {
+			return err
+		} else {
+			return act
+		}
+	} else {
+		return c.state.AutopilotSetConfig(index, &req.Config)
+	}
 }
 
 func (c *consulFSM) Snapshot() (raft.FSMSnapshot, error) {
@@ -427,6 +451,15 @@ func (c *consulFSM) Restore(old io.ReadCloser) error {
 				return err
 			}
 
+		case structs.AutopilotRequestType:
+			var req structs.AutopilotConfig
+			if err := dec.Decode(&req); err != nil {
+				return err
+			}
+			if err := restore.Autopilot(&req); err != nil {
+				return err
+			}
+
 		default:
 			return fmt.Errorf("Unrecognized msg type: %v", msgType)
 		}
@@ -489,6 +522,11 @@ func (s *consulSnapshot) Persist(sink raft.SnapshotSink) error {
 	}
 
 	if err := s.persistPreparedQueries(sink, encoder); err != nil {
+		sink.Cancel()
+		return err
+	}
+
+	if err := s.persistAutopilot(sink, encoder); err != nil {
 		sink.Cancel()
 		return err
 	}
@@ -653,6 +691,21 @@ func (s *consulSnapshot) persistPreparedQueries(sink raft.SnapshotSink,
 			return err
 		}
 	}
+	return nil
+}
+
+func (s *consulSnapshot) persistAutopilot(sink raft.SnapshotSink,
+	encoder *codec.Encoder) error {
+	autopilot, err := s.state.Autopilot()
+	if err != nil {
+		return err
+	}
+
+	sink.Write([]byte{byte(structs.AutopilotRequestType)})
+	if err := encoder.Encode(autopilot); err != nil {
+		return err
+	}
+
 	return nil
 }
 

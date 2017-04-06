@@ -26,10 +26,13 @@ type PortConfig struct {
 	DNS     int // DNS Query interface
 	HTTP    int // HTTP API
 	HTTPS   int // HTTPS API
-	RPC     int // CLI RPC
 	SerfLan int `mapstructure:"serf_lan"` // LAN gossip (Client + Server)
 	SerfWan int `mapstructure:"serf_wan"` // WAN gossip (Server only)
 	Server  int // Server internal RPC
+
+	// RPC is deprecated and is no longer used. It will be removed in a future
+	// version.
+	RPC int // CLI RPC
 }
 
 // AddressConfig is used to provide address overrides
@@ -39,7 +42,10 @@ type AddressConfig struct {
 	DNS   string // DNS Query interface
 	HTTP  string // HTTP API
 	HTTPS string // HTTPS API
-	RPC   string // CLI RPC
+
+	// RPC is deprecated and is no longer used. It will be removed in a future
+	// version.
+	RPC string // CLI RPC
 }
 
 type AdvertiseAddrsConfig struct {
@@ -262,6 +268,37 @@ type Telemetry struct {
 	CirconusBrokerSelectTag string `mapstructure:"circonus_broker_select_tag"`
 }
 
+// Autopilot is used to configure helpful features for operating Consul servers.
+type Autopilot struct {
+	// CleanupDeadServers enables the automatic cleanup of dead servers when new ones
+	// are added to the peer list. Defaults to true.
+	CleanupDeadServers *bool `mapstructure:"cleanup_dead_servers"`
+
+	// LastContactThreshold is the limit on the amount of time a server can go
+	// without leader contact before being considered unhealthy.
+	LastContactThreshold    *time.Duration `mapstructure:"-" json:"-"`
+	LastContactThresholdRaw string         `mapstructure:"last_contact_threshold"`
+
+	// MaxTrailingLogs is the amount of entries in the Raft Log that a server can
+	// be behind before being considered unhealthy.
+	MaxTrailingLogs *uint64 `mapstructure:"max_trailing_logs"`
+
+	// ServerStabilizationTime is the minimum amount of time a server must be
+	// in a stable, healthy state before it can be added to the cluster. Only
+	// applicable with Raft protocol version 3 or higher.
+	ServerStabilizationTime    *time.Duration `mapstructure:"-" json:"-"`
+	ServerStabilizationTimeRaw string         `mapstructure:"server_stabilization_time"`
+
+	// (Enterprise-only) RedundancyZoneTag is the Meta tag to use for separating servers
+	// into zones for redundancy. If left blank, this feature will be disabled.
+	RedundancyZoneTag string `mapstructure:"redundancy_zone_tag"`
+
+	// (Enterprise-only) DisableUpgradeMigration will disable Autopilot's upgrade migration
+	// strategy of waiting until enough newer-versioned servers have been added to the
+	// cluster before promoting them to voters.
+	DisableUpgradeMigration *bool `mapstructure:"disable_upgrade_migration"`
+}
+
 // Config is the configuration that can be set for an Agent.
 // Some of this is configurable as CLI flags, but most must
 // be set using a configuration file.
@@ -285,6 +322,10 @@ type Config struct {
 	// or merely as a client. Servers have more state, take part
 	// in leader election, etc.
 	Server bool `mapstructure:"server"`
+
+	// (Enterprise-only) NonVotingServer is whether this server will act as a non-voting member
+	// of the cluster to help provide read scalability.
+	NonVotingServer bool `mapstructure:"non_voting_server"`
 
 	// Datacenter is the datacenter this node is in. Defaults to dc1
 	Datacenter string `mapstructure:"datacenter"`
@@ -387,10 +428,16 @@ type Config struct {
 	// servers. This can be changed on reload.
 	SkipLeaveOnInt *bool `mapstructure:"skip_leave_on_interrupt"`
 
+	// Autopilot is used to configure helpful features for operating Consul servers.
+	Autopilot Autopilot `mapstructure:"autopilot"`
+
 	Telemetry Telemetry `mapstructure:"telemetry"`
 
 	// Protocol is the Consul protocol version to use.
 	Protocol int `mapstructure:"protocol"`
+
+	// RaftProtocol sets the Raft protocol version to use on this server.
+	RaftProtocol int `mapstructure:"raft_protocol"`
 
 	// EnableDebug is used to enable various debugging features
 	EnableDebug bool `mapstructure:"enable_debug"`
@@ -593,7 +640,7 @@ type Config struct {
 
 	// DisableRemoteExec is used to turn off the remote execution
 	// feature. This is for security to prevent unknown scripts from running.
-	DisableRemoteExec bool `mapstructure:"disable_remote_exec"`
+	DisableRemoteExec *bool `mapstructure:"disable_remote_exec"`
 
 	// DisableUpdateCheck is used to turn off the automatic update and
 	// security bulletin checking.
@@ -681,6 +728,16 @@ func Bool(b bool) *bool {
 	return &b
 }
 
+// Uint64 is used to initialize uint64 pointers in struct literals.
+func Uint64(i uint64) *uint64 {
+	return &i
+}
+
+// Duration is used to initialize time.Duration pointers in struct literals.
+func Duration(d time.Duration) *time.Duration {
+	return &d
+}
+
 // UnixSocketPermissions contains information about a unix socket, and
 // implements the FilePermissions interface.
 type UnixSocketPermissions struct {
@@ -737,7 +794,6 @@ func DefaultConfig() *Config {
 			DNS:     8600,
 			HTTP:    8500,
 			HTTPS:   -1,
-			RPC:     8400,
 			SerfLan: consul.DefaultLANSerfPort,
 			SerfWan: consul.DefaultWANSerfPort,
 			Server:  8300,
@@ -771,7 +827,8 @@ func DefaultConfig() *Config {
 		ACLDownPolicy:      "extend-cache",
 		ACLDefaultPolicy:   "allow",
 		ACLDisabledTTL:     120 * time.Second,
-		ACLEnforceVersion8: Bool(false),
+		ACLEnforceVersion8: Bool(true),
+		DisableRemoteExec:  Bool(true),
 		RetryInterval:      30 * time.Second,
 		RetryIntervalWan:   30 * time.Second,
 
@@ -919,6 +976,16 @@ func DecodeConfig(r io.Reader) (*Config, error) {
 		return nil, err
 	}
 
+	// Check for deprecations
+	if result.Ports.RPC != 0 {
+		fmt.Fprintln(os.Stderr, "==> DEPRECATION: ports.rpc is deprecated and is "+
+			"no longer used. Please remove it from your configuration.")
+	}
+	if result.Addresses.RPC != "" {
+		fmt.Fprintln(os.Stderr, "==> DEPRECATION: addresses.rpc is deprecated and "+
+			"is no longer used. Please remove it from your configuration.")
+	}
+
 	// Check unused fields and verify that no bad configuration options were
 	// passed to Consul. There are a few additional fields which don't directly
 	// use mapstructure decoding, so we need to account for those as well. These
@@ -1029,6 +1096,21 @@ func DecodeConfig(r io.Reader) (*Config, error) {
 			return nil, fmt.Errorf("ReconnectTimeoutWan must be >= %s", reconnectTimeoutMin.String())
 		}
 		result.ReconnectTimeoutWan = dur
+	}
+
+	if raw := result.Autopilot.LastContactThresholdRaw; raw != "" {
+		dur, err := time.ParseDuration(raw)
+		if err != nil {
+			return nil, fmt.Errorf("LastContactThreshold invalid: %v", err)
+		}
+		result.Autopilot.LastContactThreshold = &dur
+	}
+	if raw := result.Autopilot.ServerStabilizationTimeRaw; raw != "" {
+		dur, err := time.ParseDuration(raw)
+		if err != nil {
+			return nil, fmt.Errorf("ServerStabilizationTime invalid: %v", err)
+		}
+		result.Autopilot.ServerStabilizationTime = &dur
 	}
 
 	// Merge the single recursor
@@ -1283,6 +1365,9 @@ func MergeConfig(a, b *Config) *Config {
 	if b.Protocol > 0 {
 		result.Protocol = b.Protocol
 	}
+	if b.RaftProtocol > 0 {
+		result.RaftProtocol = b.RaftProtocol
+	}
 	if b.NodeID != "" {
 		result.NodeID = b.NodeID
 	}
@@ -1325,11 +1410,32 @@ func MergeConfig(a, b *Config) *Config {
 	if b.Server == true {
 		result.Server = b.Server
 	}
+	if b.NonVotingServer == true {
+		result.NonVotingServer = b.NonVotingServer
+	}
 	if b.LeaveOnTerm != nil {
 		result.LeaveOnTerm = b.LeaveOnTerm
 	}
 	if b.SkipLeaveOnInt != nil {
 		result.SkipLeaveOnInt = b.SkipLeaveOnInt
+	}
+	if b.Autopilot.CleanupDeadServers != nil {
+		result.Autopilot.CleanupDeadServers = b.Autopilot.CleanupDeadServers
+	}
+	if b.Autopilot.LastContactThreshold != nil {
+		result.Autopilot.LastContactThreshold = b.Autopilot.LastContactThreshold
+	}
+	if b.Autopilot.MaxTrailingLogs != nil {
+		result.Autopilot.MaxTrailingLogs = b.Autopilot.MaxTrailingLogs
+	}
+	if b.Autopilot.ServerStabilizationTime != nil {
+		result.Autopilot.ServerStabilizationTime = b.Autopilot.ServerStabilizationTime
+	}
+	if b.Autopilot.RedundancyZoneTag != "" {
+		result.Autopilot.RedundancyZoneTag = b.Autopilot.RedundancyZoneTag
+	}
+	if b.Autopilot.DisableUpgradeMigration != nil {
+		result.Autopilot.DisableUpgradeMigration = b.Autopilot.DisableUpgradeMigration
 	}
 	if b.Telemetry.DisableHostname == true {
 		result.Telemetry.DisableHostname = true
@@ -1591,8 +1697,8 @@ func MergeConfig(a, b *Config) *Config {
 	if len(b.WatchPlans) != 0 {
 		result.WatchPlans = append(result.WatchPlans, b.WatchPlans...)
 	}
-	if b.DisableRemoteExec {
-		result.DisableRemoteExec = true
+	if b.DisableRemoteExec != nil {
+		result.DisableRemoteExec = b.DisableRemoteExec
 	}
 	if b.DisableUpdateCheck {
 		result.DisableUpdateCheck = true

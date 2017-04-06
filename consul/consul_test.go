@@ -87,7 +87,7 @@ func TestGetServices(t *testing.T) {
 	server2 := CreateTestServer(t)
 	defer server2.Stop()
 
-	server1.JoinWAN(server2.LANAddr)
+	server1.JoinWAN(t, server2.LANAddr)
 
 	// create client
 	consul := ClientAtServer(server1)
@@ -95,12 +95,12 @@ func TestGetServices(t *testing.T) {
 
 	// given
 	// register services in both servers
-	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
-	server1.AddService("serviceB", "passing", []string{"marathon"})
-	server1.AddService("serviceC", "passing", []string{"marathon"})
+	server1.AddService(t, "serviceA", "passing", []string{"public", "marathon"})
+	server1.AddService(t, "serviceB", "passing", []string{"marathon"})
+	server1.AddService(t, "serviceC", "passing", []string{"marathon"})
 
-	server2.AddService("serviceA", "passing", []string{"private", "marathon"})
-	server2.AddService("serviceB", "passing", []string{"zookeeper"})
+	server2.AddService(t, "serviceA", "passing", []string{"private", "marathon"})
+	server2.AddService(t, "serviceB", "passing", []string{"zookeeper"})
 
 	// when
 	services, err := consul.GetServices("serviceA")
@@ -171,8 +171,8 @@ func TestGetServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	consul.config.RequestRetries = 10
 
 	// given
-	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
-	server1.AddService("serviceB", "passing", []string{"marathon"})
+	server1.AddService(t, "serviceA", "passing", []string{"public", "marathon"})
+	server1.AddService(t, "serviceB", "passing", []string{"marathon"})
 
 	// add failing clients
 	for i := uint32(2); i < consul.config.RequestRetries; i++ {
@@ -196,7 +196,7 @@ func TestGetServices_SelectOnlyTaggedServices(t *testing.T) {
 	server2 := CreateTestServer(t)
 	defer server2.Stop()
 
-	server1.JoinWAN(server2.LANAddr)
+	server1.JoinWAN(t, server2.LANAddr)
 
 	// create client
 	consul := ClientAtServer(server1)
@@ -204,12 +204,12 @@ func TestGetServices_SelectOnlyTaggedServices(t *testing.T) {
 
 	// given
 	// register services in both servers
-	server1.AddService("serviceA", "passing", []string{"public", "marathon-mycluster"})
-	server1.AddService("serviceB", "passing", []string{"marathon"})
-	server1.AddService("serviceC", "passing", []string{"marathon"})
+	server1.AddService(t, "serviceA", "passing", []string{"public", "marathon-mycluster"})
+	server1.AddService(t, "serviceB", "passing", []string{"marathon"})
+	server1.AddService(t, "serviceC", "passing", []string{"marathon"})
 
-	server2.AddService("serviceA", "passing", []string{"private", "marathon"})
-	server2.AddService("serviceB", "passing", []string{"zookeeper"})
+	server2.AddService(t, "serviceA", "passing", []string{"private", "marathon"})
+	server2.AddService(t, "serviceB", "passing", []string{"zookeeper"})
 
 	// when
 	services, err := consul.GetServices("serviceA")
@@ -236,7 +236,7 @@ func TestGetAllServices(t *testing.T) {
 	server2 := CreateTestServer(t)
 	defer server2.Stop()
 
-	server1.JoinWAN(server2.LANAddr)
+	server1.JoinWAN(t, server2.LANAddr)
 
 	// create client
 	consul := ClientAtServer(server1)
@@ -244,12 +244,12 @@ func TestGetAllServices(t *testing.T) {
 
 	// given
 	// register services in both servers
-	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
-	server1.AddService("serviceB", "passing", []string{"marathon"})
-	server1.AddService("serviceC", "passing", []string{"zookeeper"})
+	server1.AddService(t, "serviceA", "passing", []string{"public", "marathon"})
+	server1.AddService(t, "serviceB", "passing", []string{"marathon"})
+	server1.AddService(t, "serviceC", "passing", []string{"zookeeper"})
 
-	server2.AddService("serviceA", "passing", []string{"private", "marathon"})
-	server2.AddService("serviceB", "passing", []string{"zookeeper"})
+	server2.AddService(t, "serviceA", "passing", []string{"private", "marathon"})
+	server2.AddService(t, "serviceB", "passing", []string{"zookeeper"})
 
 	// when
 	services, err := consul.GetAllServices()
@@ -319,7 +319,7 @@ func TestGetAllServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 	server2 := CreateTestServer(t)
 	defer server2.Stop()
 
-	server1.JoinWAN(server2.LANAddr)
+	server1.JoinWAN(t, server2.LANAddr)
 
 	// create client
 	consul := ClientAtServer(server1)
@@ -333,12 +333,12 @@ func TestGetAllServices_RemovingFailingAgentsAndRetrying(t *testing.T) {
 
 	// given
 	// register services in both servers
-	server1.AddService("serviceA", "passing", []string{"public", "marathon"})
-	server1.AddService("serviceB", "passing", []string{"marathon"})
-	server1.AddService("serviceC", "passing", []string{"zookeeper"})
+	server1.AddService(t, "serviceA", "passing", []string{"public", "marathon"})
+	server1.AddService(t, "serviceB", "passing", []string{"marathon"})
+	server1.AddService(t, "serviceC", "passing", []string{"zookeeper"})
 
-	server2.AddService("serviceA", "passing", []string{"private", "marathon"})
-	server2.AddService("serviceB", "passing", []string{"zookeeper"})
+	server2.AddService(t, "serviceA", "passing", []string{"private", "marathon"})
+	server2.AddService(t, "serviceB", "passing", []string{"zookeeper"})
 
 	// when
 	services, err := consul.GetAllServices()
@@ -537,8 +537,8 @@ func TestDeregisterServices(t *testing.T) {
 	consul.config.Tag = "marathon"
 
 	// given
-	server.AddService("serviceA", "passing", []string{"marathon"})
-	server.AddService("serviceB", "passing", []string{"marathon"})
+	server.AddService(t, "serviceA", "passing", []string{"marathon"})
+	server.AddService(t, "serviceB", "passing", []string{"marathon"})
 	services, _ := consul.GetAllServices()
 	assert.Len(t, services, 2)
 
@@ -560,7 +560,7 @@ func TestDeregisterServices_shouldReturnErrorOnFailure(t *testing.T) {
 	consul.config.Tag = "marathon"
 
 	// given
-	server.AddService("serviceA", "passing", []string{"marathon"})
+	server.AddService(t, "serviceA", "passing", []string{"marathon"})
 
 	// when
 	servicesA, _ := consul.GetServices("serviceA")
@@ -583,8 +583,8 @@ func TestDeregisterServicesByTask(t *testing.T) {
 	app := utils.ConsulApp("serviceA", 1)
 	task := app.Tasks[0]
 
-	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
-	server.AddService("serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskID("other"))})
+	server.AddService(t, "serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
+	server.AddService(t, "serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskID("other"))})
 	services, _ := consul.GetAllServices()
 	assert.Len(t, services, 2)
 
@@ -608,7 +608,7 @@ func TestDeregisterServicesByTask_shouldReturnErrorOnFailure(t *testing.T) {
 	app := utils.ConsulApp("serviceA", 1)
 	task := app.Tasks[0]
 
-	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
+	server.AddService(t, "serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
 
 	// when
 	server.Stop()
@@ -630,8 +630,8 @@ func TestDeregisterServicesByTask_shouldReturnErrorOnServiceMatchingTaskNotFound
 	app := utils.ConsulApp("serviceA", 1)
 	task := app.Tasks[0]
 
-	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
-	server.AddService("serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskID("other"))})
+	server.AddService(t, "serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
+	server.AddService(t, "serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskID("other"))})
 	services, _ := consul.GetAllServices()
 	assert.Len(t, services, 2)
 
@@ -656,9 +656,9 @@ func TestDeregisterServicesByTask_shouldDeregisterAllMatchingServicesWhenMultipl
 	app := utils.ConsulApp("serviceA", 1)
 	task := app.Tasks[0]
 
-	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
-	server.AddService("serviceA-bis", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
-	server.AddService("serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskID("other"))})
+	server.AddService(t, "serviceA", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
+	server.AddService(t, "serviceA-bis", "passing", []string{"marathon", service.MarathonTaskTag(task.ID)})
+	server.AddService(t, "serviceB", "passing", []string{"marathon", service.MarathonTaskTag(apps.TaskID("other"))})
 	services, _ := consul.GetAllServices()
 	assert.Len(t, services, 3)
 
@@ -687,7 +687,7 @@ func TestAddAgentsFromApp(t *testing.T) {
 	// given
 	app := utils.ConsulApp("serviceA", 1)
 	app.Tasks[0].Host = server.Config.Bind
-	server.AddService("serviceA", "passing", []string{"marathon", service.MarathonTaskTag(app.Tasks[0].ID)})
+	server.AddService(t, "serviceA", "passing", []string{"marathon", service.MarathonTaskTag(app.Tasks[0].ID)})
 
 	// when
 	consul.AddAgentsFromApps([]*apps.App{app, utils.NonConsulApp("nonConsulApp", 1)})

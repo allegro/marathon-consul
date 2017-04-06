@@ -1,19 +1,17 @@
 package command
 
 import (
-	"flag"
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/consul/command/base"
 	"github.com/hashicorp/serf/coordinate"
-	"github.com/mitchellh/cli"
 )
 
 // RTTCommand is a Command implementation that allows users to query the
 // estimated round trip time between nodes using network coordinates.
 type RTTCommand struct {
-	Ui cli.Ui
+	base.Command
 }
 
 func (c *RTTCommand) Help() string {
@@ -33,31 +31,27 @@ Usage: consul rtt [options] node1 [node2]
   the datacenter (eg. "myserver.dc1").
 
   It is not possible to measure between LAN coordinates and WAN coordinates
-  because they are maintained by independent Serf gossip pools, so they are
+  because they are maintained by independent Serf gossip areas, so they are
   not compatible.
 
-Options:
+` + c.Command.Help()
 
-  -wan                       Use WAN coordinates instead of LAN coordinates.
-  -http-addr=127.0.0.1:8500  HTTP address of the Consul agent.
-`
 	return strings.TrimSpace(helpText)
 }
 
 func (c *RTTCommand) Run(args []string) int {
 	var wan bool
 
-	cmdFlags := flag.NewFlagSet("rtt", flag.ContinueOnError)
-	cmdFlags.Usage = func() { c.Ui.Output(c.Help()) }
+	f := c.Command.NewFlagSet(c)
 
-	cmdFlags.BoolVar(&wan, "wan", false, "wan")
-	httpAddr := HTTPAddrFlag(cmdFlags)
-	if err := cmdFlags.Parse(args); err != nil {
+	f.BoolVar(&wan, "wan", false, "Use WAN coordinates instead of LAN coordinates.")
+
+	if err := c.Command.Parse(args); err != nil {
 		return 1
 	}
 
 	// They must provide at least one node.
-	nodes := cmdFlags.Args()
+	nodes := f.Args()
 	if len(nodes) < 1 || len(nodes) > 2 {
 		c.Ui.Error("One or two node names must be specified")
 		c.Ui.Error("")
@@ -66,9 +60,7 @@ func (c *RTTCommand) Run(args []string) int {
 	}
 
 	// Create and test the HTTP client.
-	conf := api.DefaultConfig()
-	conf.Address = *httpAddr
-	client, err := api.NewClient(conf)
+	client, err := c.Command.HTTPClient()
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Error connecting to Consul agent: %s", err))
 		return 1
@@ -110,21 +102,29 @@ func (c *RTTCommand) Run(args []string) int {
 			return 1
 		}
 
-		// See if the requested nodes are in there.
+		// See if the requested nodes are in there. We only compare
+		// coordinates in the same areas.
+		var area1, area2 string
 		for _, dc := range dcs {
 			for _, entry := range dc.Coordinates {
 				if dc.Datacenter == dc1 && entry.Node == node1 {
+					area1 = dc.AreaID
 					coord1 = entry.Coord
 				}
 				if dc.Datacenter == dc2 && entry.Node == node2 {
+					area2 = dc.AreaID
 					coord2 = entry.Coord
 				}
 
-				if coord1 != nil && coord2 != nil {
+				if area1 == area2 && coord1 != nil && coord2 != nil {
 					goto SHOW_RTT
 				}
 			}
 		}
+
+		// Nil out the coordinates so we don't display across areas if
+		// we didn't find anything.
+		coord1, coord2 = nil, nil
 	} else {
 		source = "LAN"
 

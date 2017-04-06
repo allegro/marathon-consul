@@ -22,7 +22,8 @@ Usage: `consul snapshot save [options] FILE`
 
 #### API Options
 
-<%= partial "docs/commands/http_api_options" %>
+<%= partial "docs/commands/http_api_options_client" %>
+<%= partial "docs/commands/http_api_options_server" %>
 
 ## Examples
 
@@ -41,7 +42,7 @@ After the snapshot is written to the given file it is read back and verified for
 integrity.
 
 To create a potentially stale snapshot from any available server, use the stale
-consisentcy mode:
+consistency mode:
 
 ```text
 $ consul snapshot save -stale backup.snap
@@ -52,5 +53,5 @@ This is useful for situations where a cluster is in a degraded state and no
 leader is available. To target a specific server for a snapshot, you can run
 the `consul snapshot save` command on that specific server.
 
-Please see the [HTTP API](/docs/agent/http/snapshot.html) documentation for
+Please see the [HTTP API](/api/snapshot.html) documentation for
 more details about snapshot internals.

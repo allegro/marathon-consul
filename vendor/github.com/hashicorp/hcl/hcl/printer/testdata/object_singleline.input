@@ -9,9 +9,6 @@ variable "foo" {}
 # lead comment
 variable "bar" {}
 
-variable "foo" { default = "bar" }
-variable "bar" {}
-
 # Purposeful newline check below:
 
 variable "foo" {}

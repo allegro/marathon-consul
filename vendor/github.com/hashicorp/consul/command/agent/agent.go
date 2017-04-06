@@ -25,6 +25,7 @@ import (
 	"github.com/hashicorp/consul/types"
 	"github.com/hashicorp/go-sockaddr/template"
 	"github.com/hashicorp/go-uuid"
+	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/coordinate"
 	"github.com/hashicorp/serf/serf"
 	"github.com/shirou/gopsutil/host"
@@ -382,6 +383,9 @@ func (a *Agent) consulConfig() *consul.Config {
 	if a.config.Protocol > 0 {
 		base.ProtocolVersion = uint8(a.config.Protocol)
 	}
+	if a.config.RaftProtocol != 0 {
+		base.RaftConfig.ProtocolVersion = raft.ProtocolVersion(a.config.RaftProtocol)
+	}
 	if a.config.ACLToken != "" {
 		base.ACLToken = a.config.ACLToken
 	}
@@ -411,6 +415,27 @@ func (a *Agent) consulConfig() *consul.Config {
 	}
 	if a.config.SessionTTLMinRaw != "" {
 		base.SessionTTLMin = a.config.SessionTTLMin
+	}
+	if a.config.Autopilot.CleanupDeadServers != nil {
+		base.AutopilotConfig.CleanupDeadServers = *a.config.Autopilot.CleanupDeadServers
+	}
+	if a.config.Autopilot.LastContactThreshold != nil {
+		base.AutopilotConfig.LastContactThreshold = *a.config.Autopilot.LastContactThreshold
+	}
+	if a.config.Autopilot.MaxTrailingLogs != nil {
+		base.AutopilotConfig.MaxTrailingLogs = *a.config.Autopilot.MaxTrailingLogs
+	}
+	if a.config.Autopilot.ServerStabilizationTime != nil {
+		base.AutopilotConfig.ServerStabilizationTime = *a.config.Autopilot.ServerStabilizationTime
+	}
+	if a.config.NonVotingServer {
+		base.NonVoter = a.config.NonVotingServer
+	}
+	if a.config.Autopilot.RedundancyZoneTag != "" {
+		base.AutopilotConfig.RedundancyZoneTag = a.config.Autopilot.RedundancyZoneTag
+	}
+	if a.config.Autopilot.DisableUpgradeMigration != nil {
+		base.AutopilotConfig.DisableUpgradeMigration = *a.config.Autopilot.DisableUpgradeMigration
 	}
 
 	// Format the build string
@@ -501,14 +526,6 @@ func (a *Agent) resolveTmplAddrs() error {
 			return fmt.Errorf("HTTPS address resolution failed: %v", err)
 		}
 		a.config.Addresses.HTTPS = ipStr
-	}
-
-	if a.config.Addresses.RPC != "" {
-		ipStr, err := parseSingleIPTemplate(a.config.Addresses.RPC)
-		if err != nil {
-			return fmt.Errorf("RPC address resolution failed: %v", err)
-		}
-		a.config.Addresses.RPC = ipStr
 	}
 
 	if a.config.AdvertiseAddrWan != "" {
@@ -638,6 +655,7 @@ func (a *Agent) setupNodeID(config *Config) error {
 	// If they've configured a node ID manually then just use that, as
 	// long as it's valid.
 	if config.NodeID != "" {
+		config.NodeID = types.NodeID(strings.ToLower(string(config.NodeID)))
 		if _, err := uuid.ParseUUID(string(config.NodeID)); err != nil {
 			return err
 		}
@@ -666,6 +684,7 @@ func (a *Agent) setupNodeID(config *Config) error {
 		}
 
 		nodeID := strings.TrimSpace(string(rawID))
+		nodeID = strings.ToLower(nodeID)
 		if _, err := uuid.ParseUUID(nodeID); err != nil {
 			return err
 		}
@@ -1173,11 +1192,7 @@ func (a *Agent) RemoveService(serviceID string, persist bool) error {
 	}
 
 	// Remove service immediately
-	err := a.state.RemoveService(serviceID)
-
-	// TODO: Return the error instead of just logging here in Consul 0.8
-	// For now, keep the current idempotent behavior on deleting a nonexistent service
-	if err != nil {
+	if err := a.state.RemoveService(serviceID); err != nil {
 		a.logger.Printf("[WARN] agent: Failed to deregister service %q: %s", serviceID, err)
 		return nil
 	}

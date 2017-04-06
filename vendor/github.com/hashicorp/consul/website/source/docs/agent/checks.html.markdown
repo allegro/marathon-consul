@@ -62,8 +62,8 @@ There are five different kinds of checks:
   can periodically `PUT` a status update to the HTTP endpoint; if the app fails, the TTL will
   expire and the health check enters a critical state. The endpoints used to
   update health information for a given check are the
-  [pass endpoint](https://www.consul.io/docs/agent/http/agent.html#agent_check_pass)
-  and the [fail endpoint](https://www.consul.io/docs/agent/http/agent.html#agent_check_fail).
+  [pass endpoint](https://www.consul.io/api/agent.html#agent_check_pass)
+  and the [fail endpoint](https://www.consul.io/api/agent.html#agent_check_fail).
   TTL checks also persist
   their last known status to disk. This allows the Consul agent to restore the
   last known status of the check across restarts. Persisted check status is
@@ -187,7 +187,7 @@ To configure a check, either provide it as a `-config-file` option to the
 agent or place it inside the `-config-dir` of the agent. The file must
 end in the ".json" extension to be loaded by Consul. Check definitions can
 also be updated by sending a `SIGHUP` to the agent. Alternatively, the
-check can be registered dynamically using the [HTTP API](/docs/agent/http.html).
+check can be registered dynamically using the [HTTP API](/api/index.html).
 
 ## Check Scripts
 
