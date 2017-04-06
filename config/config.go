@@ -78,6 +78,7 @@ func (config *Config) parseFlags() {
 	flag.StringVar(&config.Consul.ConsulNameSeparator, "consul-name-separator", ".", "Separator used to create default service name for Consul")
 	flag.StringVar(&config.Consul.IgnoredHealthChecks, "consul-ignored-healthchecks", "", "A comma separated blacklist of Marathon health check types that will not be migrated to Consul, e.g. command,tcp")
 	flag.BoolVar(&config.Consul.EnableTagOverride, "consul-enable-tag-override", false, "Disable the anti-entropy feature for all services")
+	flag.StringVar(&config.Consul.LocalAgentHost, "consul-local-agent-host", "", "Consul Agent hostname or IP that should be used for startup sync")
 
 	// Web
 	flag.StringVar(&config.Web.Listen, "listen", ":4000", "Accept connections at this address")

@@ -62,7 +62,16 @@ func ClientAtServer(server *testutil.TestServer) *Consul {
 }
 
 func FailingClient() *Consul {
-	return consulClientAtAddress("127.5.5.5", 5555)
+	host, port := "192.0.2.5", 5555
+	config := Config{
+		Port:                fmt.Sprintf("%d", port),
+		ConsulNameSeparator: ".",
+		EnableTagOverride:   true,
+	}
+	consul := New(config)
+	// initialize the agents cache with a single client pointing at provided location
+	consul.AddAgent(host)
+	return consul
 }
 
 func consulClientAtAddress(host string, port int) *Consul {
@@ -71,6 +80,7 @@ func consulClientAtAddress(host string, port int) *Consul {
 		Port:                fmt.Sprintf("%d", port),
 		ConsulNameSeparator: ".",
 		EnableTagOverride:   true,
+		LocalAgentHost:      host,
 	}
 	consul := New(config)
 	// initialize the agents cache with a single client pointing at provided location

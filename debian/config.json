@@ -17,7 +17,8 @@
     "AgentFailuresTolerance": 3,
     "RequestRetries": 5,
     "IgnoredHealthChecks": "",
-    "EnableTagOverride": false
+    "EnableTagOverride": false,
+    "LocalAgentHost": ""
   },
   "Web": {
     "Listen": ":4000",

@@ -104,6 +104,7 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			AgentFailuresTolerance: 3,
 			ConsulNameSeparator:    ".",
 			EnableTagOverride:      false,
+			LocalAgentHost:         "",
 		},
 		Web: web.Config{
 			Listen:       ":4000",
