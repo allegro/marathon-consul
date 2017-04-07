@@ -163,7 +163,6 @@ func (m Marathon) leaderPoll() error {
 func (m Marathon) get(url string) ([]byte, error) {
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Error(err.Error())
 		return nil, err
 	}
 	request.Header.Add("Accept", "application/json")
