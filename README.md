@@ -327,6 +327,21 @@ The following section describes known limitations in `marathon-consul`.
   Later on, if another deployment takes place, new services are registered with a new name, the old ones are not being deregistered though.
   A scheduled sync is required to wipe them out.
 
+## Release
+
+To release new version of marathon-consul follow steps:
+
+1. Commit all changes you need for release to master branch.
+2. `git checkout master`
+4. `git checkout -b release/<version>` e.g., `git checkout -b release/1.3.1`
+5. `make version v=<version>` e.g., `make version v=1.3.1`
+6. `git push`
+7. Create pull request from branch `release/<version>` to master.
+8. Once pull request gets merged put tag on this commit (remember to update your master with `git pull`)
+   `git tag <version> -f` e.g., `git tag 1.3.1 -f`. Create annotated tag with release notes in it.
+9. Travis will automatically prepare github release from tag on master. Go there and update release notes.
+10. Copy github release to bintray.
+
 ## License
 
 Marathon-consul is released under the Apache 2.0 license (see [LICENSE](LICENSE))

@@ -90,6 +90,5 @@ version: deps
 	goxc -wc -pv=$(v)
 	git add .goxc.json
 	git commit -m "Release $(v)"
-	git tag $(v)
 
 .PHONY: all bump build release deb
