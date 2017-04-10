@@ -17,6 +17,7 @@ type Config struct {
 	ConsulNameSeparator    string
 	IgnoredHealthChecks    string
 	EnableTagOverride      bool
+	LocalAgentHost         string
 }
 
 type Auth struct {

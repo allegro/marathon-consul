@@ -36,11 +36,35 @@ func NewAgents(config *Config) *ConcurrentAgents {
 		},
 		Timeout: config.Timeout.Duration,
 	}
-	return &ConcurrentAgents{
+
+	agents := &ConcurrentAgents{
 		agents: make(map[string]*Agent),
 		config: config,
 		client: client,
 	}
+	if config.LocalAgentHost != "" {
+		agent, err := agents.GetAgent(config.LocalAgentHost)
+		if err != nil {
+			log.WithError(err).WithField("agent", config.LocalAgentHost).Fatal(
+				"Cannot connect with consul agent. Check if configuration is valid.")
+		}
+
+		// Get all agents from current DC and store them in cache
+		nodes, _, err := agent.Catalog().Nodes(nil)
+		if err != nil {
+			log.WithError(err).WithField("agent", config.LocalAgentHost).Warn(
+				"Cannot obtain agents from local consul agent.")
+			return agents
+		}
+		for _, node := range nodes {
+			_, err := agents.GetAgent(node.Address)
+			if err != nil {
+				log.WithError(err).WithField("agent", node.Address).Warn(
+					"Cannot connect with consul agent. Check if configuration is valid.")
+			}
+		}
+	}
+	return agents
 }
 
 func (a *ConcurrentAgents) GetAnyAgent() (*Agent, error) {

@@ -20,6 +20,16 @@ func TestGetAgent(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestPopulateAgentsCacheWithLocalAgent(t *testing.T) {
+	t.Parallel()
+	// when
+	agents := NewAgents(&Config{LocalAgentHost: "127.0.0.1"})
+
+	// then
+	assert.Len(t, agents.agents, 1)
+	assert.NotNil(t, agents.agents["127.0.0.1"])
+}
+
 func TestGetAnyAgent_SingleAgentAvailable(t *testing.T) {
 	t.Parallel()
 	// given
