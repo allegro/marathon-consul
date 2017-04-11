@@ -203,7 +203,8 @@ func (c *Consul) DeregisterByTask(taskID apps.TaskID) error {
 	if err != nil {
 		return err
 	} else if len(services) == 0 {
-		return fmt.Errorf("Couldn't find any service matching task id %s", taskID)
+		log.WithField("Id", taskID).Warningf("Couldn't find any service matching task id")
+		return nil
 	}
 	return c.deregisterMultipleServices(services, taskID)
 }

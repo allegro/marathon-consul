@@ -618,7 +618,7 @@ func TestDeregisterServicesByTask_shouldReturnErrorOnFailure(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestDeregisterServicesByTask_shouldReturnErrorOnServiceMatchingTaskNotFound(t *testing.T) {
+func TestDeregisterServicesByTask_shouldReturnNilErrorOnServiceMatchingTaskNotFound(t *testing.T) {
 	t.Parallel()
 	server := CreateTestServer(t)
 	defer server.Stop()
@@ -639,7 +639,7 @@ func TestDeregisterServicesByTask_shouldReturnErrorOnServiceMatchingTaskNotFound
 	err := consul.DeregisterByTask("non-existing")
 
 	// then
-	assert.Error(t, err)
+	assert.NoError(t, err)
 	services, _ = consul.GetAllServices()
 	assert.Len(t, services, 2)
 }
