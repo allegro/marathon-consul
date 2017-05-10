@@ -153,9 +153,10 @@ func (m Marathon) leaderPoll() error {
 			continue
 		}
 		if leading {
+			metrics.UpdateGauge("leader", int64(1))
 			return nil
 		}
-		log.Debug("I am not leader")
+		metrics.UpdateGauge("leader", int64(0))
 	}
 	return nil
 }
