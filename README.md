@@ -215,7 +215,7 @@ marathon-protocol           | `http`          | Marathon protocol (http or https
 marathon-ssl-verify         | `true`          | Verify certificates when connecting via SSL
 marathon-timeout            | `30s`           | Time limit for requests made by the Marathon HTTP client. A Timeout of zero means no timeout
 marathon-username           |                 | Marathon username for basic auth
-marathon-leader             |                 | Marathon cluster-wide node name (defaults to <hostname>:8080), the some leader specific calls will be made only if the specified node is the current Marathon-leader")
+marathon-leader             |                 | Marathon cluster-wide node name (defaults to <hostname>:8080), the some leader specific calls will be made only if the specified node is the current Marathon-leader. Set to `*` to always act like a Leader.
 metrics-interval            | `30s`           | Metrics reporting interval
 metrics-location            |                 | Graphite URL (used when metrics-target is set to graphite)
 metrics-prefix              | `default`       | Metrics prefix (default is resolved to <hostname>.<app_name>
