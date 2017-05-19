@@ -166,6 +166,14 @@ If you need to register your task under multiple ports, refer to *Advanced usage
 - See [this](https://mesosphere.github.io/marathon/docs/health-checks.html)
 for more details.
 
+#### Command healthchecks
+
+Healthchecks commands are registered in Consul with a simple variable substitution.
+- $HOST is replaced by task hostname.
+- $PORT0, $PORT1... are replaced by port number defined in task.
+
+Using a special shell syntax can break this variable substitution (\$HOST, ${PORT0} ...)
+
 ### Sync
 
 - The scheduled Marathon-consul sync may run in two modes:
