@@ -1001,3 +1001,47 @@ func TestMarathonTaskToConsulServiceMapping_NotResolvableTaskHost(t *testing.T) 
 	// then
 	assert.Error(t, err)
 }
+
+func Test_substituteEnvironment(t *testing.T) {
+	type args struct {
+		s    string
+		task apps.Task
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "without port and host",
+			args: args{
+				s: "true",
+				task: apps.Task{
+					ID:    "someTask",
+					Host:  "127.0.0.6",
+					Ports: []int{8090, 8443},
+				},
+			},
+			want: "true",
+		},
+		{
+			name: "with ports and host",
+			args: args{
+				s: "nc $HOST $PORT0 && nc $HOST $PORT1",
+				task: apps.Task{
+					ID:    "someTask",
+					Host:  "127.0.0.6",
+					Ports: []int{8090, 8443},
+				},
+			},
+			want: "nc 127.0.0.6 8090 && nc 127.0.0.6 8443",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := substituteEnvironment(tt.args.s, tt.args.task); got != tt.want {
+				t.Errorf("substituteEnvironment() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

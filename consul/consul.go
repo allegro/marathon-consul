@@ -347,7 +347,7 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 			consulCheck.TCP = fmt.Sprintf("%s:%d", serviceAddress, port)
 			checks = append(checks, &consulCheck)
 		case "COMMAND":
-			consulCheck.Script = check.Command.Value
+			consulCheck.Script = substituteEnvironment(check.Command.Value, *task)
 			checks = append(checks, &consulCheck)
 		default:
 			log.WithField("Id", task.AppID.String()).WithField("Address", serviceAddress).
@@ -371,6 +371,14 @@ func getHealthCheckPort(check apps.HealthCheck, task apps.Task) (int, error) {
 		return 0, fmt.Errorf("Port %d is invalid", port)
 	}
 	return port, nil
+}
+
+func substituteEnvironment(s string, task apps.Task) string {
+	for i, p := range task.Ports {
+		s = strings.Replace(s, fmt.Sprintf("$PORT%v", i), fmt.Sprintf("%v", p), -1)
+	}
+	s = strings.Replace(s, "$HOST", task.Host, -1)
+	return s
 }
 
 func ignoredHealthCheckTypesFromRawConfigEntry(raw string) []string {
