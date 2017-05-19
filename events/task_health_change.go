@@ -14,7 +14,7 @@ type TaskHealthChange struct {
 	// Prefer TaskID() instead of ID
 	ID         apps.TaskID `json:"id"`
 	InstanceID string      `json:"instanceId"`
-	AppID      apps.AppID  `json:"appId"`
+	AppID      apps.AppID  `json:"appId,omitempty"`
 	Version    string      `json:"version"`
 	Alive      bool        `json:"alive"`
 	TaskStatus string      `json:"taskStatus"`

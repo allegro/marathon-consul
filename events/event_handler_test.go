@@ -2,6 +2,7 @@ package events
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -30,11 +31,13 @@ func testEventHandler(stubs handlerStubs) (chan<- Event, func()) {
 }
 
 func TestEventHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
-	t.Parallel()
 
 	// given
+	app := NonConsulApp("/test/app", 3)
+	marathon := marathon.MarathonerStubForApps(app)
 	serviceRegistry := consul.NewConsulStub()
-	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry})
+
+	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry, marathon: marathon})
 
 	body := []byte(`{
 	  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
@@ -58,7 +61,6 @@ func TestEventHandler_NotHandleStatusEventWithInvalidBody(t *testing.T) {
 }
 
 func TestEventHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
-	t.Parallel()
 
 	// given
 	serviceRegistry := consul.NewConsulStub()
@@ -91,15 +93,10 @@ func TestEventHandler_NotHandleStatusEventAboutStartingTask(t *testing.T) {
 }
 
 func TestEventHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
-	t.Parallel()
-
-	// given
-	serviceRegistry := consul.NewConsulStub()
-
-	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry})
 
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
 	for index, taskStatus := range taskStatuses {
+		serviceRegistry := consul.NewConsulStub()
 		// given
 		appId := "/test/app" + strconv.Itoa(index)
 		serviceName := "test.app" + strconv.Itoa(index)
@@ -125,6 +122,8 @@ func TestEventHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 		}`)
 
 		// when
+		marathon := marathon.MarathonerStubForApps(app)
+		queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry, marathon: marathon})
 		queue <- Event{EventType: "status_update_event", Timestamp: time.Now(), Body: body}
 		awaitFunc()
 
@@ -138,13 +137,14 @@ func TestEventHandler_HandleStatusEventAboutDeadTask(t *testing.T) {
 }
 
 func TestEventHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testing.T) {
-	t.Parallel()
 
 	// given
+	app := NonConsulApp("/test/app", 1)
+	marathon := marathon.MarathonerStubForApps(app)
 	serviceRegistry := consul.NewConsulStub()
 	serviceRegistry.FailDeregisterByTaskForID("task.1")
 
-	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry})
+	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry, marathon: marathon})
 
 	body := []byte(`{
 	  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
@@ -170,23 +170,27 @@ func TestEventHandler_HandleStatusEventAboutDeadTaskErrOnDeregistration(t *testi
 }
 
 func TestEventHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.T) {
-	t.Parallel()
 
+	//var apps []*apps.App
 	// given
-	app := NonConsulApp("/test/app", 3)
-	marathon := marathon.MarathonerStubForApps(app)
-	serviceRegistry := consul.NewConsulStub()
-
-	queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry, marathon: marathon})
 
 	taskStatuses := []string{"TASK_FINISHED", "TASK_FAILED", "TASK_KILLED", "TASK_LOST"}
-	for _, taskStatus := range taskStatuses {
+	for i, taskStatus := range taskStatuses {
+		serviceRegistry := consul.NewConsulStub()
+		appId := fmt.Sprintf("/test/app%s", i)
+		app := NonConsulApp(appId, 3)
+		//apps = append(apps, app)
+
+		for _, task := range app.Tasks {
+			serviceRegistry.Register(&task, app)
+		}
+
 		body := []byte(`{
 		  "slaveId":"85e59460-a99e-4f16-b91f-145e0ea595bd-S0",
-		  "taskId":"` + app.Tasks[1].ID.String() + `",
+		  "taskId":"` + app.Tasks[0].ID.String() + `",
 		  "taskStatus":"` + taskStatus + `",
 		  "message":"Command terminated with signal Terminated",
-		  "appId":"/test/app",
+		  "appId":"` + appId + `",
 		  "host":"localhost",
 		  "ports":[
 			31372
@@ -196,17 +200,20 @@ func TestEventHandler_NotHandleStatusEventAboutNonConsulAppsDeadTask(t *testing.
 		  "timestamp":"2015-12-07T09:33:40.898Z"
 		}`)
 
+		marathon := marathon.MarathonerStubForApps(app)
+		queue, awaitFunc := testEventHandler(handlerStubs{serviceRegistry: serviceRegistry, marathon: marathon})
+
 		// when
 		queue <- Event{EventType: "status_update_event", Timestamp: time.Now(), Body: body}
 		awaitFunc()
 
 		// then
-		assert.False(t, marathon.Interactions())
+		services, _ := serviceRegistry.GetAllServices()
+		assert.Len(t, services, 3)
 	}
 }
 
 func TestEventHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *testing.T) {
-	t.Parallel()
 
 	// given
 	app := NonConsulApp("/test/app", 3)
@@ -225,7 +232,6 @@ func TestEventHandler_NotHandleHealthStatusEventWhenAppHasNotConsulLabel(t *test
 }
 
 func TestEventHandler_HandleHealthStatusEvent(t *testing.T) {
-	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
@@ -248,7 +254,6 @@ func TestEventHandler_HandleHealthStatusEvent(t *testing.T) {
 }
 
 func TestEventHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing.T) {
-	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
@@ -270,7 +275,6 @@ func TestEventHandler_HandleHealthStatusEventWithErrorsOnRegistration(t *testing
 }
 
 func TestEventHandler_NotHandleHealthStatusEventForTaskWithNotAllHealthChecksPassed(t *testing.T) {
-	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
@@ -289,7 +293,6 @@ func TestEventHandler_NotHandleHealthStatusEventForTaskWithNotAllHealthChecksPas
 }
 
 func TestEventHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *testing.T) {
-	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 1)
@@ -309,7 +312,6 @@ func TestEventHandler_NotHandleHealthStatusEventForTaskWithNoHealthCheck(t *test
 }
 
 func TestEventHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.T) {
-	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 1)
@@ -335,7 +337,6 @@ func TestEventHandler_NotHandleHealthStatusEventWhenTaskIsNotAlive(t *testing.T)
 }
 
 func TestEventHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T) {
-	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 1)
@@ -361,7 +362,6 @@ func TestEventHandler_NotHandleHealthStatusEventWhenBodyIsInvalid(t *testing.T) 
 }
 
 func TestEventHandler_HandleHealthStatusEventReturn202WhenMarathonReturnedError(t *testing.T) {
-	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
@@ -387,7 +387,6 @@ func TestEventHandler_HandleHealthStatusEventReturn202WhenMarathonReturnedError(
 }
 
 func TestEventHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.T) {
-	t.Parallel()
 
 	// given
 	app := ConsulApp("/test/app", 3)
