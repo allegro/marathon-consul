@@ -147,11 +147,12 @@ func (fh *eventHandler) handleHealthyTask(body []byte) error {
 }
 
 func (fh *eventHandler) handleStatusEvent(body []byte) error {
-	task, err := apps.ParseTask(body)
+	task, err := ParseTaskHealthChange(body)
 	if err != nil {
 		log.WithError(err).WithField("Body", body).Error("Could not parse event body")
 		return err
 	}
+
 	delay := task.Timestamp.Delay()
 	metrics.UpdateGauge("events.read.delay.current", int64(delay))
 
@@ -159,6 +160,18 @@ func (fh *eventHandler) handleStatusEvent(body []byte) error {
 		"Id":         task.ID,
 		"TaskStatus": task.TaskStatus,
 	}).Info("Got StatusEvent")
+
+	app, err := fh.marathon.App(task.AppID)
+	if err != nil {
+		log.WithError(err).Error("There was a problem obtaining app info")
+		return err
+	}
+
+	if !app.IsConsulApp() {
+		err = fmt.Errorf("%s is not consul app. Missing consul label", app.ID)
+		log.WithError(err).Debug("Skipping app action in Consul")
+		return nil
+	}
 
 	switch task.TaskStatus {
 	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLING", "TASK_KILLED", "TASK_LOST":

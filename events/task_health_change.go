@@ -17,6 +17,7 @@ type TaskHealthChange struct {
 	AppID      apps.AppID  `json:"appId"`
 	Version    string      `json:"version"`
 	Alive      bool        `json:"alive"`
+	TaskStatus string      `json:"taskStatus"`
 }
 
 // Regular expression to extract runSpecId from instanceId
