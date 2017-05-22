@@ -245,6 +245,10 @@ func (m Marathon) urlWithQuery(path string, params params) string {
 }
 
 func (m *Marathon) IsLeader() (bool, error) {
+	if m.MyLeader == "*" {
+		log.Debug("Leader detection disable")
+		return true, nil
+	}
 	if m.MyLeader == "" {
 		if err := m.resolveHostname(); err != nil {
 			return false, fmt.Errorf("Could not resolve hostname: %v", err)
