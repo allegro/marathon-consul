@@ -18,13 +18,16 @@ func (op *Operator) AutopilotGetConfiguration(args *structs.DCSpecificRequest, r
 		return err
 	}
 	if acl != nil && !acl.OperatorRead() {
-		return permissionDeniedErr
+		return errPermissionDenied
 	}
 
 	state := op.srv.fsm.State()
 	_, config, err := state.AutopilotConfig()
 	if err != nil {
 		return err
+	}
+	if config == nil {
+		return fmt.Errorf("autopilot config not initialized yet")
 	}
 
 	*reply = *config
@@ -44,7 +47,7 @@ func (op *Operator) AutopilotSetConfiguration(args *structs.AutopilotSetConfigRe
 		return err
 	}
 	if acl != nil && !acl.OperatorWrite() {
-		return permissionDeniedErr
+		return errPermissionDenied
 	}
 
 	// Apply the update
@@ -80,7 +83,7 @@ func (op *Operator) ServerHealth(args *structs.DCSpecificRequest, reply *structs
 		return err
 	}
 	if acl != nil && !acl.OperatorRead() {
-		return permissionDeniedErr
+		return errPermissionDenied
 	}
 
 	// Exit early if the min Raft version is too low

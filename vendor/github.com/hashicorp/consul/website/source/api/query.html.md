@@ -16,8 +16,8 @@ service. This is particularly useful in combination with Consul's
 [DNS Interface](/docs/agent/dns.html) as it allows for much richer queries than
 would be possible given the limited entry points exposed by DNS.
 
-See the [Prepared Query ACLs](/docs/internals/acl.html#prepared_query_acls)
-internals guide for more details about how prepared query policies work.
+See the [ACL Guide](/docs/guides/acl.html#prepared_query_acls)
+prepared query section for more details about how prepared query policies work.
 
 ### Prepared Query Templates
 
@@ -109,7 +109,7 @@ successfully.
 
 | Method | Path                         | Produces                   |
 | ------ | ---------------------------- | -------------------------- |
-| `PUT`  | `/query`                     | `application/json`         |
+| `POST`  | `/query`                     | `application/json`         |
 
 The table below shows this endpoint's support for
 [blocking queries](/api/index.html#blocking-queries),
@@ -224,7 +224,7 @@ The table below shows this endpoint's support for
 
 ```text
 $ curl \
-    --request PUT \
+    --request POST \
     --data @payload.json \
     https://consul.rocks/v1/query
 ```
@@ -470,6 +470,7 @@ $ curl \
         "ID": "40e4a748-2192-161a-0510-9bf59fe950b5",
         "Node": "foobar",
         "Address": "10.1.10.12",
+        "Datacenter": "dc1",
         "TaggedAddresses": {
           "lan": "10.1.10.12",
           "wan": "10.1.10.12"

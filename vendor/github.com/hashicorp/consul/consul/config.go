@@ -17,6 +17,7 @@ import (
 
 const (
 	DefaultDC          = "dc1"
+	DefaultRPCPort     = 8300
 	DefaultLANSerfPort = 8301
 	DefaultWANSerfPort = 8302
 
@@ -31,13 +32,13 @@ const (
 )
 
 var (
-	DefaultRPCAddr = &net.TCPAddr{IP: net.ParseIP("0.0.0.0"), Port: 8300}
-)
+	DefaultRPCAddr = &net.TCPAddr{IP: net.ParseIP("0.0.0.0"), Port: DefaultRPCPort}
 
-// ProtocolVersionMap is the mapping of Consul protocol versions
-// to Serf protocol versions. We mask the Serf protocols using
-// our own protocol version.
-var protocolVersionMap map[uint8]uint8
+	// ProtocolVersionMap is the mapping of Consul protocol versions
+	// to Serf protocol versions. We mask the Serf protocols using
+	// our own protocol version.
+	protocolVersionMap map[uint8]uint8
+)
 
 func init() {
 	protocolVersionMap = map[uint8]uint8{
@@ -94,6 +95,10 @@ type Config struct {
 	// reachable
 	RPCAdvertise *net.TCPAddr
 
+	// RPCSrcAddr is the source address for outgoing RPC connections.
+	// It is RPCAdvertise with the port set to zero.
+	RPCSrcAddr *net.TCPAddr
+
 	// SerfLANConfig is the configuration for the intra-dc serf
 	SerfLANConfig *serf.Config
 
@@ -142,6 +147,10 @@ type Config struct {
 	// or VerifyOutgoing to verify the TLS connection.
 	CAFile string
 
+	// CAPath is a path to a directory of certificate authority files. This is used with
+	// VerifyIncoming or VerifyOutgoing to verify the TLS connection.
+	CAPath string
+
 	// CertFile is used to provide a TLS certificate that is used for serving TLS connections.
 	// Must be provided to serve TLS connections.
 	CertFile string
@@ -156,6 +165,13 @@ type Config struct {
 
 	// TLSMinVersion is used to set the minimum TLS version used for TLS connections.
 	TLSMinVersion string
+
+	// TLSCipherSuites is used to specify the list of supported ciphersuites.
+	TLSCipherSuites []uint16
+
+	// TLSPreferServerCipherSuites specifies whether to prefer the server's ciphersuite
+	// over the client ciphersuites.
+	TLSPreferServerCipherSuites bool
 
 	// RejoinAfterLeave controls our interaction with Serf.
 	// When set to false (default), a leave causes a Consul to not rejoin
@@ -296,19 +312,18 @@ type Config struct {
 	AutopilotInterval time.Duration
 }
 
-// CheckVersion is used to check if the ProtocolVersion is valid
-func (c *Config) CheckVersion() error {
+// CheckProtocolVersion validates the protocol version.
+func (c *Config) CheckProtocolVersion() error {
 	if c.ProtocolVersion < ProtocolVersionMin {
-		return fmt.Errorf("Protocol version '%d' too low. Must be in range: [%d, %d]",
-			c.ProtocolVersion, ProtocolVersionMin, ProtocolVersionMax)
-	} else if c.ProtocolVersion > ProtocolVersionMax {
-		return fmt.Errorf("Protocol version '%d' too high. Must be in range: [%d, %d]",
-			c.ProtocolVersion, ProtocolVersionMin, ProtocolVersionMax)
+		return fmt.Errorf("Protocol version '%d' too low. Must be in range: [%d, %d]", c.ProtocolVersion, ProtocolVersionMin, ProtocolVersionMax)
+	}
+	if c.ProtocolVersion > ProtocolVersionMax {
+		return fmt.Errorf("Protocol version '%d' too high. Must be in range: [%d, %d]", c.ProtocolVersion, ProtocolVersionMin, ProtocolVersionMax)
 	}
 	return nil
 }
 
-// CheckACL is used to sanity check the ACL configuration
+// CheckACL validates the ACL configuration.
 func (c *Config) CheckACL() error {
 	switch c.ACLDefaultPolicy {
 	case "allow":
@@ -326,7 +341,7 @@ func (c *Config) CheckACL() error {
 	return nil
 }
 
-// DefaultConfig is used to return a sane default configuration
+// DefaultConfig returns a sane default configuration.
 func DefaultConfig() *Config {
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -421,16 +436,18 @@ func (c *Config) ScaleRaft(raftMultRaw uint) {
 // tlsConfig maps this config into a tlsutil config.
 func (c *Config) tlsConfig() *tlsutil.Config {
 	tlsConf := &tlsutil.Config{
-		VerifyIncoming:       c.VerifyIncoming,
-		VerifyOutgoing:       c.VerifyOutgoing,
-		VerifyServerHostname: c.VerifyServerHostname,
-		CAFile:               c.CAFile,
-		CertFile:             c.CertFile,
-		KeyFile:              c.KeyFile,
-		NodeName:             c.NodeName,
-		ServerName:           c.ServerName,
-		Domain:               c.Domain,
-		TLSMinVersion:        c.TLSMinVersion,
+		VerifyIncoming:           c.VerifyIncoming,
+		VerifyOutgoing:           c.VerifyOutgoing,
+		VerifyServerHostname:     c.VerifyServerHostname,
+		CAFile:                   c.CAFile,
+		CAPath:                   c.CAPath,
+		CertFile:                 c.CertFile,
+		KeyFile:                  c.KeyFile,
+		NodeName:                 c.NodeName,
+		ServerName:               c.ServerName,
+		Domain:                   c.Domain,
+		TLSMinVersion:            c.TLSMinVersion,
+		PreferServerCipherSuites: c.TLSPreferServerCipherSuites,
 	}
 	return tlsConf
 }
@@ -440,9 +457,9 @@ func (c *Config) tlsConfig() *tlsutil.Config {
 func (c *Config) GetTokenForAgent() string {
 	if c.ACLAgentToken != "" {
 		return c.ACLAgentToken
-	} else if c.ACLToken != "" {
-		return c.ACLToken
-	} else {
-		return ""
 	}
+	if c.ACLToken != "" {
+		return c.ACLToken
+	}
+	return ""
 }

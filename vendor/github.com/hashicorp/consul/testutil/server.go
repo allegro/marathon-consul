@@ -23,7 +23,9 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/hashicorp/consul/testutil/retry"
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-uuid"
 	"github.com/pkg/errors"
@@ -39,6 +41,7 @@ type TestPerformanceConfig struct {
 type TestPortConfig struct {
 	DNS     int `json:"dns,omitempty"`
 	HTTP    int `json:"http,omitempty"`
+	HTTPS   int `json:"https,omitempty"`
 	SerfLan int `json:"serf_lan,omitempty"`
 	SerfWan int `json:"serf_wan,omitempty"`
 	Server  int `json:"server,omitempty"`
@@ -55,27 +58,34 @@ type TestAddressConfig struct {
 
 // TestServerConfig is the main server configuration struct.
 type TestServerConfig struct {
-	NodeName           string                 `json:"node_name"`
-	NodeID             string                 `json:"node_id"`
-	NodeMeta           map[string]string      `json:"node_meta,omitempty"`
-	Performance        *TestPerformanceConfig `json:"performance,omitempty"`
-	Bootstrap          bool                   `json:"bootstrap,omitempty"`
-	Server             bool                   `json:"server,omitempty"`
-	DataDir            string                 `json:"data_dir,omitempty"`
-	Datacenter         string                 `json:"datacenter,omitempty"`
-	DisableCheckpoint  bool                   `json:"disable_update_check"`
-	LogLevel           string                 `json:"log_level,omitempty"`
-	Bind               string                 `json:"bind_addr,omitempty"`
-	Addresses          *TestAddressConfig     `json:"addresses,omitempty"`
-	Ports              *TestPortConfig        `json:"ports,omitempty"`
-	RaftProtocol       int                    `json:"raft_protocol,omitempty"`
-	ACLMasterToken     string                 `json:"acl_master_token,omitempty"`
-	ACLDatacenter      string                 `json:"acl_datacenter,omitempty"`
-	ACLDefaultPolicy   string                 `json:"acl_default_policy,omitempty"`
-	ACLEnforceVersion8 bool                   `json:"acl_enforce_version_8"`
-	Encrypt            string                 `json:"encrypt,omitempty"`
-	Stdout, Stderr     io.Writer              `json:"-"`
-	Args               []string               `json:"-"`
+	NodeName            string                 `json:"node_name"`
+	NodeID              string                 `json:"node_id"`
+	NodeMeta            map[string]string      `json:"node_meta,omitempty"`
+	Performance         *TestPerformanceConfig `json:"performance,omitempty"`
+	Bootstrap           bool                   `json:"bootstrap,omitempty"`
+	Server              bool                   `json:"server,omitempty"`
+	DataDir             string                 `json:"data_dir,omitempty"`
+	Datacenter          string                 `json:"datacenter,omitempty"`
+	DisableCheckpoint   bool                   `json:"disable_update_check"`
+	LogLevel            string                 `json:"log_level,omitempty"`
+	Bind                string                 `json:"bind_addr,omitempty"`
+	Addresses           *TestAddressConfig     `json:"addresses,omitempty"`
+	Ports               *TestPortConfig        `json:"ports,omitempty"`
+	RaftProtocol        int                    `json:"raft_protocol,omitempty"`
+	ACLMasterToken      string                 `json:"acl_master_token,omitempty"`
+	ACLDatacenter       string                 `json:"acl_datacenter,omitempty"`
+	ACLDefaultPolicy    string                 `json:"acl_default_policy,omitempty"`
+	ACLEnforceVersion8  bool                   `json:"acl_enforce_version_8"`
+	Encrypt             string                 `json:"encrypt,omitempty"`
+	CAFile              string                 `json:"ca_file,omitempty"`
+	CertFile            string                 `json:"cert_file,omitempty"`
+	KeyFile             string                 `json:"key_file,omitempty"`
+	VerifyIncoming      bool                   `json:"verify_incoming,omitempty"`
+	VerifyIncomingRPC   bool                   `json:"verify_incoming_rpc,omitempty"`
+	VerifyIncomingHTTPS bool                   `json:"verify_incoming_https,omitempty"`
+	VerifyOutgoing      bool                   `json:"verify_outgoing,omitempty"`
+	Stdout, Stderr      io.Writer              `json:"-"`
+	Args                []string               `json:"-"`
 }
 
 // ServerConfigCallback is a function interface which can be
@@ -105,6 +115,7 @@ func defaultServerConfig() *TestServerConfig {
 		Ports: &TestPortConfig{
 			DNS:     randomPort(),
 			HTTP:    randomPort(),
+			HTTPS:   randomPort(),
 			SerfLan: randomPort(),
 			SerfWan: randomPort(),
 			Server:  randomPort(),
@@ -150,11 +161,12 @@ type TestServer struct {
 	cmd    *exec.Cmd
 	Config *TestServerConfig
 
-	HTTPAddr string
-	LANAddr  string
-	WANAddr  string
+	HTTPAddr  string
+	HTTPSAddr string
+	LANAddr   string
+	WANAddr   string
 
-	HttpClient *http.Client
+	HTTPClient *http.Client
 }
 
 // NewTestServer is an easy helper method to create a new Consul
@@ -243,11 +255,12 @@ func NewTestServerConfig(cb ServerConfigCallback) (*TestServer, error) {
 		Config: consulConfig,
 		cmd:    cmd,
 
-		HTTPAddr: httpAddr,
-		LANAddr:  fmt.Sprintf("127.0.0.1:%d", consulConfig.Ports.SerfLan),
-		WANAddr:  fmt.Sprintf("127.0.0.1:%d", consulConfig.Ports.SerfWan),
+		HTTPAddr:  httpAddr,
+		HTTPSAddr: fmt.Sprintf("127.0.0.1:%d", consulConfig.Ports.HTTPS),
+		LANAddr:   fmt.Sprintf("127.0.0.1:%d", consulConfig.Ports.SerfLan),
+		WANAddr:   fmt.Sprintf("127.0.0.1:%d", consulConfig.Ports.SerfWan),
 
-		HttpClient: client,
+		HTTPClient: client,
 	}
 
 	// Wait for the server to be ready
@@ -286,22 +299,30 @@ func (s *TestServer) Stop() error {
 	return nil
 }
 
+type failer struct {
+	failed bool
+}
+
+func (f *failer) Log(args ...interface{}) { fmt.Println(args) }
+func (f *failer) FailNow()                { f.failed = true }
+
 // waitForAPI waits for only the agent HTTP endpoint to start
 // responding. This is an indication that the agent has started,
 // but will likely return before a leader is elected.
 func (s *TestServer) waitForAPI() error {
-	if err := WaitForResult(func() (bool, error) {
-		resp, err := s.HttpClient.Get(s.url("/v1/agent/self"))
+	f := &failer{}
+	retry.Run(f, func(r *retry.R) {
+		resp, err := s.HTTPClient.Get(s.url("/v1/agent/self"))
 		if err != nil {
-			return false, errors.Wrap(err, "failed http get")
+			r.Fatal(err)
 		}
 		defer resp.Body.Close()
 		if err := s.requireOK(resp); err != nil {
-			return false, errors.Wrap(err, "failed OK response")
+			r.Fatal("failed OK respose", err)
 		}
-		return true, nil
-	}); err != nil {
-		return errors.Wrap(err, "failed waiting for API")
+	})
+	if f.failed {
+		return errors.New("failed waiting for API")
 	}
 	return nil
 }
@@ -311,50 +332,52 @@ func (s *TestServer) waitForAPI() error {
 // 1 or more to be observed to confirm leader election is done.
 // It then waits to ensure the anti-entropy sync has completed.
 func (s *TestServer) waitForLeader() error {
+	f := &failer{}
+	timer := &retry.Timer{Timeout: 3 * time.Second, Wait: 250 * time.Millisecond}
 	var index int64
-	if err := WaitForResult(func() (bool, error) {
+	retry.RunWith(timer, f, func(r *retry.R) {
 		// Query the API and check the status code.
 		url := s.url(fmt.Sprintf("/v1/catalog/nodes?index=%d&wait=2s", index))
-		resp, err := s.HttpClient.Get(url)
+		resp, err := s.HTTPClient.Get(url)
 		if err != nil {
-			return false, errors.Wrap(err, "failed http get")
+			r.Fatal("failed http get", err)
 		}
 		defer resp.Body.Close()
 		if err := s.requireOK(resp); err != nil {
-			return false, errors.Wrap(err, "failed OK response")
+			r.Fatal("failed OK response", err)
 		}
 
 		// Ensure we have a leader and a node registration.
 		if leader := resp.Header.Get("X-Consul-KnownLeader"); leader != "true" {
-			return false, fmt.Errorf("Consul leader status: %#v", leader)
+			r.Fatalf("Consul leader status: %#v", leader)
 		}
 		index, err = strconv.ParseInt(resp.Header.Get("X-Consul-Index"), 10, 64)
 		if err != nil {
-			return false, errors.Wrap(err, "bad consul index")
+			r.Fatal("bad consul index", err)
 		}
 		if index == 0 {
-			return false, fmt.Errorf("consul index is 0")
+			r.Fatal("consul index is 0")
 		}
 
 		// Watch for the anti-entropy sync to finish.
-		var parsed []map[string]interface{}
+		var v []map[string]interface{}
 		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&parsed); err != nil {
-			return false, err
+		if err := dec.Decode(&v); err != nil {
+			r.Fatal(err)
 		}
-		if len(parsed) < 1 {
-			return false, fmt.Errorf("No nodes")
+		if len(v) < 1 {
+			r.Fatal("No nodes")
 		}
-		taggedAddresses, ok := parsed[0]["TaggedAddresses"].(map[string]interface{})
+		taggedAddresses, ok := v[0]["TaggedAddresses"].(map[string]interface{})
 		if !ok {
-			return false, fmt.Errorf("Missing tagged addresses")
+			r.Fatal("Missing tagged addresses")
 		}
 		if _, ok := taggedAddresses["lan"]; !ok {
-			return false, fmt.Errorf("No lan tagged addresses")
+			r.Fatal("No lan tagged addresses")
 		}
-		return true, nil
-	}); err != nil {
-		return errors.Wrap(err, "failed waiting for leader")
+	})
+	if f.failed {
+		return errors.New("failed waiting for leader")
 	}
 	return nil
 }

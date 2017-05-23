@@ -2,13 +2,12 @@ package consul
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/consul/consul/agent"
-	"github.com/hashicorp/consul/testutil"
+	"github.com/hashicorp/consul/testrpc"
 	"github.com/hashicorp/consul/types"
 )
 
@@ -25,15 +24,9 @@ func TestStatsFetcher(t *testing.T) {
 	defer os.RemoveAll(dir3)
 	defer s3.Shutdown()
 
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if _, err := s3.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	joinLAN(t, s2, s1)
+	joinLAN(t, s3, s1)
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	members := s1.serfLAN.Members()
 	if len(members) != 3 {

@@ -1,13 +1,9 @@
 package agent
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"log"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -20,12 +16,6 @@ import (
 	"github.com/armon/go-metrics"
 	"github.com/armon/go-metrics/circonus"
 	"github.com/armon/go-metrics/datadog"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/defaults"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/hashicorp/consul/command/base"
 	"github.com/hashicorp/consul/consul/structs"
 	"github.com/hashicorp/consul/lib"
@@ -36,9 +26,6 @@ import (
 	"github.com/hashicorp/logutils"
 	"github.com/hashicorp/scada-client/scada"
 	"github.com/mitchellh/cli"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-	compute "google.golang.org/api/compute/v1"
 )
 
 // gracefulTimeout controls how long we wait before forcefully terminating
@@ -66,7 +53,7 @@ type Command struct {
 	httpServers       []*HTTPServer
 	dnsServer         *DNSServer
 	scadaProvider     *scada.Provider
-	scadaHttp         *HTTPServer
+	scadaHTTP         *HTTPServer
 }
 
 // readConfig is responsible for setup of our configuration using
@@ -100,11 +87,15 @@ func (c *Command) readConfig() *Config {
 	f.StringVar((*string)(&cmdConfig.NodeID), "node-id", "",
 		"A unique ID for this node across space and time. Defaults to a randomly-generated ID"+
 			" that persists in the data-dir.")
+	f.BoolVar(&cmdConfig.DisableHostNodeID, "disable-host-node-id", false,
+		"Setting this to true will prevent Consul from using information from the"+
+			" host to generate a node ID, and will cause Consul to generate a"+
+			" random node ID instead.")
 	f.StringVar(&dcDeprecated, "dc", "", "Datacenter of the agent (deprecated: use 'datacenter' instead).")
 	f.StringVar(&cmdConfig.Datacenter, "datacenter", "", "Datacenter of the agent.")
 	f.StringVar(&cmdConfig.DataDir, "data-dir", "", "Path to a data directory to store agent state.")
-	f.BoolVar(&cmdConfig.EnableUi, "ui", false, "Enables the built-in static web UI server.")
-	f.StringVar(&cmdConfig.UiDir, "ui-dir", "", "Path to directory containing the web UI resources.")
+	f.BoolVar(&cmdConfig.EnableUI, "ui", false, "Enables the built-in static web UI server.")
+	f.StringVar(&cmdConfig.UIDir, "ui-dir", "", "Path to directory containing the web UI resources.")
 	f.StringVar(&cmdConfig.PidFile, "pid-file", "", "Path to file to store agent PID.")
 	f.StringVar(&cmdConfig.EncryptKey, "encrypt", "", "Provides the gossip encryption key.")
 
@@ -185,7 +176,7 @@ func (c *Command) readConfig() *Config {
 	if retryInterval != "" {
 		dur, err := time.ParseDuration(retryInterval)
 		if err != nil {
-			c.Ui.Error(fmt.Sprintf("Error: %s", err))
+			c.UI.Error(fmt.Sprintf("Error: %s", err))
 			return nil
 		}
 		cmdConfig.RetryInterval = dur
@@ -194,7 +185,7 @@ func (c *Command) readConfig() *Config {
 	if retryIntervalWan != "" {
 		dur, err := time.ParseDuration(retryIntervalWan)
 		if err != nil {
-			c.Ui.Error(fmt.Sprintf("Error: %s", err))
+			c.UI.Error(fmt.Sprintf("Error: %s", err))
 			return nil
 		}
 		cmdConfig.RetryIntervalWan = dur
@@ -218,7 +209,7 @@ func (c *Command) readConfig() *Config {
 	if len(configFiles) > 0 {
 		fileConfig, err := ReadConfigPaths(configFiles)
 		if err != nil {
-			c.Ui.Error(err.Error())
+			c.UI.Error(err.Error())
 			return nil
 		}
 
@@ -232,14 +223,14 @@ func (c *Command) readConfig() *Config {
 	if config.NodeName == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
-			c.Ui.Error(fmt.Sprintf("Error determining node name: %s", err))
+			c.UI.Error(fmt.Sprintf("Error determining node name: %s", err))
 			return nil
 		}
 		config.NodeName = hostname
 	}
 	config.NodeName = strings.TrimSpace(config.NodeName)
 	if config.NodeName == "" {
-		c.Ui.Error("Node name can not be empty")
+		c.UI.Error("Node name can not be empty")
 		return nil
 	}
 
@@ -255,24 +246,24 @@ func (c *Command) readConfig() *Config {
 	// Ensure we have a data directory if we are not in dev mode.
 	if !dev {
 		if config.DataDir == "" {
-			c.Ui.Error("Must specify data directory using -data-dir")
+			c.UI.Error("Must specify data directory using -data-dir")
 			return nil
 		}
 
 		if finfo, err := os.Stat(config.DataDir); err != nil {
 			if !os.IsNotExist(err) {
-				c.Ui.Error(fmt.Sprintf("Error getting data-dir: %s", err))
+				c.UI.Error(fmt.Sprintf("Error getting data-dir: %s", err))
 				return nil
 			}
 		} else if !finfo.IsDir() {
-			c.Ui.Error(fmt.Sprintf("The data-dir specified at %q is not a directory", config.DataDir))
+			c.UI.Error(fmt.Sprintf("The data-dir specified at %q is not a directory", config.DataDir))
 			return nil
 		}
 	}
 
 	// Ensure all endpoints are unique
 	if err := config.verifyUniqueListeners(); err != nil {
-		c.Ui.Error(fmt.Sprintf("All listening endpoints must be unique: %s", err))
+		c.UI.Error(fmt.Sprintf("All listening endpoints must be unique: %s", err))
 		return nil
 	}
 
@@ -283,43 +274,43 @@ func (c *Command) readConfig() *Config {
 		mdbPath := filepath.Join(config.DataDir, "mdb")
 		if _, err := os.Stat(mdbPath); !os.IsNotExist(err) {
 			if os.IsPermission(err) {
-				c.Ui.Error(fmt.Sprintf("CRITICAL: Permission denied for data folder at %q!", mdbPath))
-				c.Ui.Error("Consul will refuse to boot without access to this directory.")
-				c.Ui.Error("Please correct permissions and try starting again.")
+				c.UI.Error(fmt.Sprintf("CRITICAL: Permission denied for data folder at %q!", mdbPath))
+				c.UI.Error("Consul will refuse to boot without access to this directory.")
+				c.UI.Error("Please correct permissions and try starting again.")
 				return nil
 			}
-			c.Ui.Error(fmt.Sprintf("CRITICAL: Deprecated data folder found at %q!", mdbPath))
-			c.Ui.Error("Consul will refuse to boot with this directory present.")
-			c.Ui.Error("See https://www.consul.io/docs/upgrade-specific.html for more information.")
+			c.UI.Error(fmt.Sprintf("CRITICAL: Deprecated data folder found at %q!", mdbPath))
+			c.UI.Error("Consul will refuse to boot with this directory present.")
+			c.UI.Error("See https://www.consul.io/docs/upgrade-specific.html for more information.")
 			return nil
 		}
 	}
 
 	// Verify DNS settings
 	if config.DNSConfig.UDPAnswerLimit < 1 {
-		c.Ui.Error(fmt.Sprintf("dns_config.udp_answer_limit %d too low, must always be greater than zero", config.DNSConfig.UDPAnswerLimit))
+		c.UI.Error(fmt.Sprintf("dns_config.udp_answer_limit %d too low, must always be greater than zero", config.DNSConfig.UDPAnswerLimit))
 	}
 
 	if config.EncryptKey != "" {
 		if _, err := config.EncryptBytes(); err != nil {
-			c.Ui.Error(fmt.Sprintf("Invalid encryption key: %s", err))
+			c.UI.Error(fmt.Sprintf("Invalid encryption key: %s", err))
 			return nil
 		}
 		keyfileLAN := filepath.Join(config.DataDir, serfLANKeyring)
 		if _, err := os.Stat(keyfileLAN); err == nil {
-			c.Ui.Error("WARNING: LAN keyring exists but -encrypt given, using keyring")
+			c.UI.Error("WARNING: LAN keyring exists but -encrypt given, using keyring")
 		}
 		if config.Server {
 			keyfileWAN := filepath.Join(config.DataDir, serfWANKeyring)
 			if _, err := os.Stat(keyfileWAN); err == nil {
-				c.Ui.Error("WARNING: WAN keyring exists but -encrypt given, using keyring")
+				c.UI.Error("WARNING: WAN keyring exists but -encrypt given, using keyring")
 			}
 		}
 	}
 
 	// Output a warning if the 'dc' flag has been used.
 	if dcDeprecated != "" {
-		c.Ui.Error("WARNING: the 'dc' flag has been deprecated. Use 'datacenter' instead")
+		c.UI.Error("WARNING: the 'dc' flag has been deprecated. Use 'datacenter' instead")
 
 		// Making sure that we don't break previous versions.
 		config.Datacenter = dcDeprecated
@@ -331,7 +322,7 @@ func (c *Command) readConfig() *Config {
 
 	// Verify datacenter is valid
 	if !validDatacenter.MatchString(config.Datacenter) {
-		c.Ui.Error("Datacenter must be alpha-numeric with underscores and hypens only")
+		c.UI.Error("Datacenter must be alpha-numeric with underscores and hypens only")
 		return nil
 	}
 
@@ -341,32 +332,42 @@ func (c *Command) readConfig() *Config {
 
 		// Verify 'acl_datacenter' is valid
 		if !validDatacenter.MatchString(config.ACLDatacenter) {
-			c.Ui.Error("ACL datacenter must be alpha-numeric with underscores and hypens only")
+			c.UI.Error("ACL datacenter must be alpha-numeric with underscores and hypens only")
 			return nil
 		}
 	}
 
 	// Only allow bootstrap mode when acting as a server
 	if config.Bootstrap && !config.Server {
-		c.Ui.Error("Bootstrap mode cannot be enabled when server mode is not enabled")
+		c.UI.Error("Bootstrap mode cannot be enabled when server mode is not enabled")
 		return nil
 	}
 
 	// Expect can only work when acting as a server
 	if config.BootstrapExpect != 0 && !config.Server {
-		c.Ui.Error("Expect mode cannot be enabled when server mode is not enabled")
+		c.UI.Error("Expect mode cannot be enabled when server mode is not enabled")
 		return nil
 	}
 
 	// Expect can only work when dev mode is off
 	if config.BootstrapExpect > 0 && config.DevMode {
-		c.Ui.Error("Expect mode cannot be enabled when dev mode is enabled")
+		c.UI.Error("Expect mode cannot be enabled when dev mode is enabled")
 		return nil
 	}
 
 	// Expect & Bootstrap are mutually exclusive
 	if config.BootstrapExpect != 0 && config.Bootstrap {
-		c.Ui.Error("Bootstrap cannot be provided with an expected server count")
+		c.UI.Error("Bootstrap cannot be provided with an expected server count")
+		return nil
+	}
+
+	if isAddrANY(config.AdvertiseAddr) {
+		c.UI.Error("Advertise address cannot be " + config.AdvertiseAddr)
+		return nil
+	}
+
+	if isAddrANY(config.AdvertiseAddrWan) {
+		c.UI.Error("Advertise WAN address cannot be " + config.AdvertiseAddrWan)
 		return nil
 	}
 
@@ -375,13 +376,13 @@ func (c *Command) readConfig() *Config {
 		// Parse the watches, excluding the handler
 		wp, err := watch.ParseExempt(params, []string{"handler"})
 		if err != nil {
-			c.Ui.Error(fmt.Sprintf("Failed to parse watch (%#v): %v", params, err))
+			c.UI.Error(fmt.Sprintf("Failed to parse watch (%#v): %v", params, err))
 			return nil
 		}
 
 		// Get the handler
 		if err := verifyWatchHandler(wp.Exempt["handler"]); err != nil {
-			c.Ui.Error(fmt.Sprintf("Failed to setup watch handler (%#v): %v", params, err))
+			c.UI.Error(fmt.Sprintf("Failed to setup watch handler (%#v): %v", params, err))
 			return nil
 		}
 
@@ -391,35 +392,42 @@ func (c *Command) readConfig() *Config {
 
 	// Warn if we are in expect mode
 	if config.BootstrapExpect == 1 {
-		c.Ui.Error("WARNING: BootstrapExpect Mode is specified as 1; this is the same as Bootstrap mode.")
+		c.UI.Error("WARNING: BootstrapExpect Mode is specified as 1; this is the same as Bootstrap mode.")
 		config.BootstrapExpect = 0
 		config.Bootstrap = true
 	} else if config.BootstrapExpect > 0 {
-		c.Ui.Error(fmt.Sprintf("WARNING: Expect Mode enabled, expecting %d servers", config.BootstrapExpect))
+		c.UI.Error(fmt.Sprintf("WARNING: Expect Mode enabled, expecting %d servers", config.BootstrapExpect))
 	}
 
 	// Warn if we are in bootstrap mode
 	if config.Bootstrap {
-		c.Ui.Error("WARNING: Bootstrap mode enabled! Do not enable unless necessary")
+		c.UI.Error("WARNING: Bootstrap mode enabled! Do not enable unless necessary")
 	}
 
 	// Need both tag key and value for EC2 discovery
 	if config.RetryJoinEC2.TagKey != "" || config.RetryJoinEC2.TagValue != "" {
 		if config.RetryJoinEC2.TagKey == "" || config.RetryJoinEC2.TagValue == "" {
-			c.Ui.Error("tag key and value are both required for EC2 retry-join")
+			c.UI.Error("tag key and value are both required for EC2 retry-join")
 			return nil
 		}
 	}
 
 	// EC2 and GCE discovery are mutually exclusive
 	if config.RetryJoinEC2.TagKey != "" && config.RetryJoinEC2.TagValue != "" && config.RetryJoinGCE.TagValue != "" {
-		c.Ui.Error("EC2 and GCE discovery are mutually exclusive. Please provide one or the other.")
+		c.UI.Error("EC2 and GCE discovery are mutually exclusive. Please provide one or the other.")
 		return nil
 	}
 
 	// Verify the node metadata entries are valid
 	if err := structs.ValidateMetadata(config.Meta); err != nil {
-		c.Ui.Error(fmt.Sprintf("Failed to parse node metadata: %v", err))
+		c.UI.Error(fmt.Sprintf("Failed to parse node metadata: %v", err))
+	}
+
+	// It doesn't make sense to include both UI options.
+	if config.EnableUI == true && config.UIDir != "" {
+		c.UI.Error("Both the ui and ui-dir flags were specified, please provide only one")
+		c.UI.Error("If trying to use your own web UI resources, use the ui-dir flag")
+		c.UI.Error("If using Consul version 0.7.0 or later, the web UI is included in the binary so use ui to enable it")
 		return nil
 	}
 
@@ -431,261 +439,12 @@ func (c *Command) readConfig() *Config {
 	return config
 }
 
-// verifyUniqueListeners checks to see if an address was used more than once in
-// the config
-func (config *Config) verifyUniqueListeners() error {
-	listeners := []struct {
-		host  string
-		port  int
-		descr string
-	}{
-		{config.Addresses.DNS, config.Ports.DNS, "DNS"},
-		{config.Addresses.HTTP, config.Ports.HTTP, "HTTP"},
-		{config.Addresses.HTTPS, config.Ports.HTTPS, "HTTPS"},
-		{config.AdvertiseAddr, config.Ports.Server, "Server RPC"},
-		{config.AdvertiseAddr, config.Ports.SerfLan, "Serf LAN"},
-		{config.AdvertiseAddr, config.Ports.SerfWan, "Serf WAN"},
-	}
-
-	type key struct {
-		host string
-		port int
-	}
-	m := make(map[key]string, len(listeners))
-
-	for _, l := range listeners {
-		if l.host == "" {
-			l.host = "0.0.0.0"
-		} else if strings.HasPrefix(l.host, "unix") {
-			// Don't compare ports on unix sockets
-			l.port = 0
-		}
-		if l.host == "0.0.0.0" && l.port <= 0 {
-			continue
-		}
-
-		k := key{l.host, l.port}
-		v, ok := m[k]
-		if ok {
-			return fmt.Errorf("%s address already configured for %s", l.descr, v)
-		}
-		m[k] = l.descr
-	}
-	return nil
-}
-
-// discoverEc2Hosts searches an AWS region, returning a list of instance ips
-// where EC2TagKey = EC2TagValue
-func (c *Config) discoverEc2Hosts(logger *log.Logger) ([]string, error) {
-	config := c.RetryJoinEC2
-
-	ec2meta := ec2metadata.New(session.New())
-	if config.Region == "" {
-		logger.Printf("[INFO] agent: No EC2 region provided, querying instance metadata endpoint...")
-		identity, err := ec2meta.GetInstanceIdentityDocument()
-		if err != nil {
-			return nil, err
-		}
-		config.Region = identity.Region
-	}
-
-	awsConfig := &aws.Config{
-		Region: &config.Region,
-		Credentials: credentials.NewChainCredentials(
-			[]credentials.Provider{
-				&credentials.StaticProvider{
-					Value: credentials.Value{
-						AccessKeyID:     config.AccessKeyID,
-						SecretAccessKey: config.SecretAccessKey,
-					},
-				},
-				&credentials.EnvProvider{},
-				&credentials.SharedCredentialsProvider{},
-				defaults.RemoteCredProvider(*(defaults.Config()), defaults.Handlers()),
-			}),
-	}
-
-	svc := ec2.New(session.New(), awsConfig)
-
-	resp, err := svc.DescribeInstances(&ec2.DescribeInstancesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name: aws.String("tag:" + config.TagKey),
-				Values: []*string{
-					aws.String(config.TagValue),
-				},
-			},
-		},
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	var servers []string
-	for i := range resp.Reservations {
-		for _, instance := range resp.Reservations[i].Instances {
-			// Terminated instances don't have the PrivateIpAddress field
-			if instance.PrivateIpAddress != nil {
-				servers = append(servers, *instance.PrivateIpAddress)
-			}
-		}
-	}
-
-	return servers, nil
-}
-
-// discoverGCEHosts searches a Google Compute Engine region, returning a list
-// of instance ips that match the tags given in GCETags.
-func (c *Config) discoverGCEHosts(logger *log.Logger) ([]string, error) {
-	config := c.RetryJoinGCE
-	ctx := oauth2.NoContext
-	var client *http.Client
-	var err error
-
-	logger.Printf("[INFO] agent: Initializing GCE client")
-	if config.CredentialsFile != "" {
-		logger.Printf("[INFO] agent: Loading credentials from %s", config.CredentialsFile)
-		key, err := ioutil.ReadFile(config.CredentialsFile)
-		if err != nil {
-			return nil, err
-		}
-		jwtConfig, err := google.JWTConfigFromJSON(key, compute.ComputeScope)
-		if err != nil {
-			return nil, err
-		}
-		client = jwtConfig.Client(ctx)
-	} else {
-		logger.Printf("[INFO] agent: Using default credential chain")
-		client, err = google.DefaultClient(ctx, compute.ComputeScope)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	computeService, err := compute.New(client)
-	if err != nil {
-		return nil, err
-	}
-
-	if config.ProjectName == "" {
-		logger.Printf("[INFO] agent: No GCE project provided, will discover from metadata.")
-		config.ProjectName, err = gceProjectIDFromMetadata(logger)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		logger.Printf("[INFO] agent: Using pre-defined GCE project name: %s", config.ProjectName)
-	}
-
-	zones, err := gceDiscoverZones(logger, ctx, computeService, config.ProjectName, config.ZonePattern)
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Printf("[INFO] agent: Discovering GCE hosts with tag %s in zones: %s", config.TagValue, strings.Join(zones, ", "))
-
-	var servers []string
-	for _, zone := range zones {
-		addresses, err := gceInstancesAddressesForZone(logger, ctx, computeService, config.ProjectName, zone, config.TagValue)
-		if err != nil {
-			return nil, err
-		}
-		if len(addresses) > 0 {
-			logger.Printf("[INFO] agent: Discovered %d instances in %s/%s: %v", len(addresses), config.ProjectName, zone, addresses)
-		}
-		servers = append(servers, addresses...)
-	}
-
-	return servers, nil
-}
-
-// gceProjectIDFromMetadata queries the metadata service on GCE to get the
-// project ID (name) of an instance.
-func gceProjectIDFromMetadata(logger *log.Logger) (string, error) {
-	logger.Printf("[INFO] agent: Attempting to discover GCE project from metadata.")
-	client := &http.Client{}
-
-	req, err := http.NewRequest("GET", "http://metadata.google.internal/computeMetadata/v1/project/project-id", nil)
-	if err != nil {
-		return "", err
-	}
-
-	req.Header.Add("Metadata-Flavor", "Google")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-
-	defer resp.Body.Close()
-
-	project, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	logger.Printf("[INFO] agent: GCE project discovered as: %s", project)
-	return string(project), nil
-}
-
-// gceDiscoverZones discovers a list of zones from a supplied zone pattern, or
-// all of the zones available to a project.
-func gceDiscoverZones(logger *log.Logger, ctx context.Context, computeService *compute.Service, project, pattern string) ([]string, error) {
-	var zones []string
-
-	if pattern != "" {
-		logger.Printf("[INFO] agent: Discovering zones for project %s matching pattern: %s", project, pattern)
-	} else {
-		logger.Printf("[INFO] agent: Discovering all zones available to project: %s", project)
-	}
-
-	call := computeService.Zones.List(project)
-	if pattern != "" {
-		call = call.Filter(fmt.Sprintf("name eq %s", pattern))
-	}
-
-	if err := call.Pages(ctx, func(page *compute.ZoneList) error {
-		for _, v := range page.Items {
-			zones = append(zones, v.Name)
-		}
-		return nil
-	}); err != nil {
-		return zones, err
-	}
-
-	logger.Printf("[INFO] agent: Discovered GCE zones: %s", strings.Join(zones, ", "))
-	return zones, nil
-}
-
-// gceInstancesAddressesForZone locates all instances within a specific project
-// and zone, matching the supplied tag. Only the private IP addresses are
-// returned, but ID is also logged.
-func gceInstancesAddressesForZone(logger *log.Logger, ctx context.Context, computeService *compute.Service, project, zone, tag string) ([]string, error) {
-	var addresses []string
-	call := computeService.Instances.List(project, zone)
-	if err := call.Pages(ctx, func(page *compute.InstanceList) error {
-		for _, v := range page.Items {
-			for _, t := range v.Tags.Items {
-				if t == tag && len(v.NetworkInterfaces) > 0 && v.NetworkInterfaces[0].NetworkIP != "" {
-					addresses = append(addresses, v.NetworkInterfaces[0].NetworkIP)
-				}
-			}
-		}
-		return nil
-	}); err != nil {
-		return addresses, err
-	}
-
-	return addresses, nil
-}
-
 // setupAgent is used to start the agent and various interfaces
 func (c *Command) setupAgent(config *Config, logOutput io.Writer, logWriter *logger.LogWriter) error {
-	c.Ui.Output("Starting Consul agent...")
+	c.UI.Output("Starting Consul agent...")
 	agent, err := Create(config, logOutput, logWriter, c.configReloadCh)
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error starting agent: %s", err))
+		c.UI.Error(fmt.Sprintf("Error starting agent: %s", err))
 		return err
 	}
 	c.agent = agent
@@ -693,7 +452,7 @@ func (c *Command) setupAgent(config *Config, logOutput io.Writer, logWriter *log
 	// Enable the SCADA integration
 	if err := c.setupScadaConn(config); err != nil {
 		agent.Shutdown()
-		c.Ui.Error(fmt.Sprintf("Error starting SCADA connection: %s", err))
+		c.UI.Error(fmt.Sprintf("Error starting SCADA connection: %s", err))
 		return err
 	}
 
@@ -701,7 +460,7 @@ func (c *Command) setupAgent(config *Config, logOutput io.Writer, logWriter *log
 		servers, err := NewHTTPServers(agent, config, logOutput)
 		if err != nil {
 			agent.Shutdown()
-			c.Ui.Error(fmt.Sprintf("Error starting http servers: %s", err))
+			c.UI.Error(fmt.Sprintf("Error starting http servers: %s", err))
 			return err
 		}
 		c.httpServers = servers
@@ -711,7 +470,7 @@ func (c *Command) setupAgent(config *Config, logOutput io.Writer, logWriter *log
 		dnsAddr, err := config.ClientListener(config.Addresses.DNS, config.Ports.DNS)
 		if err != nil {
 			agent.Shutdown()
-			c.Ui.Error(fmt.Sprintf("Invalid DNS bind address: %s", err))
+			c.UI.Error(fmt.Sprintf("Invalid DNS bind address: %s", err))
 			return err
 		}
 
@@ -719,7 +478,7 @@ func (c *Command) setupAgent(config *Config, logOutput io.Writer, logWriter *log
 			config.Domain, dnsAddr.String(), config.DNSRecursors)
 		if err != nil {
 			agent.Shutdown()
-			c.Ui.Error(fmt.Sprintf("Error starting dns server: %s", err))
+			c.UI.Error(fmt.Sprintf("Error starting dns server: %s", err))
 			return err
 		}
 		c.dnsServer = server
@@ -754,18 +513,18 @@ func (c *Command) setupAgent(config *Config, logOutput io.Writer, logWriter *log
 // checkpointResults is used to handler periodic results from our update checker
 func (c *Command) checkpointResults(results *checkpoint.CheckResponse, err error) {
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Failed to check for updates: %v", err))
+		c.UI.Error(fmt.Sprintf("Failed to check for updates: %v", err))
 		return
 	}
 	if results.Outdated {
-		c.Ui.Error(fmt.Sprintf("Newer Consul version available: %s (currently running: %s)", results.CurrentVersion, c.Version))
+		c.UI.Error(fmt.Sprintf("Newer Consul version available: %s (currently running: %s)", results.CurrentVersion, c.Version))
 	}
 	for _, alert := range results.Alerts {
 		switch alert.Level {
 		case "info":
-			c.Ui.Info(fmt.Sprintf("Bulletin [%s]: %s (%s)", alert.Level, alert.Message, alert.URL))
+			c.UI.Info(fmt.Sprintf("Bulletin [%s]: %s (%s)", alert.Level, alert.Message, alert.URL))
 		default:
-			c.Ui.Error(fmt.Sprintf("Bulletin [%s]: %s (%s)", alert.Level, alert.Message, alert.URL))
+			c.UI.Error(fmt.Sprintf("Bulletin [%s]: %s (%s)", alert.Level, alert.Message, alert.URL))
 		}
 	}
 }
@@ -776,13 +535,13 @@ func (c *Command) startupJoin(config *Config) error {
 		return nil
 	}
 
-	c.Ui.Output("Joining cluster...")
+	c.UI.Output("Joining cluster...")
 	n, err := c.agent.JoinLAN(config.StartJoin)
 	if err != nil {
 		return err
 	}
 
-	c.Ui.Info(fmt.Sprintf("Join completed. Synced with %d initial agents", n))
+	c.UI.Info(fmt.Sprintf("Join completed. Synced with %d initial agents", n))
 	return nil
 }
 
@@ -792,13 +551,13 @@ func (c *Command) startupJoinWan(config *Config) error {
 		return nil
 	}
 
-	c.Ui.Output("Joining -wan cluster...")
+	c.UI.Output("Joining -wan cluster...")
 	n, err := c.agent.JoinWAN(config.StartJoinWan)
 	if err != nil {
 		return err
 	}
 
-	c.Ui.Info(fmt.Sprintf("Join -wan completed. Synced with %d initial agents", n))
+	c.UI.Info(fmt.Sprintf("Join -wan completed. Synced with %d initial agents", n))
 	return nil
 }
 
@@ -905,11 +664,11 @@ func (c *Command) gossipEncrypted() bool {
 }
 
 func (c *Command) Run(args []string) int {
-	c.Ui = &cli.PrefixedUi{
+	c.UI = &cli.PrefixedUi{
 		OutputPrefix: "==> ",
 		InfoPrefix:   "    ",
 		ErrorPrefix:  "==> ",
-		Ui:           c.Ui,
+		Ui:           c.UI,
 	}
 
 	// Parse our configs
@@ -925,7 +684,7 @@ func (c *Command) Run(args []string) int {
 		EnableSyslog:   config.EnableSyslog,
 		SyslogFacility: config.SyslogFacility,
 	}
-	logFilter, logGate, logWriter, logOutput, ok := logger.Setup(logConfig, c.Ui)
+	logFilter, logGate, logWriter, logOutput, ok := logger.Setup(logConfig, c.UI)
 	if !ok {
 		return 1
 	}
@@ -949,7 +708,7 @@ func (c *Command) Run(args []string) int {
 	if config.Telemetry.StatsiteAddr != "" {
 		sink, err := metrics.NewStatsiteSink(config.Telemetry.StatsiteAddr)
 		if err != nil {
-			c.Ui.Error(fmt.Sprintf("Failed to start statsite sink. Got: %s", err))
+			c.UI.Error(fmt.Sprintf("Failed to start statsite sink. Got: %s", err))
 			return 1
 		}
 		fanout = append(fanout, sink)
@@ -959,7 +718,7 @@ func (c *Command) Run(args []string) int {
 	if config.Telemetry.StatsdAddr != "" {
 		sink, err := metrics.NewStatsdSink(config.Telemetry.StatsdAddr)
 		if err != nil {
-			c.Ui.Error(fmt.Sprintf("Failed to start statsd sink. Got: %s", err))
+			c.UI.Error(fmt.Sprintf("Failed to start statsd sink. Got: %s", err))
 			return 1
 		}
 		fanout = append(fanout, sink)
@@ -975,7 +734,7 @@ func (c *Command) Run(args []string) int {
 
 		sink, err := datadog.NewDogStatsdSink(config.Telemetry.DogStatsdAddr, metricsConf.HostName)
 		if err != nil {
-			c.Ui.Error(fmt.Sprintf("Failed to start DogStatsd sink. Got: %s", err))
+			c.UI.Error(fmt.Sprintf("Failed to start DogStatsd sink. Got: %s", err))
 			return 1
 		}
 		sink.SetTags(tags)
@@ -1012,7 +771,7 @@ func (c *Command) Run(args []string) int {
 
 		sink, err := circonus.NewCirconusSink(cfg)
 		if err != nil {
-			c.Ui.Error(fmt.Sprintf("Failed to start Circonus sink. Got: %s", err))
+			c.UI.Error(fmt.Sprintf("Failed to start Circonus sink. Got: %s", err))
 			return 1
 		}
 		sink.Start()
@@ -1042,8 +801,8 @@ func (c *Command) Run(args []string) int {
 
 	// Check and shut down the SCADA listeners at the end
 	defer func() {
-		if c.scadaHttp != nil {
-			c.scadaHttp.Shutdown()
+		if c.scadaHTTP != nil {
+			c.scadaHTTP.Shutdown()
 		}
 		if c.scadaProvider != nil {
 			c.scadaProvider.Shutdown()
@@ -1052,13 +811,13 @@ func (c *Command) Run(args []string) int {
 
 	// Join startup nodes if specified
 	if err := c.startupJoin(config); err != nil {
-		c.Ui.Error(err.Error())
+		c.UI.Error(err.Error())
 		return 1
 	}
 
 	// Join startup nodes if specified
 	if err := c.startupJoinWan(config); err != nil {
-		c.Ui.Error(err.Error())
+		c.UI.Error(err.Error())
 		return 1
 	}
 
@@ -1070,16 +829,16 @@ func (c *Command) Run(args []string) int {
 	} else if config.Ports.HTTPS != -1 {
 		httpAddr, err = config.ClientListener(config.Addresses.HTTPS, config.Ports.HTTPS)
 	} else if len(config.WatchPlans) > 0 {
-		c.Ui.Error("Error: cannot use watches if both HTTP and HTTPS are disabled")
+		c.UI.Error("Error: cannot use watches if both HTTP and HTTPS are disabled")
 		return 1
 	}
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Failed to determine HTTP address: %v", err))
+		c.UI.Error(fmt.Sprintf("Failed to determine HTTP address: %v", err))
 	}
 
 	// Register the watches
 	for _, wp := range config.WatchPlans {
-		go func(wp *watch.WatchPlan) {
+		go func(wp *watch.Plan) {
 			wp.Handler = makeWatchHandler(logOutput, wp.Exempt["handler"])
 			wp.LogOutput = c.logOutput
 			addr := httpAddr.String()
@@ -1088,7 +847,7 @@ func (c *Command) Run(args []string) int {
 				addr = "unix://" + addr
 			}
 			if err := wp.Run(addr); err != nil {
-				c.Ui.Error(fmt.Sprintf("Error running watch: %v", err))
+				c.UI.Error(fmt.Sprintf("Error running watch: %v", err))
 			}
 		}(wp)
 	}
@@ -1110,23 +869,23 @@ func (c *Command) Run(args []string) int {
 	// Let the agent know we've finished registration
 	c.agent.StartSync()
 
-	c.Ui.Output("Consul agent running!")
-	c.Ui.Info(fmt.Sprintf("       Version: '%s'", c.HumanVersion))
-	c.Ui.Info(fmt.Sprintf("       Node ID: '%s'", config.NodeID))
-	c.Ui.Info(fmt.Sprintf("     Node name: '%s'", config.NodeName))
-	c.Ui.Info(fmt.Sprintf("    Datacenter: '%s'", config.Datacenter))
-	c.Ui.Info(fmt.Sprintf("        Server: %v (bootstrap: %v)", config.Server, config.Bootstrap))
-	c.Ui.Info(fmt.Sprintf("   Client Addr: %v (HTTP: %d, HTTPS: %d, DNS: %d)", config.ClientAddr,
+	c.UI.Output("Consul agent running!")
+	c.UI.Info(fmt.Sprintf("       Version: '%s'", c.HumanVersion))
+	c.UI.Info(fmt.Sprintf("       Node ID: '%s'", config.NodeID))
+	c.UI.Info(fmt.Sprintf("     Node name: '%s'", config.NodeName))
+	c.UI.Info(fmt.Sprintf("    Datacenter: '%s'", config.Datacenter))
+	c.UI.Info(fmt.Sprintf("        Server: %v (bootstrap: %v)", config.Server, config.Bootstrap))
+	c.UI.Info(fmt.Sprintf("   Client Addr: %v (HTTP: %d, HTTPS: %d, DNS: %d)", config.ClientAddr,
 		config.Ports.HTTP, config.Ports.HTTPS, config.Ports.DNS))
-	c.Ui.Info(fmt.Sprintf("  Cluster Addr: %v (LAN: %d, WAN: %d)", config.AdvertiseAddr,
+	c.UI.Info(fmt.Sprintf("  Cluster Addr: %v (LAN: %d, WAN: %d)", config.AdvertiseAddr,
 		config.Ports.SerfLan, config.Ports.SerfWan))
-	c.Ui.Info(fmt.Sprintf("Gossip encrypt: %v, RPC-TLS: %v, TLS-Incoming: %v",
+	c.UI.Info(fmt.Sprintf("Gossip encrypt: %v, RPC-TLS: %v, TLS-Incoming: %v",
 		gossipEncrypted, config.VerifyOutgoing, config.VerifyIncoming))
-	c.Ui.Info(fmt.Sprintf("         Atlas: %s", atlas))
+	c.UI.Info(fmt.Sprintf("         Atlas: %s", atlas))
 
 	// Enable log streaming
-	c.Ui.Info("")
-	c.Ui.Output("Log data will now stream in as it occurs:\n")
+	c.UI.Info("")
+	c.UI.Output("Log data will now stream in as it occurs:\n")
 	logGate.Flush()
 
 	// Start retry join process
@@ -1167,12 +926,13 @@ WAIT:
 		// Agent is already shutdown!
 		return 0
 	}
-	c.Ui.Output(fmt.Sprintf("Caught signal: %v", sig))
 
-	// Skip SIGPIPE signals
+	// Skip SIGPIPE signals and skip logging whenever such signal is received as well
 	if sig == syscall.SIGPIPE {
 		goto WAIT
 	}
+
+	c.UI.Output(fmt.Sprintf("Caught signal: %v", sig))
 
 	// Check if this is a SIGHUP
 	if sig == syscall.SIGHUP {
@@ -1181,7 +941,7 @@ WAIT:
 			config = conf
 		}
 		if err != nil {
-			c.Ui.Error(err.Error())
+			c.UI.Error(err.Error())
 		}
 		// Send result back if reload was called via HTTP
 		if reloadErrCh != nil {
@@ -1205,10 +965,10 @@ WAIT:
 
 	// Attempt a graceful leave
 	gracefulCh := make(chan struct{})
-	c.Ui.Output("Gracefully shutting down agent...")
+	c.UI.Output("Gracefully shutting down agent...")
 	go func() {
 		if err := c.agent.Leave(); err != nil {
-			c.Ui.Error(fmt.Sprintf("Error: %s", err))
+			c.UI.Error(fmt.Sprintf("Error: %s", err))
 			return
 		}
 		close(gracefulCh)
@@ -1227,7 +987,7 @@ WAIT:
 
 // handleReload is invoked when we should reload our configs, e.g. SIGHUP
 func (c *Command) handleReload(config *Config) (*Config, error) {
-	c.Ui.Output("Reloading configuration...")
+	c.UI.Output("Reloading configuration...")
 	var errs error
 	newConf := c.readConfig()
 	if newConf == nil {
@@ -1295,7 +1055,7 @@ func (c *Command) handleReload(config *Config) (*Config, error) {
 
 	// Register the new watches
 	for _, wp := range newConf.WatchPlans {
-		go func(wp *watch.WatchPlan) {
+		go func(wp *watch.Plan) {
 			wp.Handler = makeWatchHandler(c.logOutput, wp.Exempt["handler"])
 			wp.LogOutput = c.logOutput
 			if err := wp.Run(httpAddr.String()); err != nil {
@@ -1324,8 +1084,8 @@ func (c *Command) setupScadaConn(config *Config) error {
 	if c.scadaProvider != nil {
 		c.scadaProvider.Shutdown()
 	}
-	if c.scadaHttp != nil {
-		c.scadaHttp.Shutdown()
+	if c.scadaHTTP != nil {
+		c.scadaHTTP.Shutdown()
 	}
 
 	// No-op if we don't have an infrastructure
@@ -1333,7 +1093,7 @@ func (c *Command) setupScadaConn(config *Config) error {
 		return nil
 	}
 
-	c.Ui.Error("WARNING: The hosted version of Consul Enterprise will be deprecated " +
+	c.UI.Error("WARNING: The hosted version of Consul Enterprise will be deprecated " +
 		"on March 7th, 2017. For details, see " +
 		"https://atlas.hashicorp.com/help/consul/alternatives")
 
@@ -1354,13 +1114,13 @@ func (c *Command) setupScadaConn(config *Config) error {
 	}
 
 	// Create the new provider and listener
-	c.Ui.Output("Connecting to Atlas: " + config.AtlasInfrastructure)
+	c.UI.Output("Connecting to Atlas: " + config.AtlasInfrastructure)
 	provider, list, err := scada.NewHTTPProvider(scadaConfig, c.logOutput)
 	if err != nil {
 		return err
 	}
 	c.scadaProvider = provider
-	c.scadaHttp = newScadaHttp(c.agent, list)
+	c.scadaHTTP = newScadaHTTP(c.agent, list)
 	return nil
 }
 

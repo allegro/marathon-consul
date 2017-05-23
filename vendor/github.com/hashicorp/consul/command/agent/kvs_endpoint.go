@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/consul/structs"
 )
 
@@ -40,9 +41,8 @@ func (s *HTTPServer) KVSEndpoint(resp http.ResponseWriter, req *http.Request) (i
 	case "GET":
 		if keyList {
 			return s.KVSGetKeys(resp, req, &args)
-		} else {
-			return s.KVSGet(resp, req, &args)
 		}
+		return s.KVSGet(resp, req, &args)
 	case "PUT":
 		return s.KVSPut(resp, req, &args)
 	case "DELETE":
@@ -141,7 +141,7 @@ func (s *HTTPServer) KVSPut(resp http.ResponseWriter, req *http.Request, args *s
 	}
 	applyReq := structs.KVSRequest{
 		Datacenter: args.Datacenter,
-		Op:         structs.KVSSet,
+		Op:         api.KVSet,
 		DirEnt: structs.DirEntry{
 			Key:   args.Key,
 			Flags: 0,
@@ -167,25 +167,25 @@ func (s *HTTPServer) KVSPut(resp http.ResponseWriter, req *http.Request, args *s
 			return nil, err
 		}
 		applyReq.DirEnt.ModifyIndex = casVal
-		applyReq.Op = structs.KVSCAS
+		applyReq.Op = api.KVCAS
 	}
 
 	// Check for lock acquisition
 	if _, ok := params["acquire"]; ok {
 		applyReq.DirEnt.Session = params.Get("acquire")
-		applyReq.Op = structs.KVSLock
+		applyReq.Op = api.KVLock
 	}
 
 	// Check for lock release
 	if _, ok := params["release"]; ok {
 		applyReq.DirEnt.Session = params.Get("release")
-		applyReq.Op = structs.KVSUnlock
+		applyReq.Op = api.KVUnlock
 	}
 
 	// Check the content-length
 	if req.ContentLength > maxKVSize {
 		resp.WriteHeader(413)
-		resp.Write([]byte(fmt.Sprintf("Value exceeds %d byte limit", maxKVSize)))
+		fmt.Fprintf(resp, "Value exceeds %d byte limit", maxKVSize)
 		return nil, nil
 	}
 
@@ -203,11 +203,10 @@ func (s *HTTPServer) KVSPut(resp http.ResponseWriter, req *http.Request, args *s
 	}
 
 	// Only use the out value if this was a CAS
-	if applyReq.Op == structs.KVSSet {
+	if applyReq.Op == api.KVSet {
 		return true, nil
-	} else {
-		return out, nil
 	}
+	return out, nil
 }
 
 // KVSPut handles a DELETE request
@@ -217,7 +216,7 @@ func (s *HTTPServer) KVSDelete(resp http.ResponseWriter, req *http.Request, args
 	}
 	applyReq := structs.KVSRequest{
 		Datacenter: args.Datacenter,
-		Op:         structs.KVSDelete,
+		Op:         api.KVDelete,
 		DirEnt: structs.DirEntry{
 			Key: args.Key,
 		},
@@ -227,7 +226,7 @@ func (s *HTTPServer) KVSDelete(resp http.ResponseWriter, req *http.Request, args
 	// Check for recurse
 	params := req.URL.Query()
 	if _, ok := params["recurse"]; ok {
-		applyReq.Op = structs.KVSDeleteTree
+		applyReq.Op = api.KVDeleteTree
 	} else if missingKey(resp, args) {
 		return nil, nil
 	}
@@ -239,7 +238,7 @@ func (s *HTTPServer) KVSDelete(resp http.ResponseWriter, req *http.Request, args
 			return nil, err
 		}
 		applyReq.DirEnt.ModifyIndex = casVal
-		applyReq.Op = structs.KVSDeleteCAS
+		applyReq.Op = api.KVDeleteCAS
 	}
 
 	// Make the RPC
@@ -249,18 +248,17 @@ func (s *HTTPServer) KVSDelete(resp http.ResponseWriter, req *http.Request, args
 	}
 
 	// Only use the out value if this was a CAS
-	if applyReq.Op == structs.KVSDeleteCAS {
+	if applyReq.Op == api.KVDeleteCAS {
 		return out, nil
-	} else {
-		return true, nil
 	}
+	return true, nil
 }
 
 // missingKey checks if the key is missing
 func missingKey(resp http.ResponseWriter, args *structs.KeyRequest) bool {
 	if args.Key == "" {
 		resp.WriteHeader(400)
-		resp.Write([]byte("Missing key name"))
+		fmt.Fprint(resp, "Missing key name")
 		return true
 	}
 	return false
@@ -275,7 +273,7 @@ func conflictingFlags(resp http.ResponseWriter, req *http.Request, flags ...stri
 		if _, ok := params[conflict]; ok {
 			if found {
 				resp.WriteHeader(400)
-				resp.Write([]byte("Conflicting flags: " + params.Encode()))
+				fmt.Fprint(resp, "Conflicting flags: "+params.Encode())
 				return true
 			}
 			found = true

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/consul/structs"
 	"github.com/hashicorp/consul/logger"
 	"github.com/hashicorp/consul/types"
@@ -15,7 +16,7 @@ import (
 	"github.com/hashicorp/serf/serf"
 )
 
-type AgentSelf struct {
+type Self struct {
 	Config *Config
 	Coord  *coordinate.Coordinate
 	Member serf.Member
@@ -40,10 +41,10 @@ func (s *HTTPServer) AgentSelf(resp http.ResponseWriter, req *http.Request) (int
 		return nil, err
 	}
 	if acl != nil && !acl.AgentRead(s.agent.config.NodeName) {
-		return nil, permissionDeniedErr
+		return nil, errPermissionDenied
 	}
 
-	return AgentSelf{
+	return Self{
 		Config: s.agent.config,
 		Coord:  c,
 		Member: s.agent.LocalMember(),
@@ -66,7 +67,7 @@ func (s *HTTPServer) AgentReload(resp http.ResponseWriter, req *http.Request) (i
 		return nil, err
 	}
 	if acl != nil && !acl.AgentWrite(s.agent.config.NodeName) {
-		return nil, permissionDeniedErr
+		return nil, errPermissionDenied
 	}
 
 	// Trigger the reload
@@ -95,6 +96,14 @@ func (s *HTTPServer) AgentServices(resp http.ResponseWriter, req *http.Request) 
 	if err := s.agent.filterServices(token, &services); err != nil {
 		return nil, err
 	}
+
+	// Use empty list instead of nil
+	for _, s := range services {
+		if s.Tags == nil {
+			s.Tags = make([]string, 0)
+		}
+	}
+
 	return services, nil
 }
 
@@ -107,6 +116,14 @@ func (s *HTTPServer) AgentChecks(resp http.ResponseWriter, req *http.Request) (i
 	if err := s.agent.filterChecks(token, &checks); err != nil {
 		return nil, err
 	}
+
+	// Use empty list instead of nil
+	for _, c := range checks {
+		if c.ServiceTags == nil {
+			c.ServiceTags = make([]string, 0)
+		}
+	}
+
 	return checks, nil
 }
 
@@ -142,7 +159,7 @@ func (s *HTTPServer) AgentJoin(resp http.ResponseWriter, req *http.Request) (int
 		return nil, err
 	}
 	if acl != nil && !acl.AgentWrite(s.agent.config.NodeName) {
-		return nil, permissionDeniedErr
+		return nil, errPermissionDenied
 	}
 
 	// Check if the WAN is being queried
@@ -154,12 +171,11 @@ func (s *HTTPServer) AgentJoin(resp http.ResponseWriter, req *http.Request) (int
 	// Get the address
 	addr := strings.TrimPrefix(req.URL.Path, "/v1/agent/join/")
 	if wan {
-		_, err := s.agent.JoinWAN([]string{addr})
-		return nil, err
+		_, err = s.agent.JoinWAN([]string{addr})
 	} else {
-		_, err := s.agent.JoinLAN([]string{addr})
-		return nil, err
+		_, err = s.agent.JoinLAN([]string{addr})
 	}
+	return nil, err
 }
 
 func (s *HTTPServer) AgentLeave(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
@@ -176,7 +192,7 @@ func (s *HTTPServer) AgentLeave(resp http.ResponseWriter, req *http.Request) (in
 		return nil, err
 	}
 	if acl != nil && !acl.AgentWrite(s.agent.config.NodeName) {
-		return nil, permissionDeniedErr
+		return nil, errPermissionDenied
 	}
 
 	if err := s.agent.Leave(); err != nil {
@@ -194,7 +210,7 @@ func (s *HTTPServer) AgentForceLeave(resp http.ResponseWriter, req *http.Request
 		return nil, err
 	}
 	if acl != nil && !acl.AgentWrite(s.agent.config.NodeName) {
-		return nil, permissionDeniedErr
+		return nil, errPermissionDenied
 	}
 
 	addr := strings.TrimPrefix(req.URL.Path, "/v1/agent/force-leave/")
@@ -220,20 +236,20 @@ func (s *HTTPServer) AgentRegisterCheck(resp http.ResponseWriter, req *http.Requ
 	}
 	if err := decodeBody(req, &args, decodeCB); err != nil {
 		resp.WriteHeader(400)
-		resp.Write([]byte(fmt.Sprintf("Request decode failed: %v", err)))
+		fmt.Fprintf(resp, "Request decode failed: %v", err)
 		return nil, nil
 	}
 
 	// Verify the check has a name.
 	if args.Name == "" {
 		resp.WriteHeader(400)
-		resp.Write([]byte("Missing check name"))
+		fmt.Fprint(resp, "Missing check name")
 		return nil, nil
 	}
 
 	if args.Status != "" && !structs.ValidStatus(args.Status) {
 		resp.WriteHeader(400)
-		resp.Write([]byte("Bad check status"))
+		fmt.Fprint(resp, "Bad check status")
 		return nil, nil
 	}
 
@@ -244,7 +260,7 @@ func (s *HTTPServer) AgentRegisterCheck(resp http.ResponseWriter, req *http.Requ
 	chkType := &args.CheckType
 	if !chkType.Valid() {
 		resp.WriteHeader(400)
-		resp.Write([]byte(invalidCheckMessage))
+		fmt.Fprint(resp, invalidCheckMessage)
 		return nil, nil
 	}
 
@@ -291,7 +307,7 @@ func (s *HTTPServer) AgentCheckPass(resp http.ResponseWriter, req *http.Request)
 		return nil, err
 	}
 
-	if err := s.agent.updateTTLCheck(checkID, structs.HealthPassing, note); err != nil {
+	if err := s.agent.updateTTLCheck(checkID, api.HealthPassing, note); err != nil {
 		return nil, err
 	}
 	s.syncChanges()
@@ -309,7 +325,7 @@ func (s *HTTPServer) AgentCheckWarn(resp http.ResponseWriter, req *http.Request)
 		return nil, err
 	}
 
-	if err := s.agent.updateTTLCheck(checkID, structs.HealthWarning, note); err != nil {
+	if err := s.agent.updateTTLCheck(checkID, api.HealthWarning, note); err != nil {
 		return nil, err
 	}
 	s.syncChanges()
@@ -327,7 +343,7 @@ func (s *HTTPServer) AgentCheckFail(resp http.ResponseWriter, req *http.Request)
 		return nil, err
 	}
 
-	if err := s.agent.updateTTLCheck(checkID, structs.HealthCritical, note); err != nil {
+	if err := s.agent.updateTTLCheck(checkID, api.HealthCritical, note); err != nil {
 		return nil, err
 	}
 	s.syncChanges()
@@ -336,7 +352,7 @@ func (s *HTTPServer) AgentCheckFail(resp http.ResponseWriter, req *http.Request)
 
 // checkUpdate is the payload for a PUT to AgentCheckUpdate.
 type checkUpdate struct {
-	// Status us one of the structs.Health* states, "passing", "warning", or
+	// Status us one of the api.Health* states, "passing", "warning", or
 	// "critical".
 	Status string
 
@@ -358,17 +374,17 @@ func (s *HTTPServer) AgentCheckUpdate(resp http.ResponseWriter, req *http.Reques
 	var update checkUpdate
 	if err := decodeBody(req, &update, nil); err != nil {
 		resp.WriteHeader(400)
-		resp.Write([]byte(fmt.Sprintf("Request decode failed: %v", err)))
+		fmt.Fprintf(resp, "Request decode failed: %v", err)
 		return nil, nil
 	}
 
 	switch update.Status {
-	case structs.HealthPassing:
-	case structs.HealthWarning:
-	case structs.HealthCritical:
+	case api.HealthPassing:
+	case api.HealthWarning:
+	case api.HealthCritical:
 	default:
 		resp.WriteHeader(400)
-		resp.Write([]byte(fmt.Sprintf("Invalid check status: '%s'", update.Status)))
+		fmt.Fprintf(resp, "Invalid check status: '%s'", update.Status)
 		return nil, nil
 	}
 
@@ -425,14 +441,14 @@ func (s *HTTPServer) AgentRegisterService(resp http.ResponseWriter, req *http.Re
 	}
 	if err := decodeBody(req, &args, decodeCB); err != nil {
 		resp.WriteHeader(400)
-		resp.Write([]byte(fmt.Sprintf("Request decode failed: %v", err)))
+		fmt.Fprintf(resp, "Request decode failed: %v", err)
 		return nil, nil
 	}
 
 	// Verify the service has a name.
 	if args.Name == "" {
 		resp.WriteHeader(400)
-		resp.Write([]byte("Missing service name"))
+		fmt.Fprint(resp, "Missing service name")
 		return nil, nil
 	}
 
@@ -444,12 +460,12 @@ func (s *HTTPServer) AgentRegisterService(resp http.ResponseWriter, req *http.Re
 	for _, check := range chkTypes {
 		if check.Status != "" && !structs.ValidStatus(check.Status) {
 			resp.WriteHeader(400)
-			resp.Write([]byte("Status for checks must 'passing', 'warning', 'critical'"))
+			fmt.Fprint(resp, "Status for checks must 'passing', 'warning', 'critical'")
 			return nil, nil
 		}
 		if !check.Valid() {
 			resp.WriteHeader(400)
-			resp.Write([]byte(invalidCheckMessage))
+			fmt.Fprint(resp, invalidCheckMessage)
 			return nil, nil
 		}
 	}
@@ -497,7 +513,7 @@ func (s *HTTPServer) AgentServiceMaintenance(resp http.ResponseWriter, req *http
 	serviceID := strings.TrimPrefix(req.URL.Path, "/v1/agent/service/maintenance/")
 	if serviceID == "" {
 		resp.WriteHeader(400)
-		resp.Write([]byte("Missing service ID"))
+		fmt.Fprint(resp, "Missing service ID")
 		return nil, nil
 	}
 
@@ -505,7 +521,7 @@ func (s *HTTPServer) AgentServiceMaintenance(resp http.ResponseWriter, req *http
 	params := req.URL.Query()
 	if _, ok := params["enable"]; !ok {
 		resp.WriteHeader(400)
-		resp.Write([]byte("Missing value for enable"))
+		fmt.Fprint(resp, "Missing value for enable")
 		return nil, nil
 	}
 
@@ -513,7 +529,7 @@ func (s *HTTPServer) AgentServiceMaintenance(resp http.ResponseWriter, req *http
 	enable, err := strconv.ParseBool(raw)
 	if err != nil {
 		resp.WriteHeader(400)
-		resp.Write([]byte(fmt.Sprintf("Invalid value for enable: %q", raw)))
+		fmt.Fprintf(resp, "Invalid value for enable: %q", raw)
 		return nil, nil
 	}
 
@@ -528,13 +544,13 @@ func (s *HTTPServer) AgentServiceMaintenance(resp http.ResponseWriter, req *http
 		reason := params.Get("reason")
 		if err = s.agent.EnableServiceMaintenance(serviceID, reason, token); err != nil {
 			resp.WriteHeader(404)
-			resp.Write([]byte(err.Error()))
+			fmt.Fprint(resp, err.Error())
 			return nil, nil
 		}
 	} else {
 		if err = s.agent.DisableServiceMaintenance(serviceID); err != nil {
 			resp.WriteHeader(404)
-			resp.Write([]byte(err.Error()))
+			fmt.Fprint(resp, err.Error())
 			return nil, nil
 		}
 	}
@@ -553,7 +569,7 @@ func (s *HTTPServer) AgentNodeMaintenance(resp http.ResponseWriter, req *http.Re
 	params := req.URL.Query()
 	if _, ok := params["enable"]; !ok {
 		resp.WriteHeader(400)
-		resp.Write([]byte("Missing value for enable"))
+		fmt.Fprint(resp, "Missing value for enable")
 		return nil, nil
 	}
 
@@ -561,7 +577,7 @@ func (s *HTTPServer) AgentNodeMaintenance(resp http.ResponseWriter, req *http.Re
 	enable, err := strconv.ParseBool(raw)
 	if err != nil {
 		resp.WriteHeader(400)
-		resp.Write([]byte(fmt.Sprintf("Invalid value for enable: %q", raw)))
+		fmt.Fprintf(resp, "Invalid value for enable: %q", raw)
 		return nil, nil
 	}
 
@@ -573,7 +589,7 @@ func (s *HTTPServer) AgentNodeMaintenance(resp http.ResponseWriter, req *http.Re
 		return nil, err
 	}
 	if acl != nil && !acl.NodeWrite(s.agent.config.NodeName) {
-		return nil, permissionDeniedErr
+		return nil, errPermissionDenied
 	}
 
 	if enable {
@@ -600,7 +616,7 @@ func (s *HTTPServer) AgentMonitor(resp http.ResponseWriter, req *http.Request) (
 		return nil, err
 	}
 	if acl != nil && !acl.AgentRead(s.agent.config.NodeName) {
-		return nil, permissionDeniedErr
+		return nil, errPermissionDenied
 	}
 
 	// Get the provided loglevel.
@@ -617,7 +633,7 @@ func (s *HTTPServer) AgentMonitor(resp http.ResponseWriter, req *http.Request) (
 	filter.MinLevel = logutils.LogLevel(logLevel)
 	if !logger.ValidateLevelFilter(filter.MinLevel, filter) {
 		resp.WriteHeader(400)
-		resp.Write([]byte(fmt.Sprintf("Unknown log level: %s", filter.MinLevel)))
+		fmt.Fprintf(resp, "Unknown log level: %s", filter.MinLevel)
 		return nil, nil
 	}
 	flusher, ok := resp.(http.Flusher)
@@ -645,7 +661,7 @@ func (s *HTTPServer) AgentMonitor(resp http.ResponseWriter, req *http.Request) (
 			}
 			return nil, nil
 		case log := <-handler.logCh:
-			resp.Write([]byte(log + "\n"))
+			fmt.Fprintln(resp, log)
 			flusher.Flush()
 		}
 	}
@@ -670,6 +686,6 @@ func (h *httpLogHandler) HandleLog(log string) {
 	default:
 		// Just increment a counter for dropped logs to this handler; we can't log now
 		// because the lock is already held by the LogWriter invoking this
-		h.droppedCount += 1
+		h.droppedCount++
 	}
 }

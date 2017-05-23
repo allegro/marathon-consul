@@ -2,6 +2,7 @@ package consul
 
 import (
 	"fmt"
+
 	"github.com/armon/go-metrics"
 	"github.com/hashicorp/consul/consul/state"
 	"github.com/hashicorp/consul/consul/structs"
@@ -23,7 +24,7 @@ func (h *Health) ChecksInState(args *structs.ChecksInStateRequest,
 	return h.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		func(ws memdb.WatchSet, state *state.StateStore) error {
+		func(ws memdb.WatchSet, state *state.Store) error {
 			var index uint64
 			var checks structs.HealthChecks
 			var err error
@@ -53,7 +54,7 @@ func (h *Health) NodeChecks(args *structs.NodeSpecificRequest,
 	return h.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		func(ws memdb.WatchSet, state *state.StateStore) error {
+		func(ws memdb.WatchSet, state *state.Store) error {
 			index, checks, err := state.NodeChecks(ws, args.Node)
 			if err != nil {
 				return err
@@ -79,7 +80,7 @@ func (h *Health) ServiceChecks(args *structs.ServiceSpecificRequest,
 	return h.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		func(ws memdb.WatchSet, state *state.StateStore) error {
+		func(ws memdb.WatchSet, state *state.Store) error {
 			var index uint64
 			var checks structs.HealthChecks
 			var err error
@@ -113,7 +114,7 @@ func (h *Health) ServiceNodes(args *structs.ServiceSpecificRequest, reply *struc
 	err := h.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		func(ws memdb.WatchSet, state *state.StateStore) error {
+		func(ws memdb.WatchSet, state *state.Store) error {
 			var index uint64
 			var nodes structs.CheckServiceNodes
 			var err error

@@ -1,9 +1,10 @@
 package agent
 
 import (
-	"github.com/hashicorp/consul/testutil"
 	"os"
 	"testing"
+
+	"github.com/hashicorp/consul/testrpc"
 )
 
 func TestStatusLeader(t *testing.T) {
@@ -12,7 +13,7 @@ func TestStatusLeader(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	obj, err := srv.StatusLeader(nil, nil)
 	if err != nil {

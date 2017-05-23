@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/base64"
 	"io/ioutil"
 	"net"
@@ -59,8 +60,8 @@ func TestDecodeConfig(t *testing.T) {
 		t.Fatalf("bad: %#v", config)
 	}
 
-	// Without a protocol
-	input = `{"node_id": "bar", "node_name": "foo", "datacenter": "dc2"}`
+	// Node info
+	input = `{"node_id": "bar", "disable_host_node_id": true, "node_name": "foo", "datacenter": "dc2"}`
 	config, err = DecodeConfig(bytes.NewReader([]byte(input)))
 	if err != nil {
 		t.Fatalf("err: %s", err)
@@ -71,6 +72,10 @@ func TestDecodeConfig(t *testing.T) {
 	}
 
 	if config.NodeID != "bar" {
+		t.Fatalf("bad: %#v", config)
+	}
+
+	if config.DisableHostNodeID != true {
 		t.Fatalf("bad: %#v", config)
 	}
 
@@ -350,13 +355,23 @@ func TestDecodeConfig(t *testing.T) {
 	}
 
 	// TLS
-	input = `{"verify_incoming": true, "verify_outgoing": true, "verify_server_hostname": true, "tls_min_version": "tls12"}`
+	input = `{"verify_incoming": true, "verify_incoming_rpc": true, "verify_incoming_https": true,
+	"verify_outgoing": true, "verify_server_hostname": true, "tls_min_version": "tls12",
+	"tls_cipher_suites": "TLS_RSA_WITH_AES_256_CBC_SHA", "tls_prefer_server_cipher_suites": true}`
 	config, err = DecodeConfig(bytes.NewReader([]byte(input)))
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
 
 	if config.VerifyIncoming != true {
+		t.Fatalf("bad: %#v", config)
+	}
+
+	if config.VerifyIncomingRPC != true {
+		t.Fatalf("bad: %#v", config)
+	}
+
+	if config.VerifyIncomingHTTPS != true {
 		t.Fatalf("bad: %#v", config)
 	}
 
@@ -372,14 +387,25 @@ func TestDecodeConfig(t *testing.T) {
 		t.Fatalf("bad: %#v", config)
 	}
 
+	if len(config.TLSCipherSuites) != 1 || config.TLSCipherSuites[0] != tls.TLS_RSA_WITH_AES_256_CBC_SHA {
+		t.Fatalf("bad: %#v", config)
+	}
+
+	if !config.TLSPreferServerCipherSuites {
+		t.Fatalf("bad: %#v", config)
+	}
+
 	// TLS keys
-	input = `{"ca_file": "my/ca/file", "cert_file": "my.cert", "key_file": "key.pem", "server_name": "example.com"}`
+	input = `{"ca_file": "my/ca/file", "ca_path":"my/ca/path", "cert_file": "my.cert", "key_file": "key.pem", "server_name": "example.com"}`
 	config, err = DecodeConfig(bytes.NewReader([]byte(input)))
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
 
 	if config.CAFile != "my/ca/file" {
+		t.Fatalf("bad: %#v", config)
+	}
+	if config.CAPath != "my/ca/path" {
 		t.Fatalf("bad: %#v", config)
 	}
 	if config.CertFile != "my.cert" {
@@ -540,7 +566,7 @@ func TestDecodeConfig(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 
-	if !config.EnableUi {
+	if !config.EnableUI {
 		t.Fatalf("bad: %#v", config)
 	}
 
@@ -551,7 +577,7 @@ func TestDecodeConfig(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 
-	if config.UiDir != "/opt/consul-ui" {
+	if config.UIDir != "/opt/consul-ui" {
 		t.Fatalf("bad: %#v", config)
 	}
 
@@ -1652,14 +1678,15 @@ func TestMergeConfig(t *testing.T) {
 			UDPAnswerLimit:  4,
 			RecursorTimeout: 30 * time.Second,
 		},
-		Domain:           "other",
-		LogLevel:         "info",
-		NodeID:           "bar",
-		NodeName:         "baz",
-		ClientAddr:       "127.0.0.2",
-		BindAddr:         "127.0.0.2",
-		AdvertiseAddr:    "127.0.0.2",
-		AdvertiseAddrWan: "127.0.0.2",
+		Domain:            "other",
+		LogLevel:          "info",
+		NodeID:            "bar",
+		DisableHostNodeID: true,
+		NodeName:          "baz",
+		ClientAddr:        "127.0.0.2",
+		BindAddr:          "127.0.0.2",
+		AdvertiseAddr:     "127.0.0.2",
+		AdvertiseAddrWan:  "127.0.0.2",
 		Ports: PortConfig{
 			DNS:     1,
 			HTTP:    2,
@@ -1694,8 +1721,8 @@ func TestMergeConfig(t *testing.T) {
 		Services:               []*ServiceDefinition{nil},
 		StartJoin:              []string{"1.1.1.1"},
 		StartJoinWan:           []string{"1.1.1.1"},
-		EnableUi:               true,
-		UiDir:                  "/opt/consul-ui",
+		EnableUI:               true,
+		UIDir:                  "/opt/consul-ui",
 		EnableSyslog:           true,
 		RejoinAfterLeave:       true,
 		RetryJoin:              []string{"1.1.1.1"},

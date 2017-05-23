@@ -1,17 +1,18 @@
 package command
 
 import (
-	"github.com/hashicorp/consul/command/base"
-	"github.com/mitchellh/cli"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/consul/command/base"
+	"github.com/mitchellh/cli"
 )
 
 func testLeaveCommand(t *testing.T) (*cli.MockUi, *LeaveCommand) {
 	ui := new(cli.MockUi)
 	return ui, &LeaveCommand{
 		Command: base.Command{
-			Ui:    ui,
+			UI:    ui,
 			Flags: base.FlagSetClientHTTP,
 		},
 	}

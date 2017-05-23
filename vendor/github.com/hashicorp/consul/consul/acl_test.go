@@ -1,16 +1,16 @@
 package consul
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/consul/acl"
 	"github.com/hashicorp/consul/consul/structs"
-	"github.com/hashicorp/consul/testutil"
+	"github.com/hashicorp/consul/testrpc"
+	"github.com/hashicorp/consul/testutil/retry"
 )
 
 var testACLPolicy = `
@@ -29,7 +29,7 @@ func TestACL_Disabled(t *testing.T) {
 	client := rpcClient(t, s1)
 	defer client.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	acl, err := s1.resolveToken("does not exist")
 	if err != nil {
@@ -73,7 +73,7 @@ func TestACL_Authority_NotFound(t *testing.T) {
 	client := rpcClient(t, s1)
 	defer client.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	acl, err := s1.resolveToken("does not exist")
 	if err == nil || err.Error() != aclNotFound {
@@ -94,7 +94,7 @@ func TestACL_Authority_Found(t *testing.T) {
 	client := rpcClient(t, s1)
 	defer client.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Create a new token
 	arg := structs.ACLRequest{
@@ -139,7 +139,7 @@ func TestACL_Authority_Anonymous_Found(t *testing.T) {
 	client := rpcClient(t, s1)
 	defer client.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Resolve the token
 	acl, err := s1.resolveToken("")
@@ -166,7 +166,7 @@ func TestACL_Authority_Master_Found(t *testing.T) {
 	client := rpcClient(t, s1)
 	defer client.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Resolve the token
 	acl, err := s1.resolveToken("foobar")
@@ -194,7 +194,7 @@ func TestACL_Authority_Management(t *testing.T) {
 	client := rpcClient(t, s1)
 	defer client.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Resolve the token
 	acl, err := s1.resolveToken("foobar")
@@ -226,22 +226,12 @@ func TestACL_NonAuthority_NotFound(t *testing.T) {
 	defer s2.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-
-	if err := testutil.WaitForResult(func() (bool, error) {
-		p1, _ := s1.numPeers()
-		return p1 == 2, errors.New(fmt.Sprintf("%d", p1))
-	}); err != nil {
-		t.Fatal(err)
-	}
+	joinLAN(t, s2, s1)
+	retry.Run(t, func(r *retry.R) { r.Check(wantPeers(s1, 2)) })
 
 	client := rpcClient(t, s1)
 	defer client.Close()
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// find the non-authoritative server
 	var nonAuth *Server
@@ -278,19 +268,10 @@ func TestACL_NonAuthority_Found(t *testing.T) {
 	defer s2.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, s2, s1)
+	retry.Run(t, func(r *retry.R) { r.Check(wantPeers(s1, 2)) })
 
-	if err := testutil.WaitForResult(func() (bool, error) {
-		p1, _ := s1.numPeers()
-		return p1 == 2, errors.New(fmt.Sprintf("%d", p1))
-	}); err != nil {
-		t.Fatal(err)
-	}
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Create a new token
 	arg := structs.ACLRequest{
@@ -354,19 +335,10 @@ func TestACL_NonAuthority_Management(t *testing.T) {
 	defer s2.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, s2, s1)
+	retry.Run(t, func(r *retry.R) { r.Check(wantPeers(s1, 2)) })
 
-	if err := testutil.WaitForResult(func() (bool, error) {
-		p1, _ := s1.numPeers()
-		return p1 == 2, errors.New(fmt.Sprintf("%d", p1))
-	}); err != nil {
-		t.Fatal(err)
-	}
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// find the non-authoritative server
 	var nonAuth *Server
@@ -411,19 +383,10 @@ func TestACL_DownPolicy_Deny(t *testing.T) {
 	defer s2.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, s2, s1)
+	retry.Run(t, func(r *retry.R) { r.Check(wantPeers(s1, 2)) })
 
-	if err := testutil.WaitForResult(func() (bool, error) {
-		p1, _ := s1.numPeers()
-		return p1 == 2, errors.New(fmt.Sprintf("%d", p1))
-	}); err != nil {
-		t.Fatal(err)
-	}
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Create a new token
 	arg := structs.ACLRequest{
@@ -485,19 +448,10 @@ func TestACL_DownPolicy_Allow(t *testing.T) {
 	defer s2.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, s2, s1)
+	retry.Run(t, func(r *retry.R) { r.Check(wantPeers(s1, 2)) })
 
-	if err := testutil.WaitForResult(func() (bool, error) {
-		p1, _ := s1.numPeers()
-		return p1 == 2, errors.New(fmt.Sprintf("%d", p1))
-	}); err != nil {
-		t.Fatal(err)
-	}
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Create a new token
 	arg := structs.ACLRequest{
@@ -561,19 +515,10 @@ func TestACL_DownPolicy_ExtendCache(t *testing.T) {
 	defer s2.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, s2, s1)
+	retry.Run(t, func(r *retry.R) { r.Check(wantPeers(s1, 2)) })
 
-	if err := testutil.WaitForResult(func() (bool, error) {
-		p1, _ := s1.numPeers()
-		return p1 == 2, errors.New(fmt.Sprintf("%d", p1))
-	}); err != nil {
-		t.Fatal(err)
-	}
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Create a new token
 	arg := structs.ACLRequest{
@@ -640,7 +585,7 @@ func TestACL_Replication(t *testing.T) {
 		c.ACLDefaultPolicy = "deny"
 		c.ACLDownPolicy = "extend-cache"
 		c.ACLReplicationToken = "root"
-		c.ACLReplicationInterval = 0
+		c.ACLReplicationInterval = 10 * time.Millisecond
 		c.ACLReplicationApplyLimit = 1000000
 	})
 	defer os.RemoveAll(dir2)
@@ -651,24 +596,18 @@ func TestACL_Replication(t *testing.T) {
 		c.ACLDatacenter = "dc1"
 		c.ACLDownPolicy = "deny"
 		c.ACLReplicationToken = "root"
-		c.ACLReplicationInterval = 0
+		c.ACLReplicationInterval = 10 * time.Millisecond
 		c.ACLReplicationApplyLimit = 1000000
 	})
 	defer os.RemoveAll(dir3)
 	defer s3.Shutdown()
 
 	// Try to join.
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfWANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinWAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if _, err := s3.JoinWAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
-	testutil.WaitForLeader(t, s1.RPC, "dc2")
-	testutil.WaitForLeader(t, s1.RPC, "dc3")
+	joinWAN(t, s2, s1)
+	joinWAN(t, s3, s1)
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc2")
+	testrpc.WaitForLeader(t, s1.RPC, "dc3")
 
 	// Create a new token.
 	arg := structs.ACLRequest{
@@ -685,27 +624,23 @@ func TestACL_Replication(t *testing.T) {
 	if err := s1.RPC("ACL.Apply", &arg, &id); err != nil {
 		t.Fatalf("err: %v", err)
 	}
-
 	// Wait for replication to occur.
-	if err := testutil.WaitForResult(func() (bool, error) {
+	retry.Run(t, func(r *retry.R) {
 		_, acl, err := s2.fsm.State().ACLGet(nil, id)
 		if err != nil {
-			return false, err
+			r.Fatal(err)
 		}
 		if acl == nil {
-			return false, nil
+			r.Fatal(nil)
 		}
 		_, acl, err = s3.fsm.State().ACLGet(nil, id)
 		if err != nil {
-			return false, err
+			r.Fatal(err)
 		}
 		if acl == nil {
-			return false, nil
+			r.Fatal(nil)
 		}
-		return true, nil
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	// Kill the ACL datacenter.
 	s1.Shutdown()
@@ -764,14 +699,10 @@ func TestACL_MultiDC_Found(t *testing.T) {
 	defer s2.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfWANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinWAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinWAN(t, s2, s1)
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
-	testutil.WaitForLeader(t, s1.RPC, "dc2")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc2")
 
 	// Create a new token
 	arg := structs.ACLRequest{
@@ -822,7 +753,7 @@ func TestACL_filterHealthChecks(t *testing.T) {
 	// Try permissive filtering.
 	{
 		hc := fill()
-		filt := newAclFilter(acl.AllowAll(), nil, false)
+		filt := newACLFilter(acl.AllowAll(), nil, false)
 		filt.filterHealthChecks(&hc)
 		if len(hc) != 1 {
 			t.Fatalf("bad: %#v", hc)
@@ -832,7 +763,7 @@ func TestACL_filterHealthChecks(t *testing.T) {
 	// Try restrictive filtering.
 	{
 		hc := fill()
-		filt := newAclFilter(acl.DenyAll(), nil, false)
+		filt := newACLFilter(acl.DenyAll(), nil, false)
 		filt.filterHealthChecks(&hc)
 		if len(hc) != 0 {
 			t.Fatalf("bad: %#v", hc)
@@ -856,7 +787,7 @@ service "foo" {
 	// This will work because version 8 ACLs aren't being enforced.
 	{
 		hc := fill()
-		filt := newAclFilter(perms, nil, false)
+		filt := newACLFilter(perms, nil, false)
 		filt.filterHealthChecks(&hc)
 		if len(hc) != 1 {
 			t.Fatalf("bad: %#v", hc)
@@ -866,7 +797,7 @@ service "foo" {
 	// But with version 8 the node will block it.
 	{
 		hc := fill()
-		filt := newAclFilter(perms, nil, true)
+		filt := newACLFilter(perms, nil, true)
 		filt.filterHealthChecks(&hc)
 		if len(hc) != 0 {
 			t.Fatalf("bad: %#v", hc)
@@ -890,7 +821,7 @@ node "node1" {
 	// Now it should go through.
 	{
 		hc := fill()
-		filt := newAclFilter(perms, nil, true)
+		filt := newACLFilter(perms, nil, true)
 		filt.filterHealthChecks(&hc)
 		if len(hc) != 1 {
 			t.Fatalf("bad: %#v", hc)
@@ -907,14 +838,14 @@ func TestACL_filterServices(t *testing.T) {
 	}
 
 	// Try permissive filtering.
-	filt := newAclFilter(acl.AllowAll(), nil, false)
+	filt := newACLFilter(acl.AllowAll(), nil, false)
 	filt.filterServices(services)
 	if len(services) != 3 {
 		t.Fatalf("bad: %#v", services)
 	}
 
 	// Try restrictive filtering.
-	filt = newAclFilter(acl.DenyAll(), nil, false)
+	filt = newACLFilter(acl.DenyAll(), nil, false)
 	filt.filterServices(services)
 	if len(services) != 1 {
 		t.Fatalf("bad: %#v", services)
@@ -924,7 +855,7 @@ func TestACL_filterServices(t *testing.T) {
 	}
 
 	// Try restrictive filtering with version 8 enforcement.
-	filt = newAclFilter(acl.DenyAll(), nil, true)
+	filt = newACLFilter(acl.DenyAll(), nil, true)
 	filt.filterServices(services)
 	if len(services) != 0 {
 		t.Fatalf("bad: %#v", services)
@@ -945,7 +876,7 @@ func TestACL_filterServiceNodes(t *testing.T) {
 	// Try permissive filtering.
 	{
 		nodes := fill()
-		filt := newAclFilter(acl.AllowAll(), nil, false)
+		filt := newACLFilter(acl.AllowAll(), nil, false)
 		filt.filterServiceNodes(&nodes)
 		if len(nodes) != 1 {
 			t.Fatalf("bad: %#v", nodes)
@@ -955,7 +886,7 @@ func TestACL_filterServiceNodes(t *testing.T) {
 	// Try restrictive filtering.
 	{
 		nodes := fill()
-		filt := newAclFilter(acl.DenyAll(), nil, false)
+		filt := newACLFilter(acl.DenyAll(), nil, false)
 		filt.filterServiceNodes(&nodes)
 		if len(nodes) != 0 {
 			t.Fatalf("bad: %#v", nodes)
@@ -979,7 +910,7 @@ service "foo" {
 	// This will work because version 8 ACLs aren't being enforced.
 	{
 		nodes := fill()
-		filt := newAclFilter(perms, nil, false)
+		filt := newACLFilter(perms, nil, false)
 		filt.filterServiceNodes(&nodes)
 		if len(nodes) != 1 {
 			t.Fatalf("bad: %#v", nodes)
@@ -989,7 +920,7 @@ service "foo" {
 	// But with version 8 the node will block it.
 	{
 		nodes := fill()
-		filt := newAclFilter(perms, nil, true)
+		filt := newACLFilter(perms, nil, true)
 		filt.filterServiceNodes(&nodes)
 		if len(nodes) != 0 {
 			t.Fatalf("bad: %#v", nodes)
@@ -1013,7 +944,7 @@ node "node1" {
 	// Now it should go through.
 	{
 		nodes := fill()
-		filt := newAclFilter(perms, nil, true)
+		filt := newACLFilter(perms, nil, true)
 		filt.filterServiceNodes(&nodes)
 		if len(nodes) != 1 {
 			t.Fatalf("bad: %#v", nodes)
@@ -1040,7 +971,7 @@ func TestACL_filterNodeServices(t *testing.T) {
 	// Try nil, which is a possible input.
 	{
 		var services *structs.NodeServices
-		filt := newAclFilter(acl.AllowAll(), nil, false)
+		filt := newACLFilter(acl.AllowAll(), nil, false)
 		filt.filterNodeServices(&services)
 		if services != nil {
 			t.Fatalf("bad: %#v", services)
@@ -1050,7 +981,7 @@ func TestACL_filterNodeServices(t *testing.T) {
 	// Try permissive filtering.
 	{
 		services := fill()
-		filt := newAclFilter(acl.AllowAll(), nil, false)
+		filt := newACLFilter(acl.AllowAll(), nil, false)
 		filt.filterNodeServices(&services)
 		if len(services.Services) != 1 {
 			t.Fatalf("bad: %#v", services.Services)
@@ -1060,7 +991,7 @@ func TestACL_filterNodeServices(t *testing.T) {
 	// Try restrictive filtering.
 	{
 		services := fill()
-		filt := newAclFilter(acl.DenyAll(), nil, false)
+		filt := newACLFilter(acl.DenyAll(), nil, false)
 		filt.filterNodeServices(&services)
 		if len((*services).Services) != 0 {
 			t.Fatalf("bad: %#v", (*services).Services)
@@ -1084,7 +1015,7 @@ service "foo" {
 	// This will work because version 8 ACLs aren't being enforced.
 	{
 		services := fill()
-		filt := newAclFilter(perms, nil, false)
+		filt := newACLFilter(perms, nil, false)
 		filt.filterNodeServices(&services)
 		if len((*services).Services) != 1 {
 			t.Fatalf("bad: %#v", (*services).Services)
@@ -1094,7 +1025,7 @@ service "foo" {
 	// But with version 8 the node will block it.
 	{
 		services := fill()
-		filt := newAclFilter(perms, nil, true)
+		filt := newACLFilter(perms, nil, true)
 		filt.filterNodeServices(&services)
 		if services != nil {
 			t.Fatalf("bad: %#v", services)
@@ -1118,7 +1049,7 @@ node "node1" {
 	// Now it should go through.
 	{
 		services := fill()
-		filt := newAclFilter(perms, nil, true)
+		filt := newACLFilter(perms, nil, true)
 		filt.filterNodeServices(&services)
 		if len((*services).Services) != 1 {
 			t.Fatalf("bad: %#v", (*services).Services)
@@ -1152,7 +1083,7 @@ func TestACL_filterCheckServiceNodes(t *testing.T) {
 	// Try permissive filtering.
 	{
 		nodes := fill()
-		filt := newAclFilter(acl.AllowAll(), nil, false)
+		filt := newACLFilter(acl.AllowAll(), nil, false)
 		filt.filterCheckServiceNodes(&nodes)
 		if len(nodes) != 1 {
 			t.Fatalf("bad: %#v", nodes)
@@ -1165,7 +1096,7 @@ func TestACL_filterCheckServiceNodes(t *testing.T) {
 	// Try restrictive filtering.
 	{
 		nodes := fill()
-		filt := newAclFilter(acl.DenyAll(), nil, false)
+		filt := newACLFilter(acl.DenyAll(), nil, false)
 		filt.filterCheckServiceNodes(&nodes)
 		if len(nodes) != 0 {
 			t.Fatalf("bad: %#v", nodes)
@@ -1189,7 +1120,7 @@ service "foo" {
 	// This will work because version 8 ACLs aren't being enforced.
 	{
 		nodes := fill()
-		filt := newAclFilter(perms, nil, false)
+		filt := newACLFilter(perms, nil, false)
 		filt.filterCheckServiceNodes(&nodes)
 		if len(nodes) != 1 {
 			t.Fatalf("bad: %#v", nodes)
@@ -1202,7 +1133,7 @@ service "foo" {
 	// But with version 8 the node will block it.
 	{
 		nodes := fill()
-		filt := newAclFilter(perms, nil, true)
+		filt := newACLFilter(perms, nil, true)
 		filt.filterCheckServiceNodes(&nodes)
 		if len(nodes) != 0 {
 			t.Fatalf("bad: %#v", nodes)
@@ -1226,7 +1157,7 @@ node "node1" {
 	// Now it should go through.
 	{
 		nodes := fill()
-		filt := newAclFilter(perms, nil, true)
+		filt := newACLFilter(perms, nil, true)
 		filt.filterCheckServiceNodes(&nodes)
 		if len(nodes) != 1 {
 			t.Fatalf("bad: %#v", nodes)
@@ -1251,21 +1182,21 @@ func TestACL_filterCoordinates(t *testing.T) {
 	}
 
 	// Try permissive filtering.
-	filt := newAclFilter(acl.AllowAll(), nil, false)
+	filt := newACLFilter(acl.AllowAll(), nil, false)
 	filt.filterCoordinates(&coords)
 	if len(coords) != 2 {
 		t.Fatalf("bad: %#v", coords)
 	}
 
 	// Try restrictive filtering without version 8 ACL enforcement.
-	filt = newAclFilter(acl.DenyAll(), nil, false)
+	filt = newACLFilter(acl.DenyAll(), nil, false)
 	filt.filterCoordinates(&coords)
 	if len(coords) != 2 {
 		t.Fatalf("bad: %#v", coords)
 	}
 
 	// Try restrictive filtering with version 8 ACL enforcement.
-	filt = newAclFilter(acl.DenyAll(), nil, true)
+	filt = newACLFilter(acl.DenyAll(), nil, true)
 	filt.filterCoordinates(&coords)
 	if len(coords) != 0 {
 		t.Fatalf("bad: %#v", coords)
@@ -1284,21 +1215,21 @@ func TestACL_filterSessions(t *testing.T) {
 	}
 
 	// Try permissive filtering.
-	filt := newAclFilter(acl.AllowAll(), nil, true)
+	filt := newACLFilter(acl.AllowAll(), nil, true)
 	filt.filterSessions(&sessions)
 	if len(sessions) != 2 {
 		t.Fatalf("bad: %#v", sessions)
 	}
 
 	// Try restrictive filtering but with version 8 enforcement turned off.
-	filt = newAclFilter(acl.DenyAll(), nil, false)
+	filt = newACLFilter(acl.DenyAll(), nil, false)
 	filt.filterSessions(&sessions)
 	if len(sessions) != 2 {
 		t.Fatalf("bad: %#v", sessions)
 	}
 
 	// Try restrictive filtering with version 8 enforcement turned on.
-	filt = newAclFilter(acl.DenyAll(), nil, true)
+	filt = newACLFilter(acl.DenyAll(), nil, true)
 	filt.filterSessions(&sessions)
 	if len(sessions) != 0 {
 		t.Fatalf("bad: %#v", sessions)
@@ -1331,7 +1262,7 @@ func TestACL_filterNodeDump(t *testing.T) {
 	// Try permissive filtering.
 	{
 		dump := fill()
-		filt := newAclFilter(acl.AllowAll(), nil, false)
+		filt := newACLFilter(acl.AllowAll(), nil, false)
 		filt.filterNodeDump(&dump)
 		if len(dump) != 1 {
 			t.Fatalf("bad: %#v", dump)
@@ -1347,7 +1278,7 @@ func TestACL_filterNodeDump(t *testing.T) {
 	// Try restrictive filtering.
 	{
 		dump := fill()
-		filt := newAclFilter(acl.DenyAll(), nil, false)
+		filt := newACLFilter(acl.DenyAll(), nil, false)
 		filt.filterNodeDump(&dump)
 		if len(dump) != 1 {
 			t.Fatalf("bad: %#v", dump)
@@ -1377,7 +1308,7 @@ service "foo" {
 	// This will work because version 8 ACLs aren't being enforced.
 	{
 		dump := fill()
-		filt := newAclFilter(perms, nil, false)
+		filt := newACLFilter(perms, nil, false)
 		filt.filterNodeDump(&dump)
 		if len(dump) != 1 {
 			t.Fatalf("bad: %#v", dump)
@@ -1393,7 +1324,7 @@ service "foo" {
 	// But with version 8 the node will block it.
 	{
 		dump := fill()
-		filt := newAclFilter(perms, nil, true)
+		filt := newACLFilter(perms, nil, true)
 		filt.filterNodeDump(&dump)
 		if len(dump) != 0 {
 			t.Fatalf("bad: %#v", dump)
@@ -1417,7 +1348,7 @@ node "node1" {
 	// Now it should go through.
 	{
 		dump := fill()
-		filt := newAclFilter(perms, nil, true)
+		filt := newACLFilter(perms, nil, true)
 		filt.filterNodeDump(&dump)
 		if len(dump) != 1 {
 			t.Fatalf("bad: %#v", dump)
@@ -1443,21 +1374,21 @@ func TestACL_filterNodes(t *testing.T) {
 	}
 
 	// Try permissive filtering.
-	filt := newAclFilter(acl.AllowAll(), nil, true)
+	filt := newACLFilter(acl.AllowAll(), nil, true)
 	filt.filterNodes(&nodes)
 	if len(nodes) != 2 {
 		t.Fatalf("bad: %#v", nodes)
 	}
 
 	// Try restrictive filtering but with version 8 enforcement turned off.
-	filt = newAclFilter(acl.DenyAll(), nil, false)
+	filt = newACLFilter(acl.DenyAll(), nil, false)
 	filt.filterNodes(&nodes)
 	if len(nodes) != 2 {
 		t.Fatalf("bad: %#v", nodes)
 	}
 
 	// Try restrictive filtering with version 8 enforcement turned on.
-	filt = newAclFilter(acl.DenyAll(), nil, true)
+	filt = newACLFilter(acl.DenyAll(), nil, true)
 	filt.filterNodes(&nodes)
 	if len(nodes) != 0 {
 		t.Fatalf("bad: %#v", nodes)
@@ -1477,7 +1408,7 @@ func TestACL_redactPreparedQueryTokens(t *testing.T) {
 
 	// Try permissive filtering with a management token. This will allow the
 	// embedded token to be seen.
-	filt := newAclFilter(acl.ManageAll(), nil, false)
+	filt := newACLFilter(acl.ManageAll(), nil, false)
 	filt.redactPreparedQueryTokens(&query)
 	if !reflect.DeepEqual(query, expected) {
 		t.Fatalf("bad: %#v", &query)
@@ -1489,7 +1420,7 @@ func TestACL_redactPreparedQueryTokens(t *testing.T) {
 
 	// Now try permissive filtering with a client token, which should cause
 	// the embedded token to get redacted.
-	filt = newAclFilter(acl.AllowAll(), nil, false)
+	filt = newACLFilter(acl.AllowAll(), nil, false)
 	filt.redactPreparedQueryTokens(&query)
 	expected.Token = redactedToken
 	if !reflect.DeepEqual(query, expected) {
@@ -1535,7 +1466,7 @@ func TestACL_filterPreparedQueries(t *testing.T) {
 
 	// Try permissive filtering with a management token. This will allow the
 	// embedded token to be seen.
-	filt := newAclFilter(acl.ManageAll(), nil, false)
+	filt := newACLFilter(acl.ManageAll(), nil, false)
 	filt.filterPreparedQueries(&queries)
 	if !reflect.DeepEqual(queries, expected) {
 		t.Fatalf("bad: %#v", queries)
@@ -1548,7 +1479,7 @@ func TestACL_filterPreparedQueries(t *testing.T) {
 	// Now try permissive filtering with a client token, which should cause
 	// the embedded token to get redacted, and the query with no name to get
 	// filtered out.
-	filt = newAclFilter(acl.AllowAll(), nil, false)
+	filt = newACLFilter(acl.AllowAll(), nil, false)
 	filt.filterPreparedQueries(&queries)
 	expected[2].Token = redactedToken
 	expected = append(structs.PreparedQueries{}, expected[1], expected[2])
@@ -1562,7 +1493,7 @@ func TestACL_filterPreparedQueries(t *testing.T) {
 	}
 
 	// Now try restrictive filtering.
-	filt = newAclFilter(acl.DenyAll(), nil, false)
+	filt = newACLFilter(acl.DenyAll(), nil, false)
 	filt.filterPreparedQueries(&queries)
 	if len(queries) != 0 {
 		t.Fatalf("bad: %#v", queries)

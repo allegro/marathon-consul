@@ -4,7 +4,7 @@ import:
   version: ^0.11.5
 - package: github.com/cyberdelia/go-metrics-graphite
 - package: github.com/hashicorp/consul
-  version: v0.8.0
+  version: v0.8.3
   subpackages:
   - api
   - testutil

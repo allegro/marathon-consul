@@ -43,9 +43,7 @@ const (
 	aclCacheSize = 10 * 1024
 )
 
-var (
-	permissionDeniedErr = errors.New(permissionDenied)
-)
+var errPermissionDenied = errors.New(permissionDenied)
 
 // aclCacheEntry is used to cache ACL tokens.
 type aclCacheEntry struct {
@@ -163,9 +161,8 @@ func (m *aclManager) lookupACL(agent *Agent, id string) (acl.ACL, error) {
 	if cached != nil && time.Now().Before(cached.Expires) {
 		metrics.IncrCounter([]string{"consul", "acl", "cache_hit"}, 1)
 		return cached.ACL, nil
-	} else {
-		metrics.IncrCounter([]string{"consul", "acl", "cache_miss"}, 1)
 	}
+	metrics.IncrCounter([]string{"consul", "acl", "cache_miss"}, 1)
 
 	// At this point we might have a stale cached ACL, or none at all, so
 	// try to contact the servers.
@@ -272,14 +269,14 @@ func (a *Agent) vetServiceRegister(token string, service *structs.NodeService) e
 
 	// Vet the service itself.
 	if !acl.ServiceWrite(service.Service) {
-		return permissionDeniedErr
+		return errPermissionDenied
 	}
 
 	// Vet any service that might be getting overwritten.
 	services := a.state.Services()
 	if existing, ok := services[service.ID]; ok {
 		if !acl.ServiceWrite(existing.Service) {
-			return permissionDeniedErr
+			return errPermissionDenied
 		}
 	}
 
@@ -302,7 +299,7 @@ func (a *Agent) vetServiceUpdate(token string, serviceID string) error {
 	services := a.state.Services()
 	if existing, ok := services[serviceID]; ok {
 		if !acl.ServiceWrite(existing.Service) {
-			return permissionDeniedErr
+			return errPermissionDenied
 		}
 	} else {
 		return fmt.Errorf("Unknown service %q", serviceID)
@@ -326,11 +323,11 @@ func (a *Agent) vetCheckRegister(token string, check *structs.HealthCheck) error
 	// Vet the check itself.
 	if len(check.ServiceName) > 0 {
 		if !acl.ServiceWrite(check.ServiceName) {
-			return permissionDeniedErr
+			return errPermissionDenied
 		}
 	} else {
 		if !acl.NodeWrite(a.config.NodeName) {
-			return permissionDeniedErr
+			return errPermissionDenied
 		}
 	}
 
@@ -339,11 +336,11 @@ func (a *Agent) vetCheckRegister(token string, check *structs.HealthCheck) error
 	if existing, ok := checks[check.CheckID]; ok {
 		if len(existing.ServiceName) > 0 {
 			if !acl.ServiceWrite(existing.ServiceName) {
-				return permissionDeniedErr
+				return errPermissionDenied
 			}
 		} else {
 			if !acl.NodeWrite(a.config.NodeName) {
-				return permissionDeniedErr
+				return errPermissionDenied
 			}
 		}
 	}
@@ -367,11 +364,11 @@ func (a *Agent) vetCheckUpdate(token string, checkID types.CheckID) error {
 	if existing, ok := checks[checkID]; ok {
 		if len(existing.ServiceName) > 0 {
 			if !acl.ServiceWrite(existing.ServiceName) {
-				return permissionDeniedErr
+				return errPermissionDenied
 			}
 		} else {
 			if !acl.NodeWrite(a.config.NodeName) {
-				return permissionDeniedErr
+				return errPermissionDenied
 			}
 		}
 	} else {

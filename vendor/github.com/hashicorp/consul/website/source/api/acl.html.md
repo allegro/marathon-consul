@@ -38,7 +38,7 @@ The table below shows this endpoint's support for
   are: `client` and `management`.
 
 - `Rules` `(string: "")` - Specifies rules for this ACL token. The format of the
-  `Rules` property is [documented here](/docs/internals/acl.html).
+  `Rules` property is documented in the [ACL Guide](/docs/guides/acl.html).
 
 ### Sample Payload
 
@@ -162,7 +162,7 @@ Note: No ACL is required because the ACL is specified in the URL path.
 ### Parameters
 
 - `uuid` `(string: <required>)` - Specifies the UUID of the ACL token to
-  destroy. This is required and is specified as part of the URL path.
+  read. This is required and is specified as part of the URL path.
 
 ### Sample Request
 
@@ -271,8 +271,8 @@ This endpoint returns the status of the ACL replication process in the
 datacenter. This is intended to be used by operators, or by automation checking
 the health of ACL replication.
 
-Please see the [ACL replication](/docs/internals/acl.html#replication) section
-of the internals guide for more details.
+Please see the [ACL Guide](/docs/guides/acl.html#replication) replication
+section for more details.
 
 | Method | Path                         | Produces                   |
 | ------ | ---------------------------- | -------------------------- |

@@ -8,10 +8,62 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/consul/structs"
-	"github.com/hashicorp/consul/testutil"
+	"github.com/hashicorp/consul/testrpc"
 	"github.com/hashicorp/net-rpc-msgpackrpc"
 )
+
+func TestTxn_CheckNotExists(t *testing.T) {
+	dir1, s1 := testServer(t)
+	defer os.RemoveAll(dir1)
+	defer s1.Shutdown()
+	codec := rpcClient(t, s1)
+	defer codec.Close()
+
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
+
+	apply := func(arg *structs.TxnRequest) (*structs.TxnResponse, error) {
+		out := new(structs.TxnResponse)
+		err := msgpackrpc.CallWithCodec(codec, "Txn.Apply", arg, out)
+		return out, err
+	}
+
+	checkKeyNotExists := &structs.TxnRequest{
+		Datacenter: "dc1",
+		Ops: structs.TxnOps{
+			{
+				KV: &structs.TxnKVOp{
+					Verb:   api.KVCheckNotExists,
+					DirEnt: structs.DirEntry{Key: "test"},
+				},
+			},
+		},
+	}
+
+	createKey := &structs.TxnRequest{
+		Datacenter: "dc1",
+		Ops: structs.TxnOps{
+			{
+				KV: &structs.TxnKVOp{
+					Verb:   api.KVSet,
+					DirEnt: structs.DirEntry{Key: "test"},
+				},
+			},
+		},
+	}
+
+	if _, err := apply(checkKeyNotExists); err != nil {
+		t.Fatalf("testing for non-existent key failed: %s", err)
+	}
+	if _, err := apply(createKey); err != nil {
+		t.Fatalf("creating new key failed: %s", err)
+	}
+	out, err := apply(checkKeyNotExists)
+	if err != nil || out == nil || len(out.Errors) != 1 || out.Errors[0].Error() != `op 0: key "test" exists` {
+		t.Fatalf("testing for existent key failed: %#v", out)
+	}
+}
 
 func TestTxn_Apply(t *testing.T) {
 	dir1, s1 := testServer(t)
@@ -20,7 +72,7 @@ func TestTxn_Apply(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Do a super basic request. The state store test covers the details so
 	// we just need to be sure that the transaction is sent correctly and
@@ -30,7 +82,7 @@ func TestTxn_Apply(t *testing.T) {
 		Ops: structs.TxnOps{
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSSet,
+					Verb: api.KVSet,
 					DirEnt: structs.DirEntry{
 						Key:   "test",
 						Flags: 42,
@@ -40,7 +92,7 @@ func TestTxn_Apply(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSGet,
+					Verb: api.KVGet,
 					DirEnt: structs.DirEntry{
 						Key: "test",
 					},
@@ -110,7 +162,7 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Put in a key to read back.
 	state := s1.fsm.State()
@@ -147,7 +199,7 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 		Ops: structs.TxnOps{
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSSet,
+					Verb: api.KVSet,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -155,7 +207,7 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSDelete,
+					Verb: api.KVDelete,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -163,7 +215,7 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSDeleteCAS,
+					Verb: api.KVDeleteCAS,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -171,7 +223,7 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSDeleteTree,
+					Verb: api.KVDeleteTree,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -179,7 +231,7 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSCAS,
+					Verb: api.KVCAS,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -187,7 +239,7 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSLock,
+					Verb: api.KVLock,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -195,7 +247,7 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSUnlock,
+					Verb: api.KVUnlock,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -203,7 +255,7 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSGet,
+					Verb: api.KVGet,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -211,7 +263,7 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSGetTree,
+					Verb: api.KVGetTree,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -219,7 +271,7 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSCheckSession,
+					Verb: api.KVCheckSession,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -227,7 +279,15 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSCheckIndex,
+					Verb: api.KVCheckIndex,
+					DirEnt: structs.DirEntry{
+						Key: "nope",
+					},
+				},
+			},
+			&structs.TxnOp{
+				KV: &structs.TxnKVOp{
+					Verb: api.KVCheckNotExists,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -247,13 +307,13 @@ func TestTxn_Apply_ACLDeny(t *testing.T) {
 	var expected structs.TxnResponse
 	for i, op := range arg.Ops {
 		switch op.KV.Verb {
-		case structs.KVSGet, structs.KVSGetTree:
+		case api.KVGet, api.KVGetTree:
 			// These get filtered but won't result in an error.
 
 		default:
 			expected.Errors = append(expected.Errors, &structs.TxnError{
 				OpIndex: i,
-				What:    permissionDeniedErr.Error(),
+				What:    errPermissionDenied.Error(),
 			})
 		}
 	}
@@ -269,7 +329,7 @@ func TestTxn_Apply_LockDelay(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Create and invalidate a session with a lock.
 	state := s1.fsm.State()
@@ -300,7 +360,7 @@ func TestTxn_Apply_LockDelay(t *testing.T) {
 	if err := state.SessionCreate(5, session); err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	validId := session.ID
+	validID := session.ID
 
 	// Make a lock request via an atomic transaction.
 	arg := structs.TxnRequest{
@@ -308,10 +368,10 @@ func TestTxn_Apply_LockDelay(t *testing.T) {
 		Ops: structs.TxnOps{
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSLock,
+					Verb: api.KVLock,
 					DirEnt: structs.DirEntry{
 						Key:     "test",
-						Session: validId,
+						Session: validID,
 					},
 				},
 			},
@@ -354,7 +414,7 @@ func TestTxn_Read(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Put in a key to read back.
 	state := s1.fsm.State()
@@ -374,7 +434,7 @@ func TestTxn_Read(t *testing.T) {
 		Ops: structs.TxnOps{
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSGet,
+					Verb: api.KVGet,
 					DirEnt: structs.DirEntry{
 						Key: "test",
 					},
@@ -423,7 +483,7 @@ func TestTxn_Read_ACLDeny(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Put in a key to read back.
 	state := s1.fsm.State()
@@ -460,7 +520,7 @@ func TestTxn_Read_ACLDeny(t *testing.T) {
 		Ops: structs.TxnOps{
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSGet,
+					Verb: api.KVGet,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -468,7 +528,7 @@ func TestTxn_Read_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSGetTree,
+					Verb: api.KVGetTree,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -476,7 +536,7 @@ func TestTxn_Read_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSCheckSession,
+					Verb: api.KVCheckSession,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -484,7 +544,7 @@ func TestTxn_Read_ACLDeny(t *testing.T) {
 			},
 			&structs.TxnOp{
 				KV: &structs.TxnKVOp{
-					Verb: structs.KVSCheckIndex,
+					Verb: api.KVCheckIndex,
 					DirEnt: structs.DirEntry{
 						Key: "nope",
 					},
@@ -508,13 +568,13 @@ func TestTxn_Read_ACLDeny(t *testing.T) {
 	}
 	for i, op := range arg.Ops {
 		switch op.KV.Verb {
-		case structs.KVSGet, structs.KVSGetTree:
+		case api.KVGet, api.KVGetTree:
 			// These get filtered but won't result in an error.
 
 		default:
 			expected.Errors = append(expected.Errors, &structs.TxnError{
 				OpIndex: i,
-				What:    permissionDeniedErr.Error(),
+				What:    errPermissionDenied.Error(),
 			})
 		}
 	}

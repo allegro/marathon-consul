@@ -59,31 +59,6 @@ The options below are all specified on the command-line.
   address when being accessed from a remote datacenter if the remote datacenter is configured
   with <a href="#translate_wan_addrs">`translate_wan_addrs`</a>.
 
-~> **Notice:** The hosted version of Consul Enterprise will be deprecated on
-  March 7th, 2017. For details, see https://atlas.hashicorp.com/help/consul/alternatives
-
-* <a name="_atlas"></a><a href="#_atlas">`-atlas`</a> - This flag
-  enables [Atlas](https://atlas.hashicorp.com) integration.
-  It is used to provide the Atlas infrastructure name and the SCADA connection. The format of
-  this is `username/environment`. This enables Atlas features such as the Monitoring UI
-  and node auto joining.
-
-* <a name="_atlas_join"></a><a href="#_atlas_join">`-atlas-join`</a> - When set, enables auto-join
-  via Atlas. Atlas will track the most
-  recent members to join the infrastructure named by [`-atlas`](#_atlas) and automatically
-  join them on start. For servers, the LAN and WAN pool are both joined.
-
-* <a name="_atlas_token"></a><a href="#_atlas_token">`-atlas-token`</a> - Provides the Atlas
-  API authentication token. This can also be provided
-  using the `ATLAS_TOKEN` environment variable. Required for use with Atlas.
-
-* <a name="_atlas_endpoint"></a><a href="#_atlas_endpoint">`-atlas-endpoint`</a> - The endpoint
-  address used for Atlas integration. Used only if the `-atlas` and
-  `-atlas-token` options are specified. This is optional, and defaults to the
-  public Atlas endpoints. This can also be specified using the `SCADA_ENDPOINT`
-  environment variable. The CLI option takes precedence, followed by the
-  configuration file directive, and lastly, the environment variable.
-
 * <a name="_bootstrap"></a><a href="#_bootstrap">`-bootstrap`</a> - This flag is used to control if a
   server is in "bootstrap" mode. It is important that
   no more than one server *per* datacenter be running in this mode. Technically, a server in bootstrap mode
@@ -151,17 +126,22 @@ will exit with an error at startup.
   the use of filesystem locking, meaning some types of mounted folders (e.g. VirtualBox
   shared folders) may not be suitable.
 
+* <a name="_datacenter"></a><a href="#_datacenter">`-datacenter`</a> - This flag controls the datacenter in
+  which the agent is running. If not provided,
+  it defaults to "dc1". Consul has first-class support for multiple datacenters, but
+  it relies on proper configuration. Nodes in the same datacenter should be on a single
+  LAN.
+
 * <a name="_dev"></a><a href="#_dev">`-dev`</a> - Enable development server
   mode. This is useful for quickly starting a Consul agent with all persistence
   options turned off, enabling an in-memory server which can be used for rapid
   prototyping or developing against the API. This mode is **not** intended for
   production use as it does not write any data to disk.
 
-* <a name="_datacenter"></a><a href="#_datacenter">`-datacenter`</a> - This flag controls the datacenter in
-  which the agent is running. If not provided,
-  it defaults to "dc1". Consul has first-class support for multiple datacenters, but
-  it relies on proper configuration. Nodes in the same datacenter should be on a single
-  LAN.
+* <a name="_disable_host_node_id"></a><a href="#_disable_host_node_id">`-disable-host-node-id`</a> - Setting
+  this to true will prevent Consul from using information from the host to generate a deterministic node ID,
+  and will instead generate a random node ID which will be persisted in the data directory. This is useful
+  when running multiple Consul agents on the same host for testing. This defaults to false.
 
 * <a name="_dns_port"></a><a href="#_dns_port">`-dns-port`</a> - the DNS port to listen on.
   This overrides the default port 8600. This is available in Consul 0.7 and later.
@@ -193,6 +173,10 @@ will exit with an error at startup.
   specified multiple times to specify multiple agents to join. If Consul is
   unable to join with any of the specified addresses, agent startup will
   fail. By default, the agent won't join any nodes when it starts up.
+  Note that using
+  <a href="#retry_join">`retry_join`</a> could be more appropriate to help
+  mitigate node startup race conditions when automating a Consul cluster
+  deployment.\
 
 * <a name="_retry_join"></a><a href="#_retry_join">`-retry-join`</a> - Similar
   to [`-join`](#_join) but allows retrying a join if the first
@@ -295,11 +279,9 @@ will exit with an error at startup.
   changes. This must be in the form of a hex string, 36 characters long, such as
   `adf4238a-882b-9ddc-4a9d-5b6758e4159e`. If this isn't supplied, which is the most common case, then
   the agent will generate an identifier at startup and persist it in the <a href="#_data_dir">data directory</a>
-  so that it will remain the same across agent restarts. This is currently only exposed via
-  <a href="/api/agent.html#agent_self">/v1/agent/self</a>,
-  <a href="/api/catalog.html">/v1/catalog</a>, and
-  <a href="/api/health.html">/v1/health</a> endpoints, but future versions of
-  Consul will use this to better manage cluster changes, especially for Consul servers.
+  so that it will remain the same across agent restarts. Information from the host will be used to
+  generate a deterministic node ID if possible, unless [`-disable-host-node-id`](#_disable_host_node_id) is
+  set to true.
 
 * <a name="_node_meta"></a><a href="#_node_meta">`-node-meta`</a> - Available in Consul 0.7.3 and later,
   this specifies an arbitrary metadata key/value pair to associate with the node, of the form `key:value`.
@@ -355,7 +337,7 @@ will exit with an error at startup.
 
 * <a name="_ui_dir"></a><a href="#_ui_dir">`-ui-dir`</a> - This flag provides the directory containing
   the Web UI resources for Consul. This will automatically enable the Web UI. The directory must be
-  readable to the agent. Starting with Consul version 0.7.0 and later, the Web UI assets are included in the binary so this flag is no longer necessary; specifying only the `-ui` flag is enough to enable the Web UI.
+  readable to the agent. Starting with Consul version 0.7.0 and later, the Web UI assets are included in the binary so this flag is no longer necessary; specifying only the `-ui` flag is enough to enable the Web UI. Specifying both the '-ui' and '-ui-dir' flags will result in an error.
 
 ## <a name="configuration_files"></a>Configuration Files
 
@@ -433,7 +415,7 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
   All servers and datacenters must agree on the ACL datacenter. Setting it on the servers is all
   you need for cluster-level enforcement, but for the APIs to forward properly from the clients,
   it must be set on them too. In Consul 0.8 and later, this also enables agent-level enforcement
-  of ACLs. Please see the [ACL internals guide](/docs/internals/acl.html) for more details.
+  of ACLs. Please see the [ACL Guide](/docs/guides/acl.html) for more details.
 
 * <a name="acl_default_policy"></a><a href="#acl_default_policy">`acl_default_policy`</a> - Either
   "allow" or "deny"; defaults to "allow". The default policy controls the behavior of a token when
@@ -465,10 +447,10 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 
 * <a name="acl_enforce_version_8"></a><a href="#acl_enforce_version_8">`acl_enforce_version_8`</a> -
   Used for clients and servers to determine if enforcement should occur for new ACL policies being
-  previewed before Consul 0.8. Added in Consul 0.7.2, this will default to false in versions of
-  Consul prior to 0.8, and will default to true in Consul 0.8 and later. This helps ease the
+  previewed before Consul 0.8. Added in Consul 0.7.2, this defaults to false in versions of
+  Consul prior to 0.8, and defaults to true in Consul 0.8 and later. This helps ease the
   transition to the new ACL features by allowing policies to be in place before enforcement begins.
-  Please see the [ACL internals guide](/docs/internals/acl.html) for more details.
+  Please see the [ACL Guide](/docs/guides/acl.html#version_8_acls) for more details.
 
 * <a name="acl_master_token"></a><a href="#acl_master_token">`acl_master_token`</a> - Only used
   for servers in the [`acl_datacenter`](#acl_datacenter). This token will be created with management-level
@@ -484,14 +466,13 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 
 * <a name="acl_replication_token"></a><a href="#acl_replication_token">`acl_replication_token`</a> -
   Only used for servers outside the [`acl_datacenter`](#acl_datacenter) running Consul 0.7 or later.
-  When provided, this will enable [ACL replication](/docs/internals/acl.html#replication) using this
+  When provided, this will enable [ACL replication](/docs/guides/acl.html#replication) using this
   token to retrieve and replicate the ACLs to the non-authoritative local datacenter.
   <br><br>
   If there's a partition or other outage affecting the authoritative datacenter, and the
   [`acl_down_policy`](/docs/agent/options.html#acl_down_policy) is set to "extend-cache", tokens not
   in the cache can be resolved during the outage using the replicated set of ACLs. Please see the
-  [ACL replication](/docs/internals/acl.html#replication) section of the internals guide for more
-  details.
+  [ACL Guide](/docs/guides/acl.html#replication) replication section for more details.
 
 * <a name="acl_token"></a><a href="#acl_token">`acl_token`</a> - When provided, the agent will use this
   token when making requests to the Consul servers. Clients can override this token on a per-request
@@ -500,7 +481,7 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 
 * <a name="acl_ttl"></a><a href="#acl_ttl">`acl_ttl`</a> - Used to control Time-To-Live caching of ACLs.
   By default, this is 30 seconds. This setting has a major performance impact: reducing it will cause
-  more frequent refreshes while increasing it reduces the number of caches. However, because the caches
+  more frequent refreshes while increasing it reduces the number of refreshes. However, because the caches
   are not actively invalidated, ACL policy may be stale up to the TTL value.
 
 * <a name="addresses"></a><a href="#addresses">`addresses`</a> - This is a nested object that allows
@@ -547,23 +528,6 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 * <a name="advertise_addr_wan"></a><a href="#advertise_addr_wan">`advertise_addr_wan`</a> Equivalent to
   the [`-advertise-wan` command-line flag](#_advertise-wan).
 
-* <a name="atlas_acl_token"></a><a href="#atlas_acl_token">`atlas_acl_token`</a> When provided,
-  any requests made by Atlas will use this ACL token unless explicitly overridden. When not provided
-  the [`acl_token`](#acl_token) is used. This can be set to 'anonymous' to reduce permission below
-  that of [`acl_token`](#acl_token).
-
-* <a name="atlas_infrastructure"></a><a href="#atlas_infrastructure">`atlas_infrastructure`</a>
-  Equivalent to the [`-atlas` command-line flag](#_atlas).
-
-* <a name="atlas_join"></a><a href="#atlas_join">`atlas_join`</a> Equivalent to the
-  [`-atlas-join` command-line flag](#_atlas_join).
-
-* <a name="atlas_token"></a><a href="#atlas_token">`atlas_token`</a> Equivalent to the
-  [`-atlas-token` command-line flag](#_atlas_token).
-
-* <a name="atlas_endpoint"></a><a href="#atlas_endpoint">`atlas_endpoint`</a> Equivalent to the
-  [`-atlas-endpoint` command-line flag](#_atlas_endpoint).
-
 * <a name="autopilot"></a><a href="#autopilot">`autopilot`</a> Added in Consul 0.8, this object
   allows a number of sub-keys to be set which can configure operator-friendly settings for Consul servers.
   For more information about Autopilot, see the [Autopilot Guide](/docs/guides/autopilot.html).
@@ -578,7 +542,7 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
   the maximum amount of time a server can go without contact from the leader before being considered unhealthy.
   Must be a duration value such as `10s`. Defaults to `200ms`.
 
-  * <a name="max_trailing_threshold"></a><a href="#max_trailing_threshold">`max_trailing_threshold`</a> - Controls
+  * <a name="max_trailing_logs"></a><a href="#max_trailing_logs">`max_trailing_logs`</a> - Controls
   the maximum number of log entries that a server can trail the leader by before being considered unhealthy. Defaults
   to 250.
 
@@ -611,6 +575,11 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
   server connections with the appropriate [`verify_incoming`](#verify_incoming) or
   [`verify_outgoing`](#verify_outgoing) flags.
 
+* <a name="ca_path"></a><a href="#ca_path">`ca_path`</a> This provides a path to a directory of PEM-encoded
+  certificate authority files. These certificate authorities are used to check the authenticity of client and
+  server connections with the appropriate [`verify_incoming`](#verify_incoming) or
+  [`verify_outgoing`](#verify_outgoing) flags.
+
 * <a name="cert_file"></a><a href="#cert_file">`cert_file`</a> This provides a file path to a
   PEM-encoded certificate. The certificate is provided to clients or servers to verify the agent's
   authenticity. It must be provided along with [`key_file`](#key_file).
@@ -636,6 +605,9 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 * <a name="disable_anonymous_signature"></a><a href="#disable_anonymous_signature">
   `disable_anonymous_signature`</a> Disables providing an anonymous signature for de-duplication
   with the update check. See [`disable_update_check`](#disable_update_check).
+
+* <a name="disable_host_node_id"></a><a href="#disable_host_node_id">`disable_host_node_id`</a>
+  Equivalent to the [`-disable-host-node-id` command-line flag](#_disable_host_node_id).
 
 * <a name="disable_remote_exec"></a><a href="#disable_remote_exec">`disable_remote_exec`</a>
   Disables support for remote execution. When set to true, the agent will ignore any incoming
@@ -919,7 +891,10 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
   quorum, and Ctrl-C on a client will gracefully leave).
 
 * <a name="start_join"></a><a href="#start_join">`start_join`</a> An array of strings specifying addresses
-  of nodes to [`-join`](#_join) upon startup.
+  of nodes to [`-join`](#_join) upon startup. Note that using
+  <a href="#retry_join">`retry_join`</a> could be more appropriate to help
+  mitigate node startup race conditions when automating a Consul cluster
+  deployment.
 
 * <a name="start_join_wan"></a><a href="#start_join_wan">`start_join_wan`</a> An array of strings specifying
   addresses of WAN nodes to [`-join-wan`](#_join_wan) upon startup.
@@ -1016,6 +991,14 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
   or "tls12". This defaults to "tls10". WARNING: TLS 1.1 and lower are generally considered less
   secure; avoid using these if possible. This will be changed to default to "tls12" in Consul 0.8.0.
 
+* <a name="tls_cipher_suites"></a><a href="#tls_cipher_suites">`tls_cipher_suites`</a> Added in Consul
+  0.8.2, this specifies the list of supported ciphersuites as a comma-separated-list. The list of all
+  available ciphersuites is available in the [Golang TLS documentation](https://golang.org/src/crypto/tls/cipher_suites.go).
+
+* <a name="tls_prefer_server_cipher_suites"></a><a href="#tls_prefer_server_cipher_suites">
+  `tls_prefer_server_cipher_suites`</a> Added in Consul 0.8.2, this will cause Consul to prefer the
+  server's ciphersuite over the client ciphersuites.
+
 * <a name="translate_wan_addrs"</a><a href="#translate_wan_addrs">`translate_wan_addrs`</a> If
   set to true, Consul will prefer a node's configured <a href="#_advertise-wan">WAN address</a>
   when servicing DNS and HTTP requests for a node in a remote datacenter. This allows the node to
@@ -1043,7 +1026,7 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
   command-line flag.
 
 * <a name="ui_dir"></a><a href="#ui_dir">`ui_dir`</a> - Equivalent to the
-  [`-ui-dir`](#_ui_dir) command-line flag. This configuration key is not required as of Consul version 0.7.0 and later.
+  [`-ui-dir`](#_ui_dir) command-line flag. This configuration key is not required as of Consul version 0.7.0 and later. Specifying this configuration key will enable the web UI. There is no need to specify both ui-dir and ui. Specifying both will result in an error.
 
 * <a name="unix_sockets"></a><a href="#unix_sockets">`unix_sockets`</a> - This
   allows tuning the ownership and permissions of the
@@ -1069,18 +1052,30 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 * <a name="verify_incoming"></a><a href="#verify_incoming">`verify_incoming`</a> - If
   set to true, Consul requires that all incoming
   connections make use of TLS and that the client provides a certificate signed
-  by the Certificate Authority from the [`ca_file`](#ca_file). By default, this is false, and
-  Consul will not enforce the use of TLS or verify a client's authenticity. This
-  applies to both server RPC and to the HTTPS API. To enable the HTTPS API, you
-  must define an HTTPS port via the [`ports`](#ports) configuration. By default, HTTPS
-  is disabled.
+  by a Certificate Authority from the [`ca_file`](#ca_file) or [`ca_path`](#ca_path).
+  This applies to both server RPC and to the HTTPS API. By default, this is false, and
+  Consul will not enforce the use of TLS or verify a client's authenticity.
+
+* <a name="verify_incoming_rpc"></a><a href="#verify_incoming_rpc">`verify_incoming_rpc`</a> - If
+  set to true, Consul requires that all incoming RPC
+  connections make use of TLS and that the client provides a certificate signed
+  by a Certificate Authority from the [`ca_file`](#ca_file) or [`ca_path`](#ca_path). By default,
+  this is false, and Consul will not enforce the use of TLS or verify a client's authenticity.
+
+* <a name="verify_incoming_https"></a><a href="#verify_incoming_https">`verify_incoming_https`</a> - If
+  set to true, Consul requires that all incoming HTTPS
+  connections make use of TLS and that the client provides a certificate signed
+  by a Certificate Authority from the [`ca_file`](#ca_file) or [`ca_path`](#ca_path). By default,
+  this is false, and Consul will not enforce the use of TLS or verify a client's authenticity. To
+  enable the HTTPS API, you must define an HTTPS port via the [`ports`](#ports) configuration. By
+  default, HTTPS is disabled.
 
 * <a name="verify_outgoing"></a><a href="#verify_outgoing">`verify_outgoing`</a> - If set to
   true, Consul requires that all outgoing connections
   make use of TLS and that the server provides a certificate that is signed by
-  the Certificate Authority from the [`ca_file`](#ca_file). By default, this is false, and Consul
-  will not make use of TLS for outgoing connections. This applies to clients and servers
-  as both will make outgoing connections.
+  a Certificate Authority from the [`ca_file`](#ca_file) or [`ca_path`](#ca_path). By default,
+  this is false, and Consul will not make use of TLS for outgoing connections. This applies to clients
+  and servers as both will make outgoing connections.
 
 * <a name="verify_server_hostname"></a><a href="#verify_server_hostname">`verify_server_hostname`</a> - If set to
   true, Consul verifies for all outgoing connections that the TLS certificate presented by the servers
@@ -1121,10 +1116,6 @@ port.
 
 * DNS Interface (Default 8600). Used to resolve DNS queries. TCP and UDP.
 
-Consul will also make an outgoing connection to HashiCorp's servers for
-Atlas-related features and to check for the availability of newer versions
-of Consul. This will be a TLS-secured TCP connection to `scada.hashicorp.com:7223`.
-
 ## <a id="reloadable-configuration"></a>Reloadable Configuration
 
 Reloading configuration does not reload all configuration items. The
@@ -1136,6 +1127,3 @@ items which are reloaded include:
 * Watches
 * HTTP Client Address
 * <a href="#node_meta">Node Metadata</a>
-* Atlas Token
-* Atlas Infrastructure
-* Atlas Endpoint
