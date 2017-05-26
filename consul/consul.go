@@ -326,6 +326,10 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 			Status:   "passing",
 		}
 
+                if check.Path == nil {
+                        check.Path = "/"
+                }
+
 		switch check.Protocol {
 		case "HTTP", "HTTPS", "MESOS_HTTP", "MESOS_HTTPS":
 			if parsedURL, err := url.ParseRequestURI(check.Path); err == nil {
