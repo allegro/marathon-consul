@@ -809,11 +809,17 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 	assert.Equal(t, []string{"marathon", "public", "marathon-task:someTask"}, service.Tags)
 	assert.Equal(t, 8090, service.Port)
 	assert.Nil(t, service.Check)
-	assert.Equal(t, 5, len(service.Checks))
+	assert.Equal(t, 6, len(service.Checks))
 
 	assert.Equal(t, consulapi.AgentServiceChecks{
 		{
 			HTTP:     "http://127.0.0.6:8123/api/health?with=query",
+			Interval: "60s",
+			Timeout:  "20s",
+			Status:   "passing",
+		},
+		{
+			HTTP:     "http://127.0.0.6:8090/",
 			Interval: "60s",
 			Timeout:  "20s",
 			Status:   "passing",
@@ -948,11 +954,17 @@ func TestMarathonTaskToConsulServiceMapping_IgnoredHealthcheckTypes(t *testing.T
 	assert.Equal(t, []string{"marathon", "public", "marathon-task:someTask"}, service.Tags)
 	assert.Equal(t, 8090, service.Port)
 	assert.Nil(t, service.Check)
-	assert.Equal(t, 2, len(service.Checks))
+	assert.Equal(t, 3, len(service.Checks))
 
 	assert.Equal(t, consulapi.AgentServiceChecks{
 		{
 			HTTP:     "http://127.0.0.6:8090/api/health?with=query",
+			Interval: "60s",
+			Timeout:  "20s",
+			Status:   "passing",
+		},
+		{
+			HTTP:     "http://127.0.0.6:8090/",
 			Interval: "60s",
 			Timeout:  "20s",
 			Status:   "passing",
