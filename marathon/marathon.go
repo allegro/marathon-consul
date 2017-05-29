@@ -139,10 +139,11 @@ func (m Marathon) EventStream(desiredEvents []string, retries, retryBackoff int)
 // leaderPoll just blocks until configured myleader is equal to
 // leader returned from marathon (/v2/leader endpoint)
 func (m Marathon) leaderPoll() error {
-	pollTicker := time.Tick(1 * time.Second)
+	pollTicker := time.NewTicker(1 * time.Second)
+	defer pollTicker.Stop()
 	retries := 5
 	i := 0
-	for range pollTicker {
+	for range pollTicker.C {
 		leading, err := m.IsLeader()
 		if err != nil {
 			if i >= retries {
