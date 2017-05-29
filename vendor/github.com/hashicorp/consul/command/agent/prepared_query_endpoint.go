@@ -31,7 +31,7 @@ func (s *HTTPServer) preparedQueryCreate(resp http.ResponseWriter, req *http.Req
 	if req.ContentLength > 0 {
 		if err := decodeBody(req, &args.Query, nil); err != nil {
 			resp.WriteHeader(400)
-			resp.Write([]byte(fmt.Sprintf("Request decode failed: %v", err)))
+			fmt.Fprintf(resp, "Request decode failed: %v", err)
 			return nil, nil
 		}
 	}
@@ -83,11 +83,11 @@ func (s *HTTPServer) PreparedQueryGeneral(resp http.ResponseWriter, req *http.Re
 func parseLimit(req *http.Request, limit *int) error {
 	*limit = 0
 	if arg := req.URL.Query().Get("limit"); arg != "" {
-		if i, err := strconv.Atoi(arg); err != nil {
+		i, err := strconv.Atoi(arg)
+		if err != nil {
 			return err
-		} else {
-			*limit = i
 		}
+		*limit = i
 	}
 	return nil
 }
@@ -116,7 +116,7 @@ func (s *HTTPServer) preparedQueryExecute(id string, resp http.ResponseWriter, r
 		// the specific error type.
 		if err.Error() == consul.ErrQueryNotFound.Error() {
 			resp.WriteHeader(404)
-			resp.Write([]byte(err.Error()))
+			fmt.Fprint(resp, err.Error())
 			return nil, nil
 		}
 		return nil, err
@@ -161,7 +161,7 @@ func (s *HTTPServer) preparedQueryExplain(id string, resp http.ResponseWriter, r
 		// the specific error type.
 		if err.Error() == consul.ErrQueryNotFound.Error() {
 			resp.WriteHeader(404)
-			resp.Write([]byte(err.Error()))
+			fmt.Fprint(resp, err.Error())
 			return nil, nil
 		}
 		return nil, err
@@ -185,7 +185,7 @@ func (s *HTTPServer) preparedQueryGet(id string, resp http.ResponseWriter, req *
 		// the specific error type.
 		if err.Error() == consul.ErrQueryNotFound.Error() {
 			resp.WriteHeader(404)
-			resp.Write([]byte(err.Error()))
+			fmt.Fprint(resp, err.Error())
 			return nil, nil
 		}
 		return nil, err
@@ -203,7 +203,7 @@ func (s *HTTPServer) preparedQueryUpdate(id string, resp http.ResponseWriter, re
 	if req.ContentLength > 0 {
 		if err := decodeBody(req, &args.Query, nil); err != nil {
 			resp.WriteHeader(400)
-			resp.Write([]byte(fmt.Sprintf("Request decode failed: %v", err)))
+			fmt.Fprintf(resp, "Request decode failed: %v", err)
 			return nil, nil
 		}
 	}

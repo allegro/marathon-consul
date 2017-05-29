@@ -41,9 +41,7 @@ const (
 	aclCacheSize = 10 * 1024
 )
 
-var (
-	permissionDeniedErr = errors.New(permissionDenied)
-)
+var errPermissionDenied = errors.New(permissionDenied)
 
 // aclCacheEntry is used to cache non-authoritative ACLs
 // If non-authoritative, then we must respect a TTL
@@ -132,10 +130,10 @@ type aclCache struct {
 	local acl.FaultFunc
 }
 
-// newAclCache returns a new non-authoritative cache for ACLs. This is used for
+// newACLCache returns a new non-authoritative cache for ACLs. This is used for
 // performance, and is used inside the ACL datacenter on non-leader servers, and
 // outside the ACL datacenter everywhere.
-func newAclCache(conf *Config, logger *log.Logger, rpc rpcFn, local acl.FaultFunc) (*aclCache, error) {
+func newACLCache(conf *Config, logger *log.Logger, rpc rpcFn, local acl.FaultFunc) (*aclCache, error) {
 	var err error
 	cache := &aclCache{
 		config: conf,
@@ -172,9 +170,8 @@ func (c *aclCache) lookupACL(id, authDC string) (acl.ACL, error) {
 	if cached != nil && time.Now().Before(cached.Expires) {
 		metrics.IncrCounter([]string{"consul", "acl", "cache_hit"}, 1)
 		return cached.ACL, nil
-	} else {
-		metrics.IncrCounter([]string{"consul", "acl", "cache_miss"}, 1)
 	}
+	metrics.IncrCounter([]string{"consul", "acl", "cache_miss"}, 1)
 
 	// Attempt to refresh the policy from the ACL datacenter via an RPC.
 	args := structs.ACLPolicyRequest{
@@ -194,9 +191,8 @@ func (c *aclCache) lookupACL(id, authDC string) (acl.ACL, error) {
 	// other error we report it in the logs but can continue.
 	if strings.Contains(err.Error(), aclNotFound) {
 		return nil, errors.New(aclNotFound)
-	} else {
-		c.logger.Printf("[ERR] consul.acl: Failed to get policy from ACL datacenter: %v", err)
 	}
+	c.logger.Printf("[ERR] consul.acl: Failed to get policy from ACL datacenter: %v", err)
 
 	// TODO (slackpad) - We could do a similar thing *within* the ACL
 	// datacenter if the leader isn't available. We have a local state
@@ -319,8 +315,8 @@ type aclFilter struct {
 	enforceVersion8 bool
 }
 
-// newAclFilter constructs a new aclFilter.
-func newAclFilter(acl acl.ACL, logger *log.Logger, enforceVersion8 bool) *aclFilter {
+// newACLFilter constructs a new aclFilter.
+func newACLFilter(acl acl.ACL, logger *log.Logger, enforceVersion8 bool) *aclFilter {
 	if logger == nil {
 		logger = log.New(os.Stdout, "", log.LstdFlags)
 	}
@@ -379,7 +375,7 @@ func (f *aclFilter) filterHealthChecks(checks *structs.HealthChecks) {
 
 // filterServices is used to filter a set of services based on ACLs.
 func (f *aclFilter) filterServices(services structs.Services) {
-	for svc, _ := range services {
+	for svc := range services {
 		if f.allowService(svc) {
 			continue
 		}
@@ -415,7 +411,7 @@ func (f *aclFilter) filterNodeServices(services **structs.NodeServices) {
 		return
 	}
 
-	for svc, _ := range (*services).Services {
+	for svc := range (*services).Services {
 		if f.allowService(svc) {
 			continue
 		}
@@ -600,7 +596,7 @@ func (s *Server) filterACL(token string, subj interface{}) error {
 	}
 
 	// Create the filter
-	filt := newAclFilter(acl, s.logger, s.config.ACLEnforceVersion8)
+	filt := newACLFilter(acl, s.logger, s.config.ACLEnforceVersion8)
 
 	switch v := subj.(type) {
 	case *structs.CheckServiceNodes:
@@ -672,7 +668,7 @@ func vetRegisterWithACL(acl acl.ACL, subj *structs.RegisterRequest,
 	// privileges.
 	needsNode := ns == nil || subj.ChangesNode(ns.Node)
 	if needsNode && !acl.NodeWrite(subj.Node) {
-		return permissionDeniedErr
+		return errPermissionDenied
 	}
 
 	// Vet the service change. This includes making sure they can register
@@ -680,13 +676,13 @@ func vetRegisterWithACL(acl acl.ACL, subj *structs.RegisterRequest,
 	// is being modified by id (if any).
 	if subj.Service != nil {
 		if !acl.ServiceWrite(subj.Service.Service) {
-			return permissionDeniedErr
+			return errPermissionDenied
 		}
 
 		if ns != nil {
 			other, ok := ns.Services[subj.Service.ID]
 			if ok && !acl.ServiceWrite(other.Service) {
-				return permissionDeniedErr
+				return errPermissionDenied
 			}
 		}
 	}
@@ -715,7 +711,7 @@ func vetRegisterWithACL(acl acl.ACL, subj *structs.RegisterRequest,
 		// Node-level check.
 		if check.ServiceID == "" {
 			if !acl.NodeWrite(subj.Node) {
-				return permissionDeniedErr
+				return errPermissionDenied
 			}
 			continue
 		}
@@ -731,17 +727,16 @@ func vetRegisterWithACL(acl acl.ACL, subj *structs.RegisterRequest,
 		// Service-level check for some other service. Make sure they've
 		// got write permissions for that service.
 		if ns == nil {
-			return fmt.Errorf("Unknown service '%s' for check '%s'",
-				check.ServiceID, check.CheckID)
-		} else {
-			other, ok := ns.Services[check.ServiceID]
-			if !ok {
-				return fmt.Errorf("Unknown service '%s' for check '%s'",
-					check.ServiceID, check.CheckID)
-			}
-			if !acl.ServiceWrite(other.Service) {
-				return permissionDeniedErr
-			}
+			return fmt.Errorf("Unknown service '%s' for check '%s'", check.ServiceID, check.CheckID)
+		}
+
+		other, ok := ns.Services[check.ServiceID]
+		if !ok {
+			return fmt.Errorf("Unknown service '%s' for check '%s'", check.ServiceID, check.CheckID)
+		}
+
+		if !acl.ServiceWrite(other.Service) {
+			return errPermissionDenied
 		}
 	}
 
@@ -768,7 +763,7 @@ func vetDeregisterWithACL(acl acl.ACL, subj *structs.DeregisterRequest,
 			return fmt.Errorf("Unknown service '%s'", subj.ServiceID)
 		}
 		if !acl.ServiceWrite(ns.Service) {
-			return permissionDeniedErr
+			return errPermissionDenied
 		}
 	} else if subj.CheckID != "" {
 		if nc == nil {
@@ -776,16 +771,16 @@ func vetDeregisterWithACL(acl acl.ACL, subj *structs.DeregisterRequest,
 		}
 		if nc.ServiceID != "" {
 			if !acl.ServiceWrite(nc.ServiceName) {
-				return permissionDeniedErr
+				return errPermissionDenied
 			}
 		} else {
 			if !acl.NodeWrite(subj.Node) {
-				return permissionDeniedErr
+				return errPermissionDenied
 			}
 		}
 	} else {
 		if !acl.NodeWrite(subj.Node) {
-			return permissionDeniedErr
+			return errPermissionDenied
 		}
 	}
 

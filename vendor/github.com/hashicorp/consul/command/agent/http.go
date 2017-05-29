@@ -56,14 +56,17 @@ func NewHTTPServers(agent *Agent, config *Config, logOutput io.Writer) ([]*HTTPS
 		}
 
 		tlsConf := &tlsutil.Config{
-			VerifyIncoming: config.VerifyIncoming,
-			VerifyOutgoing: config.VerifyOutgoing,
-			CAFile:         config.CAFile,
-			CertFile:       config.CertFile,
-			KeyFile:        config.KeyFile,
-			NodeName:       config.NodeName,
-			ServerName:     config.ServerName,
-			TLSMinVersion:  config.TLSMinVersion,
+			VerifyIncoming:           config.VerifyIncoming || config.VerifyIncomingHTTPS,
+			VerifyOutgoing:           config.VerifyOutgoing,
+			CAFile:                   config.CAFile,
+			CAPath:                   config.CAPath,
+			CertFile:                 config.CertFile,
+			KeyFile:                  config.KeyFile,
+			NodeName:                 config.NodeName,
+			ServerName:               config.ServerName,
+			TLSMinVersion:            config.TLSMinVersion,
+			CipherSuites:             config.TLSCipherSuites,
+			PreferServerCipherSuites: config.TLSPreferServerCipherSuites,
 		}
 
 		tlsConfig, err := tlsConf.IncomingTLSConfig()
@@ -87,7 +90,7 @@ func NewHTTPServers(agent *Agent, config *Config, logOutput io.Writer) ([]*HTTPS
 			mux:      mux,
 			listener: list,
 			logger:   log.New(logOutput, "", log.LstdFlags),
-			uiDir:    config.UiDir,
+			uiDir:    config.UIDir,
 			addr:     httpAddr.String(),
 		}
 		srv.registerHandlers(config.EnableDebug)
@@ -139,7 +142,7 @@ func NewHTTPServers(agent *Agent, config *Config, logOutput io.Writer) ([]*HTTPS
 			mux:      mux,
 			listener: list,
 			logger:   log.New(logOutput, "", log.LstdFlags),
-			uiDir:    config.UiDir,
+			uiDir:    config.UIDir,
 			addr:     httpAddr.String(),
 		}
 		srv.registerHandlers(config.EnableDebug)
@@ -152,9 +155,9 @@ func NewHTTPServers(agent *Agent, config *Config, logOutput io.Writer) ([]*HTTPS
 	return servers, nil
 }
 
-// newScadaHttp creates a new HTTP server wrapping the SCADA
+// newScadaHTTP creates a new HTTP server wrapping the SCADA
 // listener such that HTTP calls can be sent from the brokers.
-func newScadaHttp(agent *Agent, list net.Listener) *HTTPServer {
+func newScadaHTTP(agent *Agent, list net.Listener) *HTTPServer {
 	// Create the mux
 	mux := http.NewServeMux()
 
@@ -323,7 +326,7 @@ func (s *HTTPServer) registerHandlers(enableDebug bool) {
 	// Use the custom UI dir if provided.
 	if s.uiDir != "" {
 		s.mux.Handle("/ui/", http.StripPrefix("/ui/", http.FileServer(http.Dir(s.uiDir))))
-	} else if s.agent.config.EnableUi {
+	} else if s.agent.config.EnableUI {
 		s.mux.Handle("/ui/", http.StripPrefix("/ui/", http.FileServer(assetFS())))
 	}
 
@@ -380,7 +383,7 @@ func (s *HTTPServer) wrap(handler func(resp http.ResponseWriter, req *http.Reque
 			}
 
 			resp.WriteHeader(code)
-			resp.Write([]byte(err.Error()))
+			fmt.Fprint(resp, err.Error())
 			return
 		}
 
@@ -419,7 +422,7 @@ func (s *HTTPServer) marshalJSON(req *http.Request, obj interface{}) ([]byte, er
 
 // Returns true if the UI is enabled.
 func (s *HTTPServer) IsUIEnabled() bool {
-	return s.uiDir != "" || s.agent.config.EnableUi
+	return s.uiDir != "" || s.agent.config.EnableUI
 }
 
 // Renders a simple index page
@@ -433,7 +436,7 @@ func (s *HTTPServer) Index(resp http.ResponseWriter, req *http.Request) {
 	// Give them something helpful if there's no UI so they at least know
 	// what this server is.
 	if !s.IsUIEnabled() {
-		resp.Write([]byte("Consul Agent"))
+		fmt.Fprint(resp, "Consul Agent")
 		return
 	}
 
@@ -508,7 +511,7 @@ func parseWait(resp http.ResponseWriter, req *http.Request, b *structs.QueryOpti
 		dur, err := time.ParseDuration(wait)
 		if err != nil {
 			resp.WriteHeader(http.StatusBadRequest) // 400
-			resp.Write([]byte("Invalid wait time"))
+			fmt.Fprint(resp, "Invalid wait time")
 			return true
 		}
 		b.MaxQueryTime = dur
@@ -517,7 +520,7 @@ func parseWait(resp http.ResponseWriter, req *http.Request, b *structs.QueryOpti
 		index, err := strconv.ParseUint(idx, 10, 64)
 		if err != nil {
 			resp.WriteHeader(http.StatusBadRequest) // 400
-			resp.Write([]byte("Invalid index"))
+			fmt.Fprint(resp, "Invalid index")
 			return true
 		}
 		b.MinQueryIndex = index
@@ -537,7 +540,7 @@ func parseConsistency(resp http.ResponseWriter, req *http.Request, b *structs.Qu
 	}
 	if b.AllowStale && b.RequireConsistent {
 		resp.WriteHeader(http.StatusBadRequest) // 400
-		resp.Write([]byte("Cannot specify ?stale with ?consistent, conflicting semantics."))
+		fmt.Fprint(resp, "Cannot specify ?stale with ?consistent, conflicting semantics.")
 		return true
 	}
 	return false

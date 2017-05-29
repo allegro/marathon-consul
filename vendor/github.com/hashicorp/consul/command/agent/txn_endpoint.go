@@ -82,6 +82,15 @@ func fixupKVOps(raw interface{}) error {
 	return nil
 }
 
+// isWrite returns true if the given operation alters the state store.
+func isWrite(op api.KVOp) bool {
+	switch op {
+	case api.KVSet, api.KVDelete, api.KVDeleteCAS, api.KVDeleteTree, api.KVCAS, api.KVLock, api.KVUnlock:
+		return true
+	}
+	return false
+}
+
 // convertOps takes the incoming body in API format and converts it to the
 // internal RPC format. This returns a count of the number of write ops, and
 // a boolean, that if false means an error response has been generated and
@@ -93,7 +102,7 @@ func (s *HTTPServer) convertOps(resp http.ResponseWriter, req *http.Request) (st
 	var ops api.TxnOps
 	if err := decodeBody(req, &ops, fixupKVOps); err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
-		resp.Write([]byte(fmt.Sprintf("Failed to parse body: %v", err)))
+		fmt.Fprintf(resp, "Failed to parse body: %v", err)
 		return nil, 0, false
 	}
 
@@ -101,8 +110,9 @@ func (s *HTTPServer) convertOps(resp http.ResponseWriter, req *http.Request) (st
 	// transaction in order to curb abuse.
 	if size := len(ops); size > maxTxnOps {
 		resp.WriteHeader(http.StatusRequestEntityTooLarge)
-		resp.Write([]byte(fmt.Sprintf("Transaction contains too many operations (%d > %d)",
-			size, maxTxnOps)))
+		fmt.Fprintf(resp, "Transaction contains too many operations (%d > %d)",
+			size, maxTxnOps)
+
 		return nil, 0, false
 	}
 
@@ -114,18 +124,17 @@ func (s *HTTPServer) convertOps(resp http.ResponseWriter, req *http.Request) (st
 	var netKVSize int
 	for _, in := range ops {
 		if in.KV != nil {
-			if size := len(in.KV.Value); size > maxKVSize {
+			size := len(in.KV.Value)
+			if size > maxKVSize {
 				resp.WriteHeader(http.StatusRequestEntityTooLarge)
-				resp.Write([]byte(fmt.Sprintf("Value for key %q is too large (%d > %d bytes)",
-					in.KV.Key, size, maxKVSize)))
+				fmt.Fprintf(resp, "Value for key %q is too large (%d > %d bytes)", in.KV.Key, size, maxKVSize)
 				return nil, 0, false
-			} else {
-				netKVSize += size
 			}
+			netKVSize += size
 
-			verb := structs.KVSOp(in.KV.Verb)
-			if verb.IsWrite() {
-				writes += 1
+			verb := api.KVOp(in.KV.Verb)
+			if isWrite(verb) {
+				writes++
 			}
 
 			out := &structs.TxnOp{
@@ -149,8 +158,9 @@ func (s *HTTPServer) convertOps(resp http.ResponseWriter, req *http.Request) (st
 	// Enforce an overall size limit to help prevent abuse.
 	if netKVSize > maxKVSize {
 		resp.WriteHeader(http.StatusRequestEntityTooLarge)
-		resp.Write([]byte(fmt.Sprintf("Cumulative size of key data is too large (%d > %d bytes)",
-			netKVSize, maxKVSize)))
+		fmt.Fprintf(resp, "Cumulative size of key data is too large (%d > %d bytes)",
+			netKVSize, maxKVSize)
+
 		return nil, 0, false
 	}
 

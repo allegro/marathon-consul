@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/consul"
 	"github.com/hashicorp/consul/consul/structs"
 	"github.com/hashicorp/consul/lib"
@@ -261,7 +262,7 @@ func (l *localState) UpdateCheck(checkID types.CheckID, status, output string) {
 
 	// Update the critical time tracking (this doesn't cause a server updates
 	// so we can always keep this up to date).
-	if status == structs.HealthCritical {
+	if status == api.HealthCritical {
 		_, wasCritical := l.checkCriticalTime[checkID]
 		if !wasCritical {
 			l.checkCriticalTime[checkID] = time.Now()
@@ -445,7 +446,7 @@ func (l *localState) setSyncState() error {
 		services = out1.NodeServices.Services
 	}
 
-	for id, _ := range l.services {
+	for id := range l.services {
 		// If the local service doesn't exist remotely, then sync it
 		if _, ok := services[id]; !ok {
 			l.serviceStatus[id] = syncStatus{inSync: false}
@@ -478,7 +479,7 @@ func (l *localState) setSyncState() error {
 	}
 
 	// Sync any check which doesn't exist on the remote side
-	for id, _ := range l.checks {
+	for id := range l.checks {
 		if _, ok := checkIndex[id]; !ok {
 			l.checkStatus[id] = syncStatus{inSync: false}
 		}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/armon/go-metrics"
 	"github.com/hashicorp/consul/acl"
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/consul/state"
 	"github.com/hashicorp/consul/consul/structs"
 	"github.com/hashicorp/go-memdb"
@@ -19,34 +20,34 @@ type KVS struct {
 // preApply does all the verification of a KVS update that is performed BEFORE
 // we submit as a Raft log entry. This includes enforcing the lock delay which
 // must only be done on the leader.
-func kvsPreApply(srv *Server, acl acl.ACL, op structs.KVSOp, dirEnt *structs.DirEntry) (bool, error) {
+func kvsPreApply(srv *Server, acl acl.ACL, op api.KVOp, dirEnt *structs.DirEntry) (bool, error) {
 	// Verify the entry.
-	if dirEnt.Key == "" && op != structs.KVSDeleteTree {
+	if dirEnt.Key == "" && op != api.KVDeleteTree {
 		return false, fmt.Errorf("Must provide key")
 	}
 
 	// Apply the ACL policy if any.
 	if acl != nil {
 		switch op {
-		case structs.KVSDeleteTree:
+		case api.KVDeleteTree:
 			if !acl.KeyWritePrefix(dirEnt.Key) {
-				return false, permissionDeniedErr
+				return false, errPermissionDenied
 			}
 
-		case structs.KVSGet, structs.KVSGetTree:
+		case api.KVGet, api.KVGetTree:
 			// Filtering for GETs is done on the output side.
 
-		case structs.KVSCheckSession, structs.KVSCheckIndex:
+		case api.KVCheckSession, api.KVCheckIndex:
 			// These could reveal information based on the outcome
 			// of the transaction, and they operate on individual
 			// keys so we check them here.
 			if !acl.KeyRead(dirEnt.Key) {
-				return false, permissionDeniedErr
+				return false, errPermissionDenied
 			}
 
 		default:
 			if !acl.KeyWrite(dirEnt.Key) {
-				return false, permissionDeniedErr
+				return false, errPermissionDenied
 			}
 		}
 	}
@@ -57,7 +58,7 @@ func kvsPreApply(srv *Server, acl acl.ACL, op structs.KVSOp, dirEnt *structs.Dir
 	// after the raft log is committed as it would lead to inconsistent FSMs.
 	// Instead, the lock-delay must be enforced before commit. This means that
 	// only the wall-time of the leader node is used, preventing any inconsistencies.
-	if op == structs.KVSLock {
+	if op == api.KVLock {
 		state := srv.fsm.State()
 		expires := state.KVSLockDelay(dirEnt.Key)
 		if expires.After(time.Now()) {
@@ -122,7 +123,7 @@ func (k *KVS) Get(args *structs.KeyRequest, reply *structs.IndexedDirEntries) er
 	return k.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		func(ws memdb.WatchSet, state *state.StateStore) error {
+		func(ws memdb.WatchSet, state *state.Store) error {
 			index, ent, err := state.KVSGet(ws, args.Key)
 			if err != nil {
 				return err
@@ -161,7 +162,7 @@ func (k *KVS) List(args *structs.KeyRequest, reply *structs.IndexedDirEntries) e
 	return k.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		func(ws memdb.WatchSet, state *state.StateStore) error {
+		func(ws memdb.WatchSet, state *state.Store) error {
 			index, ent, err := state.KVSList(ws, args.Key)
 			if err != nil {
 				return err
@@ -201,7 +202,7 @@ func (k *KVS) ListKeys(args *structs.KeyListRequest, reply *structs.IndexedKeyLi
 	return k.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		func(ws memdb.WatchSet, state *state.StateStore) error {
+		func(ws memdb.WatchSet, state *state.Store) error {
 			index, keys, err := state.KVSListKeys(ws, args.Prefix, args.Seperator)
 			if err != nil {
 				return err

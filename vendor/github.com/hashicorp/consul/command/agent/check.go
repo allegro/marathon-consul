@@ -15,6 +15,7 @@ import (
 
 	"github.com/armon/circbuf"
 	docker "github.com/fsouza/go-dockerclient"
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/consul/structs"
 	"github.com/hashicorp/consul/lib"
 	"github.com/hashicorp/consul/types"
@@ -22,18 +23,19 @@ import (
 )
 
 const (
-	// Do not allow for a interval below this value.
+	// MinInterval is the minimal interval between
+	// two checks. Do not allow for a interval below this value.
 	// Otherwise we risk fork bombing a system.
 	MinInterval = time.Second
 
-	// Limit the size of a check's output to the
-	// last CheckBufSize. Prevents an enormous buffer
+	// CheckBufSize is the maximum size of the captured
+	// check output. Prevents an enormous buffer
 	// from being captured
 	CheckBufSize = 4 * 1024 // 4KB
 
-	// Use this user agent when doing requests for
-	// HTTP health checks.
-	HttpUserAgent = "Consul Health Check"
+	// UserAgent is the value of the User-Agent header
+	// for HTTP health checks.
+	UserAgent = "Consul Health Check"
 )
 
 // CheckType is used to create either the CheckMonitor or the CheckTTL.
@@ -89,6 +91,7 @@ func (c *CheckType) IsTCP() bool {
 	return c.TCP != "" && c.Interval != 0
 }
 
+// IsDocker returns true when checking a docker container.
 func (c *CheckType) IsDocker() bool {
 	return c.DockerContainerID != "" && c.Script != "" && c.Interval != 0
 }
@@ -159,7 +162,7 @@ func (c *CheckMonitor) check() {
 	cmd, err := ExecScript(c.Script)
 	if err != nil {
 		c.Logger.Printf("[ERR] agent: failed to setup invoke '%s': %s", c.Script, err)
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthCritical, err.Error())
+		c.Notify.UpdateCheck(c.CheckID, api.HealthCritical, err.Error())
 		return
 	}
 
@@ -171,7 +174,7 @@ func (c *CheckMonitor) check() {
 	// Start the check
 	if err := cmd.Start(); err != nil {
 		c.Logger.Printf("[ERR] agent: failed to invoke '%s': %s", c.Script, err)
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthCritical, err.Error())
+		c.Notify.UpdateCheck(c.CheckID, api.HealthCritical, err.Error())
 		return
 	}
 
@@ -203,7 +206,7 @@ func (c *CheckMonitor) check() {
 	// Check if the check passed
 	if err == nil {
 		c.Logger.Printf("[DEBUG] agent: Check '%v' is passing", c.CheckID)
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthPassing, outputStr)
+		c.Notify.UpdateCheck(c.CheckID, api.HealthPassing, outputStr)
 		return
 	}
 
@@ -214,7 +217,7 @@ func (c *CheckMonitor) check() {
 			code := status.ExitStatus()
 			if code == 1 {
 				c.Logger.Printf("[WARN] agent: Check '%v' is now warning", c.CheckID)
-				c.Notify.UpdateCheck(c.CheckID, structs.HealthWarning, outputStr)
+				c.Notify.UpdateCheck(c.CheckID, api.HealthWarning, outputStr)
 				return
 			}
 		}
@@ -222,7 +225,7 @@ func (c *CheckMonitor) check() {
 
 	// Set the health as critical
 	c.Logger.Printf("[WARN] agent: Check '%v' is now critical", c.CheckID)
-	c.Notify.UpdateCheck(c.CheckID, structs.HealthCritical, outputStr)
+	c.Notify.UpdateCheck(c.CheckID, api.HealthCritical, outputStr)
 }
 
 // CheckTTL is used to apply a TTL to check status,
@@ -273,7 +276,7 @@ func (c *CheckTTL) run() {
 		case <-c.timer.C:
 			c.Logger.Printf("[WARN] agent: Check '%v' missed TTL, is now critical",
 				c.CheckID)
-			c.Notify.UpdateCheck(c.CheckID, structs.HealthCritical, c.getExpiredOutput())
+			c.Notify.UpdateCheck(c.CheckID, api.HealthCritical, c.getExpiredOutput())
 
 		case <-c.stopCh:
 			return
@@ -423,17 +426,17 @@ func (c *CheckHTTP) check() {
 	req, err := http.NewRequest("GET", c.HTTP, nil)
 	if err != nil {
 		c.Logger.Printf("[WARN] agent: http request failed '%s': %s", c.HTTP, err)
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthCritical, err.Error())
+		c.Notify.UpdateCheck(c.CheckID, api.HealthCritical, err.Error())
 		return
 	}
 
-	req.Header.Set("User-Agent", HttpUserAgent)
+	req.Header.Set("User-Agent", UserAgent)
 	req.Header.Set("Accept", "text/plain, text/*, */*")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		c.Logger.Printf("[WARN] agent: http request failed '%s': %s", c.HTTP, err)
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthCritical, err.Error())
+		c.Notify.UpdateCheck(c.CheckID, api.HealthCritical, err.Error())
 		return
 	}
 	defer resp.Body.Close()
@@ -450,19 +453,19 @@ func (c *CheckHTTP) check() {
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		// PASSING (2xx)
 		c.Logger.Printf("[DEBUG] agent: Check '%v' is passing", c.CheckID)
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthPassing, result)
+		c.Notify.UpdateCheck(c.CheckID, api.HealthPassing, result)
 
 	} else if resp.StatusCode == 429 {
 		// WARNING
 		// 429 Too Many Requests (RFC 6585)
 		// The user has sent too many requests in a given amount of time.
 		c.Logger.Printf("[WARN] agent: Check '%v' is now warning", c.CheckID)
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthWarning, result)
+		c.Notify.UpdateCheck(c.CheckID, api.HealthWarning, result)
 
 	} else {
 		// CRITICAL
 		c.Logger.Printf("[WARN] agent: Check '%v' is now critical", c.CheckID)
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthCritical, result)
+		c.Notify.UpdateCheck(c.CheckID, api.HealthCritical, result)
 	}
 }
 
@@ -541,16 +544,16 @@ func (c *CheckTCP) check() {
 	conn, err := c.dialer.Dial(`tcp`, c.TCP)
 	if err != nil {
 		c.Logger.Printf("[WARN] agent: socket connection failed '%s': %s", c.TCP, err)
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthCritical, err.Error())
+		c.Notify.UpdateCheck(c.CheckID, api.HealthCritical, err.Error())
 		return
 	}
 	conn.Close()
 	c.Logger.Printf("[DEBUG] agent: Check '%v' is passing", c.CheckID)
-	c.Notify.UpdateCheck(c.CheckID, structs.HealthPassing, fmt.Sprintf("TCP connect %s: Success", c.TCP))
+	c.Notify.UpdateCheck(c.CheckID, api.HealthPassing, fmt.Sprintf("TCP connect %s: Success", c.TCP))
 }
 
-// A custom interface since go-dockerclient doesn't have one
-// We will use this interface in our test to inject a fake client
+// DockerClient defines an interface for a docker client
+// which is used for injecting a fake client during tests.
 type DockerClient interface {
 	CreateExec(docker.CreateExecOptions) (*docker.Exec, error)
 	StartExec(string, docker.StartExecOptions) error
@@ -577,9 +580,8 @@ type CheckDocker struct {
 	stopLock     sync.Mutex
 }
 
-//Initializes the Docker Client
+// Init initializes the Docker Client
 func (c *CheckDocker) Init() error {
-	//create the docker client
 	var err error
 	c.dockerClient, err = docker.NewClientFromEnv()
 	if err != nil {
@@ -650,7 +652,7 @@ func (c *CheckDocker) check() {
 	)
 	if exec, err = c.dockerClient.CreateExec(execOpts); err != nil {
 		c.Logger.Printf("[DEBUG] agent: Error while creating Exec: %s", err.Error())
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthCritical, fmt.Sprintf("Unable to create Exec, error: %s", err.Error()))
+		c.Notify.UpdateCheck(c.CheckID, api.HealthCritical, fmt.Sprintf("Unable to create Exec, error: %s", err.Error()))
 		return
 	}
 
@@ -660,7 +662,7 @@ func (c *CheckDocker) check() {
 	err = c.dockerClient.StartExec(exec.ID, docker.StartExecOptions{Detach: false, Tty: false, OutputStream: output, ErrorStream: output})
 	if err != nil {
 		c.Logger.Printf("[DEBUG] Error in executing health checks: %s", err.Error())
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthCritical, fmt.Sprintf("Unable to start Exec: %s", err.Error()))
+		c.Notify.UpdateCheck(c.CheckID, api.HealthCritical, fmt.Sprintf("Unable to start Exec: %s", err.Error()))
 		return
 	}
 
@@ -677,32 +679,31 @@ func (c *CheckDocker) check() {
 	execInfo, err := c.dockerClient.InspectExec(exec.ID)
 	if err != nil {
 		c.Logger.Printf("[DEBUG] Error in inspecting check result : %s", err.Error())
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthCritical, fmt.Sprintf("Unable to inspect Exec: %s", err.Error()))
+		c.Notify.UpdateCheck(c.CheckID, api.HealthCritical, fmt.Sprintf("Unable to inspect Exec: %s", err.Error()))
 		return
 	}
 
 	// Sets the status of the check to healthy if exit code is 0
 	if execInfo.ExitCode == 0 {
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthPassing, outputStr)
+		c.Notify.UpdateCheck(c.CheckID, api.HealthPassing, outputStr)
 		return
 	}
 
 	// Set the status of the check to Warning if exit code is 1
 	if execInfo.ExitCode == 1 {
 		c.Logger.Printf("[DEBUG] Check failed with exit code: %d", execInfo.ExitCode)
-		c.Notify.UpdateCheck(c.CheckID, structs.HealthWarning, outputStr)
+		c.Notify.UpdateCheck(c.CheckID, api.HealthWarning, outputStr)
 		return
 	}
 
 	// Set the health as critical
 	c.Logger.Printf("[WARN] agent: Check '%v' is now critical", c.CheckID)
-	c.Notify.UpdateCheck(c.CheckID, structs.HealthCritical, outputStr)
+	c.Notify.UpdateCheck(c.CheckID, api.HealthCritical, outputStr)
 }
 
 func shell() string {
-	if otherShell := os.Getenv("SHELL"); otherShell != "" {
-		return otherShell
-	} else {
-		return "/bin/sh"
+	if sh := os.Getenv("SHELL"); sh != "" {
+		return sh
 	}
+	return "/bin/sh"
 }

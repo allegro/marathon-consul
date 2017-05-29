@@ -61,7 +61,8 @@ $ curl \
     "Notes": "",
     "Output": "",
     "ServiceID": "",
-    "ServiceName": ""
+    "ServiceName": "",
+    "ServiceTags": null
   },
   {
     "ID": "40e4a748-2192-161a-0510-9bf59fe950b5",
@@ -72,7 +73,8 @@ $ curl \
     "Notes": "",
     "Output": "",
     "ServiceID": "redis",
-    "ServiceName": "redis"
+    "ServiceName": "redis",
+    "ServiceTags": ["primary"] 
   }
 ]
 ```
@@ -133,7 +135,8 @@ $ curl \
     "Notes": "",
     "Output": "",
     "ServiceID": "redis",
-    "ServiceName": "redis"
+    "ServiceName": "redis",
+	"ServiceTags": ["primary"]
   }
 ]
 ```
@@ -199,6 +202,7 @@ $ curl \
       "ID": "40e4a748-2192-161a-0510-9bf59fe950b5",
       "Node": "foobar",
       "Address": "10.1.10.12",
+      "Datacenter": "dc1",
       "TaggedAddresses": {
         "lan": "10.1.10.12",
         "wan": "10.1.10.12"
@@ -210,7 +214,7 @@ $ curl \
     "Service": {
       "ID": "redis",
       "Service": "redis",
-      "Tags": null,
+      "Tags": ["primary"],
       "Address": "10.1.10.12",
       "Port": 8000
     },
@@ -223,7 +227,8 @@ $ curl \
         "Notes": "",
         "Output": "",
         "ServiceID": "redis",
-        "ServiceName": "redis"
+        "ServiceName": "redis",
+		"ServiceTags": ["primary"]
       },
       {
         "Node": "foobar",
@@ -233,7 +238,8 @@ $ curl \
         "Notes": "",
         "Output": "",
         "ServiceID": "",
-        "ServiceName": ""
+        "ServiceName": "",
+		"ServiceTags": null 
       }
     ]
   }
@@ -296,7 +302,8 @@ $ curl \
     "Notes": "",
     "Output": "",
     "ServiceID": "",
-    "ServiceName": ""
+    "ServiceName": "",
+	"ServiceTags": null
   },
   {
     "Node": "foobar",
@@ -306,7 +313,8 @@ $ curl \
     "Notes": "",
     "Output": "",
     "ServiceID": "redis",
-    "ServiceName": "redis"
+    "ServiceName": "redis",
+	"ServiceTags": ["primary"]
   }
 ]
 ```

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/consul"
 	"github.com/hashicorp/consul/consul/structs"
 	"github.com/hashicorp/consul/types"
@@ -25,7 +26,7 @@ func TestSessionCreate(t *testing.T) {
 				Node:      srv.agent.config.NodeName,
 				Name:      "consul",
 				ServiceID: "consul",
-				Status:    structs.HealthPassing,
+				Status:    api.HealthPassing,
 			},
 		}
 		var out struct{}
@@ -73,7 +74,7 @@ func TestSessionCreateDelete(t *testing.T) {
 				Node:      srv.agent.config.NodeName,
 				Name:      "consul",
 				ServiceID: "consul",
-				Status:    structs.HealthPassing,
+				Status:    api.HealthPassing,
 			},
 		}
 		var out struct{}
@@ -216,16 +217,16 @@ func TestSessionDestroy(t *testing.T) {
 	})
 }
 
-func TestSessionTTL(t *testing.T) {
-	// use the minimum legal ttl
-	testSessionTTL(t, 10*time.Second, nil)
+func TestSessionCustomTTL(t *testing.T) {
+	ttl := 250 * time.Millisecond
+	testSessionTTL(t, ttl, customTTL(ttl))
 }
 
-func TestSessionTTLConfig(t *testing.T) {
-	testSessionTTL(t, 1*time.Second, func(c *Config) {
-		c.SessionTTLMinRaw = "1s"
-		c.SessionTTLMin = 1 * time.Second
-	})
+func customTTL(d time.Duration) func(c *Config) {
+	return func(c *Config) {
+		c.SessionTTLMinRaw = d.String()
+		c.SessionTTLMin = d
+	}
 }
 
 func testSessionTTL(t *testing.T, ttl time.Duration, cb func(c *Config)) {
@@ -269,10 +270,9 @@ func testSessionTTL(t *testing.T, ttl time.Duration, cb func(c *Config)) {
 }
 
 func TestSessionTTLRenew(t *testing.T) {
-	httpTest(t, func(srv *HTTPServer) {
-		TTL := "10s" // use the minimum legal ttl
-		ttl := 10 * time.Second
-
+	ttl := 250 * time.Millisecond
+	TTL := ttl.String()
+	httpTestWithConfig(t, func(srv *HTTPServer) {
 		id := makeTestSessionTTL(t, srv, TTL)
 
 		req, err := http.NewRequest("GET",
@@ -346,7 +346,7 @@ func TestSessionTTLRenew(t *testing.T) {
 		if len(respObj) != 0 {
 			t.Fatalf("session '%s' should have destroyed", id)
 		}
-	})
+	}, customTTL(ttl))
 }
 
 func TestSessionGet(t *testing.T) {

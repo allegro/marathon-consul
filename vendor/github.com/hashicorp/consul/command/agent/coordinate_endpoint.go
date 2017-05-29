@@ -1,16 +1,18 @@
 package agent
 
 import (
-	"github.com/hashicorp/consul/consul/structs"
+	"fmt"
 	"net/http"
 	"sort"
+
+	"github.com/hashicorp/consul/consul/structs"
 )
 
 // coordinateDisabled handles all the endpoints when coordinates are not enabled,
 // returning an error message.
 func coordinateDisabled(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
 	resp.WriteHeader(401)
-	resp.Write([]byte("Coordinate support disabled"))
+	fmt.Fprint(resp, "Coordinate support disabled")
 	return nil, nil
 }
 
@@ -49,7 +51,7 @@ func (s *HTTPServer) CoordinateDatacenters(resp http.ResponseWriter, req *http.R
 	// Use empty list instead of nil (these aren't really possible because
 	// Serf will give back a default coordinate and there's always one DC,
 	// but it's better to be explicit about what we want here).
-	for i, _ := range out {
+	for i := range out {
 		if out[i].Coordinates == nil {
 			out[i].Coordinates = make(structs.Coordinates, 0)
 		}

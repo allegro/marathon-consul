@@ -1,14 +1,14 @@
 package consul
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/consul/consul/structs"
-	"github.com/hashicorp/consul/testutil"
+	"github.com/hashicorp/consul/testrpc"
+	"github.com/hashicorp/consul/testutil/retry"
 	"github.com/hashicorp/net-rpc-msgpackrpc"
 	"github.com/hashicorp/raft"
 )
@@ -22,7 +22,7 @@ func TestOperator_Autopilot_GetConfiguration(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	arg := structs.DCSpecificRequest{
 		Datacenter: "dc1",
@@ -49,7 +49,7 @@ func TestOperator_Autopilot_GetConfiguration_ACLDeny(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Try to get config without permissions
 	arg := structs.DCSpecificRequest{
@@ -103,7 +103,7 @@ func TestOperator_Autopilot_SetConfiguration(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Change the autopilot config from the default
 	arg := structs.AutopilotSetConfigRequest{
@@ -141,7 +141,7 @@ func TestOperator_Autopilot_SetConfiguration_ACLDeny(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Try to set config without permissions
 	arg := structs.AutopilotSetConfigRequest{
@@ -214,53 +214,43 @@ func TestOperator_ServerHealth(t *testing.T) {
 	dir2, s2 := testServerWithConfig(t, conf)
 	defer os.RemoveAll(dir2)
 	defer s2.Shutdown()
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, s2, s1)
 
 	dir3, s3 := testServerWithConfig(t, conf)
 	defer os.RemoveAll(dir3)
 	defer s3.Shutdown()
-	if _, err := s3.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, s3, s1)
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
-
-	if err := testutil.WaitForResult(func() (bool, error) {
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
+	retry.Run(t, func(r *retry.R) {
 		arg := structs.DCSpecificRequest{
 			Datacenter: "dc1",
 		}
 		var reply structs.OperatorHealthReply
 		err := msgpackrpc.CallWithCodec(codec, "Operator.ServerHealth", &arg, &reply)
 		if err != nil {
-			return false, fmt.Errorf("err: %v", err)
+			r.Fatalf("err: %v", err)
 		}
 		if !reply.Healthy {
-			return false, fmt.Errorf("bad: %v", reply)
+			r.Fatalf("bad: %v", reply)
 		}
 		if reply.FailureTolerance != 1 {
-			return false, fmt.Errorf("bad: %v", reply)
+			r.Fatalf("bad: %v", reply)
 		}
 		if len(reply.Servers) != 3 {
-			return false, fmt.Errorf("bad: %v", reply)
+			r.Fatalf("bad: %v", reply)
 		}
 		// Leader should have LastContact == 0, others should be positive
 		for _, s := range reply.Servers {
 			isLeader := s1.raft.Leader() == raft.ServerAddress(s.Address)
 			if isLeader && s.LastContact != 0 {
-				return false, fmt.Errorf("bad: %v", reply)
+				r.Fatalf("bad: %v", reply)
 			}
 			if !isLeader && s.LastContact <= 0 {
-				return false, fmt.Errorf("bad: %v", reply)
+				r.Fatalf("bad: %v", reply)
 			}
 		}
-		return true, nil
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 }
 
 func TestOperator_ServerHealth_UnsupportedRaftVersion(t *testing.T) {

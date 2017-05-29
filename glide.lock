@@ -1,10 +1,6 @@
-hash: 26f25a9e9ec58e99a676e32e72d17eede64d2f92e79159b8df7946aeb8f994de
-updated: 2017-04-06T14:09:40.123742323+02:00
+hash: 2b929db3f99f213d7f88b55a08bc3b24fb2f74b7623e7c120387f51f95260414
+updated: 2017-05-23T15:53:45.474725607+02:00
 imports:
-- name: github.com/armon/go-metrics
-  version: 93f237eba9b0602f3e73710416558854a81d9337
-- name: github.com/armon/go-radix
-  version: 4239b77079c7b5d1243b7b4736304ce8ddb6f0f2
 - name: github.com/certifi/gocertifi
   version: 03be5e6bb9874570ea7fb0961225d193cbc374c5
 - name: github.com/cyberdelia/go-metrics-graphite
@@ -18,53 +14,23 @@ imports:
 - name: github.com/getsentry/raven-go
   version: 3f7439d3e74d88e21d196ba20eb61a5a958bc118
 - name: github.com/hashicorp/consul
-  version: 402636ff2db998edef392ac6d59210d2170b3ebf
+  version: ea2a82b221c3e0a466a4f38ab4e8718ad8c60621
   subpackages:
-  - acl
   - api
-  - consul/structs
   - testutil
-  - types
-- name: github.com/hashicorp/errwrap
-  version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
+  - testutil/retry
 - name: github.com/hashicorp/go-cleanhttp
   version: 3573b8b52aa7b37b9358d966a898feb387f62437
-- name: github.com/hashicorp/go-msgpack
-  version: fa3f63826f7c23912c15263591e65d54d080b458
-  subpackages:
-  - codec
-- name: github.com/hashicorp/go-multierror
-  version: ed905158d87462226a13fe39ddf685ea65f1c11f
-- name: github.com/hashicorp/go-sockaddr
-  version: acd314c5781ea706c710d9ea70069fd2e110d61d
+- name: github.com/hashicorp/go-rootcerts
+  version: 6bb64b370b90e7ef1fa532be9e591a81c3493e00
 - name: github.com/hashicorp/go-uuid
   version: 64130c7a86d732268a38cb04cfbaf0cc987fda98
-- name: github.com/hashicorp/golang-lru
-  version: 0a025b7e63adc15a622f29b0b2c4c3848243bbf6
-  subpackages:
-  - simplelru
-- name: github.com/hashicorp/hcl
-  version: 372e8ddaa16fd67e371e9323807d056b799360af
-  subpackages:
-  - hcl/ast
-  - hcl/parser
-  - hcl/scanner
-  - hcl/strconv
-  - hcl/token
-  - json/parser
-  - json/scanner
-  - json/token
-- name: github.com/hashicorp/memberlist
-  version: 6cc6075ba9fba1915fa0416f00d2b4efa9dc2262
-- name: github.com/hashicorp/raft
-  version: 5f09c4ffdbcd2a53768e78c47717415de12b6728
 - name: github.com/hashicorp/serf
-  version: cb45b412ee4f9d6cc2eeb2b2b7dd0f6cfd7545c1
+  version: 19f2c401e122352c047a84d6584dd51e2fb8fcc4
   subpackages:
   - coordinate
-  - serf
-- name: github.com/miekg/dns
-  version: dcffd061aaeef4f0ab8369d0443146462b64ea6d
+- name: github.com/mitchellh/go-homedir
+  version: b8bc1bf767474819792c23f32d8286a45736f1c6
 - name: github.com/ogier/pflag
   version: 32a05c62658bd1d7c7e75cbc8195de5d585fde0f
 - name: github.com/pkg/errors
@@ -75,8 +41,6 @@ imports:
   - difflib
 - name: github.com/rcrowley/go-metrics
   version: bdb33529eca3e55eac7328e07c57012a797af602
-- name: github.com/sean-/seed
-  version: e2103e2c35297fb7e17febb81e49b312087a2372
 - name: github.com/Sirupsen/logrus
   version: ba1b36c82c5e05c4f912a88eab0dcd91a171688f
 - name: github.com/stathat/go
@@ -87,7 +51,7 @@ imports:
   - assert
   - require
 - name: golang.org/x/sys
-  version: 99f16d856c9836c42d24e7ab64ea72916925fa97
+  version: c200b10b5d5e122be351b67af224adc6128af5bf
   subpackages:
   - unix
 - name: gopkg.in/airbrake/gobrake.v2

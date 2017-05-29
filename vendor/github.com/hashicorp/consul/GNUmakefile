@@ -1,12 +1,23 @@
+SHELL = bash
 GOTOOLS = \
 	github.com/elazarl/go-bindata-assetfs/... \
 	github.com/jteeuwen/go-bindata/... \
 	github.com/mitchellh/gox \
 	golang.org/x/tools/cmd/cover \
 	golang.org/x/tools/cmd/stringer
-TEST ?= ./...
 GOTAGS ?= consul
-GOFILES ?= $(shell go list $(TEST) | grep -v /vendor/)
+GOFILES ?= $(shell go list ./... | grep -v /vendor/)
+GOOS=$(shell go env GOOS)
+GOARCH=$(shell go env GOARCH)
+
+# Get the git commit
+GIT_COMMIT=$(shell git rev-parse --short HEAD)
+GIT_DIRTY=$(shell test -n "`git status --porcelain`" && echo "+CHANGES" || true)
+GIT_DESCRIBE=$(shell git describe --tags --always)
+GIT_IMPORT=github.com/hashicorp/consul/version
+GOLDFLAGS=-X $(GIT_IMPORT).GitCommit=$(GIT_COMMIT)$(GIT_DIRTY) -X $(GIT_IMPORT).GitDescribe=$(GIT_DESCRIBE)
+
+export GOLDFLAGS
 
 # all builds binaries for all targets
 all: bin
@@ -16,35 +27,39 @@ bin: tools
 	@GOTAGS='$(GOTAGS)' sh -c "'$(CURDIR)/scripts/build.sh'"
 
 # dev creates binaries for testing locally - these are put into ./bin and $GOPATH
-dev: format
-	@CONSUL_DEV=1 GOTAGS='$(GOTAGS)' sh -c "'$(CURDIR)/scripts/build.sh'"
+dev:
+	mkdir -p pkg/$(GOOS)_$(GOARCH)/ bin/
+	go install -ldflags '$(GOLDFLAGS)' -tags '$(GOTAGS)'
+	cp $(GOPATH)/bin/consul bin/
+	cp $(GOPATH)/bin/consul pkg/$(GOOS)_$(GOARCH)
+
+# linux builds a linux package indpendent of the source platform
+linux:
+	mkdir -p pkg/linux_amd64/
+	GOOS=linux GOARCH=amd64 go build -ldflags '$(GOLDFLAGS)' -tags '$(GOTAGS)' -o pkg/linux_amd64/consul
 
 # dist builds binaries for all platforms and packages them for distribution
 dist:
 	@GOTAGS='$(GOTAGS)' sh -c "'$(CURDIR)/scripts/dist.sh'"
 
 cov:
-	gocov test ${GOFILES} | gocov-html > /tmp/coverage.html
+	gocov test $(GOFILES) | gocov-html > /tmp/coverage.html
 	open /tmp/coverage.html
 
-test:
-	@./scripts/verify_no_uuid.sh
-	@env \
-		GOTAGS="${GOTAGS}" \
-		GOFILES="${GOFILES}" \
-		TESTARGS="${TESTARGS}" \
-		sh -c "'$(CURDIR)/scripts/test.sh'"
+test: dev
+	go test -tags "$(GOTAGS)" -i -run '^$$' ./...
+	( set -o pipefail ; go test -tags "$(GOTAGS)" -v $(GOFILES) | tee test.log )
 
 cover:
-	go test ${GOFILES} --cover
+	go test $(GOFILES) --cover
 
 format:
 	@echo "--> Running go fmt"
-	@go fmt ${GOFILES}
+	@go fmt $(GOFILES)
 
 vet:
 	@echo "--> Running go vet"
-	@go vet ${GOFILES}; if [ $$? -eq 1 ]; then \
+	@go vet $(GOFILES); if [ $$? -eq 1 ]; then \
 		echo ""; \
 		echo "Vet found suspicious constructs. Please check the reported constructs"; \
 		echo "and fix them if necessary before submitting the code for review."; \

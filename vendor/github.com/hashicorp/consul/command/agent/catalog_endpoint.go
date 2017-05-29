@@ -12,7 +12,7 @@ func (s *HTTPServer) CatalogRegister(resp http.ResponseWriter, req *http.Request
 	var args structs.RegisterRequest
 	if err := decodeBody(req, &args, nil); err != nil {
 		resp.WriteHeader(400)
-		resp.Write([]byte(fmt.Sprintf("Request decode failed: %v", err)))
+		fmt.Fprintf(resp, "Request decode failed: %v", err)
 		return nil, nil
 	}
 
@@ -34,7 +34,7 @@ func (s *HTTPServer) CatalogDeregister(resp http.ResponseWriter, req *http.Reque
 	var args structs.DeregisterRequest
 	if err := decodeBody(req, &args, nil); err != nil {
 		resp.WriteHeader(400)
-		resp.Write([]byte(fmt.Sprintf("Request decode failed: %v", err)))
+		fmt.Fprintf(resp, "Request decode failed: %v", err)
 		return nil, nil
 	}
 
@@ -96,6 +96,11 @@ func (s *HTTPServer) CatalogServices(resp http.ResponseWriter, req *http.Request
 	if err := s.agent.RPC("Catalog.ListServices", &args, &out); err != nil {
 		return nil, err
 	}
+
+	// Use empty map instead of nil
+	if out.Services == nil {
+		out.Services = make(structs.Services, 0)
+	}
 	return out.Services, nil
 }
 
@@ -119,7 +124,7 @@ func (s *HTTPServer) CatalogServiceNodes(resp http.ResponseWriter, req *http.Req
 	args.ServiceName = strings.TrimPrefix(req.URL.Path, "/v1/catalog/service/")
 	if args.ServiceName == "" {
 		resp.WriteHeader(400)
-		resp.Write([]byte("Missing service name"))
+		fmt.Fprint(resp, "Missing service name")
 		return nil, nil
 	}
 
@@ -135,6 +140,11 @@ func (s *HTTPServer) CatalogServiceNodes(resp http.ResponseWriter, req *http.Req
 	if out.ServiceNodes == nil {
 		out.ServiceNodes = make(structs.ServiceNodes, 0)
 	}
+	for _, s := range out.ServiceNodes {
+		if s.ServiceTags == nil {
+			s.ServiceTags = make([]string, 0)
+		}
+	}
 	return out.ServiceNodes, nil
 }
 
@@ -149,7 +159,7 @@ func (s *HTTPServer) CatalogNodeServices(resp http.ResponseWriter, req *http.Req
 	args.Node = strings.TrimPrefix(req.URL.Path, "/v1/catalog/node/")
 	if args.Node == "" {
 		resp.WriteHeader(400)
-		resp.Write([]byte("Missing node name"))
+		fmt.Fprint(resp, "Missing node name")
 		return nil, nil
 	}
 
@@ -163,5 +173,13 @@ func (s *HTTPServer) CatalogNodeServices(resp http.ResponseWriter, req *http.Req
 		translateAddresses(s.agent.config, args.Datacenter, out.NodeServices.Node)
 	}
 
+	// Use empty list instead of nil
+	if out.NodeServices != nil {
+		for _, s := range out.NodeServices.Services {
+			if s.Tags == nil {
+				s.Tags = make([]string, 0)
+			}
+		}
+	}
 	return out.NodeServices, nil
 }

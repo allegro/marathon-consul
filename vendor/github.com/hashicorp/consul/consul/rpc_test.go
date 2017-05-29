@@ -8,7 +8,7 @@ import (
 
 	"github.com/hashicorp/consul/consul/state"
 	"github.com/hashicorp/consul/consul/structs"
-	"github.com/hashicorp/consul/testutil"
+	"github.com/hashicorp/consul/testrpc"
 	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/net-rpc-msgpackrpc"
 )
@@ -37,7 +37,7 @@ func TestRPC_NoLeader_Fail(t *testing.T) {
 	}
 
 	// Now make sure it goes through.
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 	err = msgpackrpc.CallWithCodec(codec, "Catalog.Register", &arg, &out)
 	if err != nil {
 		t.Fatalf("bad: %v", err)
@@ -84,7 +84,7 @@ func TestRPC_blockingQuery(t *testing.T) {
 		var opts structs.QueryOptions
 		var meta structs.QueryMeta
 		var calls int
-		fn := func(ws memdb.WatchSet, state *state.StateStore) error {
+		fn := func(ws memdb.WatchSet, state *state.Store) error {
 			calls++
 			return nil
 		}
@@ -103,7 +103,7 @@ func TestRPC_blockingQuery(t *testing.T) {
 		}
 		var meta structs.QueryMeta
 		var calls int
-		fn := func(ws memdb.WatchSet, state *state.StateStore) error {
+		fn := func(ws memdb.WatchSet, state *state.Store) error {
 			if calls == 0 {
 				meta.Index = 3
 
@@ -132,7 +132,7 @@ func TestRPC_blockingQuery(t *testing.T) {
 		}
 		var meta structs.QueryMeta
 		var calls int
-		fn := func(ws memdb.WatchSet, state *state.StateStore) error {
+		fn := func(ws memdb.WatchSet, state *state.Store) error {
 			if calls == 0 {
 				meta.Index = 3
 

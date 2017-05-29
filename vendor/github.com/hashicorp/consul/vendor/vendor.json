@@ -480,6 +480,12 @@
 			"revisionTime": "2016-09-30T03:51:02Z"
 		},
 		{
+			"checksumSHA1": "A1PcINvF3UiwHRKn8UcgARgvGRs=",
+			"path": "github.com/hashicorp/go-rootcerts",
+			"revision": "6bb64b370b90e7ef1fa532be9e591a81c3493e00",
+			"revisionTime": "2016-05-03T14:34:40Z"
+		},
+		{
 			"checksumSHA1": "BGODc7juQbdG3vNXHZG07kt+lKI=",
 			"path": "github.com/hashicorp/go-sockaddr",
 			"revision": "f910dd83c2052566cad78352c33af714358d1372",
@@ -606,10 +612,10 @@
 			"revisionTime": "2015-11-16T02:03:38Z"
 		},
 		{
-			"checksumSHA1": "NvFexY/rs9sPfve+ny/rkMkCL5M=",
+			"checksumSHA1": "8Na6qG9taUXHDunMYecGxbHbJKE=",
 			"path": "github.com/hashicorp/raft",
-			"revision": "6b063a18bfe6e0da3fdc2b9bf6256be9c0a4849a",
-			"revisionTime": "2017-03-16T02:42:32Z",
+			"revision": "939ebd2103731c2f38c7964d8dd24af0e1b26dc3",
+			"revisionTime": "2017-05-04T20:16:11Z",
 			"version": "library-v2-stage-one",
 			"versionExact": "library-v2-stage-one"
 		},
@@ -682,6 +688,12 @@
 			"revisionTime": "2016-08-04T03:23:30Z"
 		},
 		{
+			"checksumSHA1": "V/quM7+em2ByJbWBLOsEwnY3j/Q=",
+			"path": "github.com/mitchellh/go-homedir",
+			"revision": "b8bc1bf767474819792c23f32d8286a45736f1c6",
+			"revisionTime": "2016-12-03T19:45:07Z"
+		},
+		{
 			"checksumSHA1": "LUrnGREfnifW4WDMaavmc9MlLI0=",
 			"path": "github.com/mitchellh/mapstructure",
 			"revision": "ca63d7c062ee3c9f34db231e352b60012b4fd0c1",
@@ -698,6 +710,12 @@
 			"path": "github.com/opencontainers/runc/libcontainer/user",
 			"revision": "0f764571384a3ff16c6fed25ace5b7c83f0f0379",
 			"revisionTime": "2016-08-09T12:22:04Z"
+		},
+		{
+			"checksumSHA1": "5h+ERzHw3Rl2G0kFPxoJzxiA9s0=",
+			"path": "github.com/pascaldekloe/goe/verify",
+			"revision": "07ebd1e2481f616a278ab431cf04cc5cf5ab3ebe",
+			"revisionTime": "2017-03-28T18:37:59Z"
 		},
 		{
 			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",

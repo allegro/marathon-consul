@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/consul/structs"
 	"github.com/hashicorp/consul/lib"
-	"github.com/hashicorp/consul/testutil"
+	"github.com/hashicorp/consul/testrpc"
+	"github.com/hashicorp/consul/testutil/retry"
 	"github.com/hashicorp/consul/types"
 	"github.com/hashicorp/net-rpc-msgpackrpc"
 )
@@ -91,7 +93,7 @@ func TestCatalog_Register_ACLDeny(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Create the ACL.
 	arg := structs.ACLRequest{
@@ -194,14 +196,10 @@ func TestCatalog_Register_ForwardLeader(t *testing.T) {
 	defer codec2.Close()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, s2, s1)
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
-	testutil.WaitForLeader(t, s2.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s2.RPC, "dc1")
 
 	// Use the follower as the client
 	var codec rpc.ClientCodec
@@ -239,13 +237,9 @@ func TestCatalog_Register_ForwardDC(t *testing.T) {
 	defer s2.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfWANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinWAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinWAN(t, s2, s1)
 
-	testutil.WaitForLeader(t, s1.RPC, "dc2")
+	testrpc.WaitForLeader(t, s1.RPC, "dc2")
 
 	arg := structs.RegisterRequest{
 		Datacenter: "dc2", // Should forward through s1
@@ -281,7 +275,7 @@ func TestCatalog_Deregister(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	if err := msgpackrpc.CallWithCodec(codec, "Catalog.Deregister", &arg, &out); err != nil {
 		t.Fatalf("err: %v", err)
@@ -300,7 +294,7 @@ func TestCatalog_Deregister_ACLDeny(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Create the ACL.
 	arg := structs.ACLRequest{
@@ -511,13 +505,9 @@ func TestCatalog_ListDatacenters(t *testing.T) {
 	defer s2.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfWANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinWAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinWAN(t, s2, s1)
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	var out []string
 	if err := msgpackrpc.CallWithCodec(codec, "Catalog.ListDatacenters", struct{}{}, &out); err != nil {
@@ -552,15 +542,9 @@ func TestCatalog_ListDatacenters_DistanceSort(t *testing.T) {
 	defer s3.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfWANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinWAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if _, err := s3.JoinWAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	joinWAN(t, s2, s1)
+	joinWAN(t, s3, s1)
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	var out []string
 	if err := msgpackrpc.CallWithCodec(codec, "Catalog.ListDatacenters", struct{}{}, &out); err != nil {
@@ -596,19 +580,18 @@ func TestCatalog_ListNodes(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Just add a node
 	if err := s1.fsm.State().EnsureNode(1, &structs.Node{Node: "foo", Address: "127.0.0.1"}); err != nil {
 		t.Fatalf("err: %v", err)
 	}
-
-	if err := testutil.WaitForResult(func() (bool, error) {
+	retry.Run(t, func(r *retry.R) {
 		msgpackrpc.CallWithCodec(codec, "Catalog.ListNodes", &args, &out)
-		return len(out.Nodes) == 2, nil
-	}); err != nil {
-		t.Fatal(err)
-	}
+		if got, want := len(out.Nodes), 2; got != want {
+			r.Fatalf("got %d nodes want %d", got, want)
+		}
+	})
 
 	// Server node is auto added from Serf
 	if out.Nodes[1].Node != s1.config.NodeName {
@@ -629,7 +612,7 @@ func TestCatalog_ListNodes_NodeMetaFilter(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Add a new node with the right meta k/v pair
 	node := &structs.Node{Node: "foo", Address: "127.0.0.1", Meta: map[string]string{"somekey": "somevalue"}}
@@ -645,13 +628,12 @@ func TestCatalog_ListNodes_NodeMetaFilter(t *testing.T) {
 		},
 	}
 	var out structs.IndexedNodes
-
-	if err := testutil.WaitForResult(func() (bool, error) {
+	retry.Run(t, func(r *retry.R) {
 		msgpackrpc.CallWithCodec(codec, "Catalog.ListNodes", &args, &out)
-		return len(out.Nodes) == 1, nil
-	}); err != nil {
-		t.Fatal(err)
-	}
+		if got, want := len(out.Nodes), 1; got != want {
+			r.Fatalf("got %d nodes want %d", got, want)
+		}
+	})
 
 	// Verify that only the correct node was returned
 	if out.Nodes[0].Node != "foo" {
@@ -676,14 +658,13 @@ func TestCatalog_ListNodes_NodeMetaFilter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-
 	// Should get an empty list of nodes back
-	if err := testutil.WaitForResult(func() (bool, error) {
+	retry.Run(t, func(r *retry.R) {
 		msgpackrpc.CallWithCodec(codec, "Catalog.ListNodes", &args, &out)
-		return len(out.Nodes) == 0, nil
-	}); err != nil {
-		t.Fatal(err)
-	}
+		if len(out.Nodes) != 0 {
+			r.Fatal(nil)
+		}
+	})
 }
 
 func TestCatalog_ListNodes_StaleRaad(t *testing.T) {
@@ -700,14 +681,10 @@ func TestCatalog_ListNodes_StaleRaad(t *testing.T) {
 	defer codec2.Close()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, s2, s1)
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
-	testutil.WaitForLeader(t, s2.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s2.RPC, "dc1")
 
 	// Use the follower as the client
 	var codec rpc.ClientCodec
@@ -768,14 +745,10 @@ func TestCatalog_ListNodes_ConsistentRead_Fail(t *testing.T) {
 	defer codec2.Close()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, s2, s1)
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
-	testutil.WaitForLeader(t, s2.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s2.RPC, "dc1")
 
 	// Use the leader as the client, kill the follower
 	var codec rpc.ClientCodec
@@ -818,14 +791,10 @@ func TestCatalog_ListNodes_ConsistentRead(t *testing.T) {
 	defer codec2.Close()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := s2.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, s2, s1)
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
-	testutil.WaitForLeader(t, s2.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s2.RPC, "dc1")
 
 	// Use the leader as the client, kill the follower
 	var codec rpc.ClientCodec
@@ -859,7 +828,7 @@ func TestCatalog_ListNodes_DistanceSort(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 	if err := s1.fsm.State().EnsureNode(1, &structs.Node{Node: "aaa", Address: "127.0.0.1"}); err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -889,12 +858,13 @@ func TestCatalog_ListNodes_DistanceSort(t *testing.T) {
 		Datacenter: "dc1",
 	}
 	var out structs.IndexedNodes
-	if err := testutil.WaitForResult(func() (bool, error) {
+	retry.Run(t, func(r *retry.R) {
 		msgpackrpc.CallWithCodec(codec, "Catalog.ListNodes", &args, &out)
-		return len(out.Nodes) == 5, nil
-	}); err != nil {
-		t.Fatal(err)
-	}
+		if got, want := len(out.Nodes), 5; got != want {
+			r.Fatalf("got %d nodes want %d", got, want)
+		}
+	})
+
 	if out.Nodes[0].Node != "aaa" {
 		t.Fatalf("bad: %v", out)
 	}
@@ -917,12 +887,13 @@ func TestCatalog_ListNodes_DistanceSort(t *testing.T) {
 		Datacenter: "dc1",
 		Source:     structs.QuerySource{Datacenter: "dc1", Node: "foo"},
 	}
-	if err := testutil.WaitForResult(func() (bool, error) {
+	retry.Run(t, func(r *retry.R) {
 		msgpackrpc.CallWithCodec(codec, "Catalog.ListNodes", &args, &out)
-		return len(out.Nodes) == 5, nil
-	}); err != nil {
-		t.Fatal(err)
-	}
+		if got, want := len(out.Nodes), 5; got != want {
+			r.Fatalf("got %d nodes want %d", got, want)
+		}
+	})
+
 	if out.Nodes[0].Node != "foo" {
 		t.Fatalf("bad: %v", out)
 	}
@@ -952,7 +923,7 @@ func TestCatalog_ListNodes_ACLFilter(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// We scope the reply in each of these since msgpack won't clear out an
 	// existing slice if the incoming one is nil, so it's best to start
@@ -1056,7 +1027,7 @@ func TestCatalog_ListServices(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Just add a node
 	if err := s1.fsm.State().EnsureNode(1, &structs.Node{Node: "foo", Address: "127.0.0.1"}); err != nil {
@@ -1097,7 +1068,7 @@ func TestCatalog_ListServices_NodeMetaFilter(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Add a new node with the right meta k/v pair
 	node := &structs.Node{Node: "foo", Address: "127.0.0.1", Meta: map[string]string{"somekey": "somevalue"}}
@@ -1165,7 +1136,7 @@ func TestCatalog_ListServices_Blocking(t *testing.T) {
 	}
 	var out structs.IndexedServices
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Run the query
 	if err := msgpackrpc.CallWithCodec(codec, "Catalog.ListServices", &args, &out); err != nil {
@@ -1223,7 +1194,7 @@ func TestCatalog_ListServices_Timeout(t *testing.T) {
 	}
 	var out structs.IndexedServices
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Run the query
 	if err := msgpackrpc.CallWithCodec(codec, "Catalog.ListServices", &args, &out); err != nil {
@@ -1308,7 +1279,7 @@ func TestCatalog_ListServiceNodes(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Just add a node
 	if err := s1.fsm.State().EnsureNode(1, &structs.Node{Node: "foo", Address: "127.0.0.1"}); err != nil {
@@ -1345,7 +1316,7 @@ func TestCatalog_ListServiceNodes_NodeMetaFilter(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Add 2 nodes with specific meta maps
 	node := &structs.Node{Node: "foo", Address: "127.0.0.1", Meta: map[string]string{"somekey": "somevalue", "common": "1"}}
@@ -1455,7 +1426,7 @@ func TestCatalog_ListServiceNodes_DistanceSort(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Add a few nodes for the associated services.
 	s1.fsm.State().EnsureNode(1, &structs.Node{Node: "aaa", Address: "127.0.0.1"})
@@ -1542,7 +1513,7 @@ func TestCatalog_NodeServices(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Just add a node
 	if err := s1.fsm.State().EnsureNode(1, &structs.Node{Node: "foo", Address: "127.0.0.1"}); err != nil {
@@ -1599,7 +1570,7 @@ func TestCatalog_Register_FailedCase1(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	if err := msgpackrpc.CallWithCodec(codec, "Catalog.Register", &arg, &out); err != nil {
 		t.Fatalf("err: %v", err)
@@ -1630,7 +1601,7 @@ func testACLFilterServer(t *testing.T) (dir, token string, srv *Server, codec rp
 	})
 
 	codec = rpcClient(t, srv)
-	testutil.WaitForLeader(t, srv.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.RPC, "dc1")
 
 	// Create a new token
 	arg := structs.ACLRequest{
@@ -1664,7 +1635,7 @@ service "foo" {
 			CheckID:   "service:foo",
 			Name:      "service:foo",
 			ServiceID: "foo",
-			Status:    structs.HealthPassing,
+			Status:    api.HealthPassing,
 		},
 		WriteRequest: structs.WriteRequest{Token: "root"},
 	}
@@ -1777,7 +1748,7 @@ func TestCatalog_NodeServices_ACLDeny(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Prior to version 8, the node policy should be ignored.
 	args := structs.NodeSpecificRequest{

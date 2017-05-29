@@ -1,7 +1,6 @@
 package consul
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	"github.com/armon/go-metrics"
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/consul/state"
 	"github.com/hashicorp/consul/consul/structs"
 	"github.com/hashicorp/go-msgpack/codec"
@@ -31,7 +31,7 @@ type consulFSM struct {
 	// new state store). Everything internal here is synchronized by the
 	// Raft side, so doesn't need to lock this.
 	stateLock sync.RWMutex
-	state     *state.StateStore
+	state     *state.Store
 
 	gc *state.TombstoneGC
 }
@@ -40,7 +40,7 @@ type consulFSM struct {
 // state in a way that can be accessed concurrently with operations
 // that may modify the live state.
 type consulSnapshot struct {
-	state *state.StateSnapshot
+	state *state.Snapshot
 }
 
 // snapshotHeader is the first entry in our snapshot
@@ -67,7 +67,7 @@ func NewFSM(gc *state.TombstoneGC, logOutput io.Writer) (*consulFSM, error) {
 }
 
 // State is used to return a handle to the current state
-func (c *consulFSM) State() *state.StateStore {
+func (c *consulFSM) State() *state.Store {
 	c.stateLock.RLock()
 	defer c.stateLock.RUnlock()
 	return c.state
@@ -111,9 +111,8 @@ func (c *consulFSM) Apply(log *raft.Log) interface{} {
 		if ignoreUnknown {
 			c.logger.Printf("[WARN] consul.fsm: ignoring unknown message type (%d), upgrade to newer version", msgType)
 			return nil
-		} else {
-			panic(fmt.Errorf("failed to apply request: %#v", buf))
 		}
+		panic(fmt.Errorf("failed to apply request: %#v", buf))
 	}
 }
 
@@ -168,42 +167,38 @@ func (c *consulFSM) applyKVSOperation(buf []byte, index uint64) interface{} {
 	}
 	defer metrics.MeasureSince([]string{"consul", "fsm", "kvs", string(req.Op)}, time.Now())
 	switch req.Op {
-	case structs.KVSSet:
+	case api.KVSet:
 		return c.state.KVSSet(index, &req.DirEnt)
-	case structs.KVSDelete:
+	case api.KVDelete:
 		return c.state.KVSDelete(index, req.DirEnt.Key)
-	case structs.KVSDeleteCAS:
+	case api.KVDeleteCAS:
 		act, err := c.state.KVSDeleteCAS(index, req.DirEnt.ModifyIndex, req.DirEnt.Key)
 		if err != nil {
 			return err
-		} else {
-			return act
 		}
-	case structs.KVSDeleteTree:
+		return act
+	case api.KVDeleteTree:
 		return c.state.KVSDeleteTree(index, req.DirEnt.Key)
-	case structs.KVSCAS:
+	case api.KVCAS:
 		act, err := c.state.KVSSetCAS(index, &req.DirEnt)
 		if err != nil {
 			return err
-		} else {
-			return act
 		}
-	case structs.KVSLock:
+		return act
+	case api.KVLock:
 		act, err := c.state.KVSLock(index, &req.DirEnt)
 		if err != nil {
 			return err
-		} else {
-			return act
 		}
-	case structs.KVSUnlock:
+		return act
+	case api.KVUnlock:
 		act, err := c.state.KVSUnlock(index, &req.DirEnt)
 		if err != nil {
 			return err
-		} else {
-			return act
 		}
+		return act
 	default:
-		err := errors.New(fmt.Sprintf("Invalid KVS operation '%s'", req.Op))
+		err := fmt.Errorf("Invalid KVS operation '%s'", req.Op)
 		c.logger.Printf("[WARN] consul.fsm: %v", err)
 		return err
 	}
@@ -219,9 +214,8 @@ func (c *consulFSM) applySessionOperation(buf []byte, index uint64) interface{} 
 	case structs.SessionCreate:
 		if err := c.state.SessionCreate(index, &req.Session); err != nil {
 			return err
-		} else {
-			return req.Session.ID
 		}
+		return req.Session.ID
 	case structs.SessionDestroy:
 		return c.state.SessionDestroy(index, req.Session.ID)
 	default:
@@ -240,9 +234,8 @@ func (c *consulFSM) applyACLOperation(buf []byte, index uint64) interface{} {
 	case structs.ACLForceSet, structs.ACLSet:
 		if err := c.state.ACLSet(index, &req.ACL); err != nil {
 			return err
-		} else {
-			return req.ACL.ID
 		}
+		return req.ACL.ID
 	case structs.ACLDelete:
 		return c.state.ACLDelete(index, req.ACL.ID)
 	default:
@@ -326,12 +319,10 @@ func (c *consulFSM) applyAutopilotUpdate(buf []byte, index uint64) interface{} {
 		act, err := c.state.AutopilotCASConfig(index, req.Config.ModifyIndex, &req.Config)
 		if err != nil {
 			return err
-		} else {
-			return act
 		}
-	} else {
-		return c.state.AutopilotSetConfig(index, &req.Config)
+		return act
 	}
+	return c.state.AutopilotSetConfig(index, &req.Config)
 }
 
 func (c *consulFSM) Snapshot() (raft.FSMSnapshot, error) {

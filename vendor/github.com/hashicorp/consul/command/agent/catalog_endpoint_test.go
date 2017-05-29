@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/consul/structs"
-	"github.com/hashicorp/consul/testutil"
+	"github.com/hashicorp/consul/testrpc"
+	"github.com/hashicorp/consul/testutil/retry"
 	"github.com/hashicorp/serf/coordinate"
 )
 
@@ -19,7 +20,7 @@ func TestCatalogRegister(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	// Register node
 	req, err := http.NewRequest("GET", "/v1/catalog/register", nil)
@@ -60,7 +61,7 @@ func TestCatalogDeregister(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	// Register node
 	req, err := http.NewRequest("GET", "/v1/catalog/deregister", nil)
@@ -89,20 +90,17 @@ func TestCatalogDatacenters(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	if err := testutil.WaitForResult(func() (bool, error) {
+	retry.Run(t, func(r *retry.R) {
 		obj, err := srv.CatalogDatacenters(nil, nil)
 		if err != nil {
-			return false, err
+			r.Fatal(err)
 		}
 
 		dcs := obj.([]string)
-		if len(dcs) != 1 {
-			return false, fmt.Errorf("missing dc: %v", dcs)
+		if got, want := len(dcs), 1; got != want {
+			r.Fatalf("got %d data centers want %d", got, want)
 		}
-		return true, nil
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 }
 
 func TestCatalogNodes(t *testing.T) {
@@ -111,7 +109,7 @@ func TestCatalogNodes(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	// Register node
 	args := &structs.RegisterRequest{
@@ -151,7 +149,7 @@ func TestCatalogNodes_MetaFilter(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	// Register a node with a meta field
 	args := &structs.RegisterRequest{
@@ -197,33 +195,34 @@ func TestCatalogNodes_WanTranslation(t *testing.T) {
 		func(c *Config) {
 			c.Datacenter = "dc1"
 			c.TranslateWanAddrs = true
+			c.ACLDatacenter = ""
 		})
 	defer os.RemoveAll(dir1)
 	defer srv1.Shutdown()
 	defer srv1.agent.Shutdown()
-	testutil.WaitForLeader(t, srv1.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv1.agent.RPC, "dc1")
 
 	dir2, srv2 := makeHTTPServerWithConfig(t,
 		func(c *Config) {
 			c.Datacenter = "dc2"
 			c.TranslateWanAddrs = true
+			c.ACLDatacenter = ""
 		})
 	defer os.RemoveAll(dir2)
 	defer srv2.Shutdown()
 	defer srv2.agent.Shutdown()
-	testutil.WaitForLeader(t, srv2.agent.RPC, "dc2")
+	testrpc.WaitForLeader(t, srv2.agent.RPC, "dc2")
 
 	// Wait for the WAN join.
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		srv1.agent.config.Ports.SerfWan)
+	addr := fmt.Sprintf("127.0.0.1:%d", srv1.agent.config.Ports.SerfWan)
 	if _, err := srv2.agent.JoinWAN([]string{addr}); err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if err := testutil.WaitForResult(func() (bool, error) {
-		return len(srv1.agent.WANMembers()) > 1, nil
-	}); err != nil {
-		t.Fatalf("Failed waiting for WAN join: %v", err)
-	}
+	retry.Run(t, func(r *retry.R) {
+		if got, want := len(srv1.agent.WANMembers()), 2; got < want {
+			r.Fatalf("got %d WAN members want at least %d", got, want)
+		}
+	})
 
 	// Register a node with DC2.
 	{
@@ -302,7 +301,7 @@ func TestCatalogNodes_Blocking(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	// Register node
 	args := &structs.DCSpecificRequest{
@@ -363,7 +362,7 @@ func TestCatalogNodes_DistanceSort(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	// Register nodes.
 	args := &structs.RegisterRequest{
@@ -458,7 +457,7 @@ func TestCatalogServices(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	// Register node
 	args := &structs.RegisterRequest{
@@ -500,7 +499,7 @@ func TestCatalogServices_NodeMetaFilter(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	// Register node
 	args := &structs.RegisterRequest{
@@ -548,7 +547,7 @@ func TestCatalogServiceNodes(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	// Make sure an empty list is returned, not a nil
 	{
@@ -612,7 +611,7 @@ func TestCatalogServiceNodes_NodeMetaFilter(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	// Make sure an empty list is returned, not a nil
 	{
@@ -677,21 +676,23 @@ func TestCatalogServiceNodes_WanTranslation(t *testing.T) {
 		func(c *Config) {
 			c.Datacenter = "dc1"
 			c.TranslateWanAddrs = true
+			c.ACLDatacenter = ""
 		})
 	defer os.RemoveAll(dir1)
 	defer srv1.Shutdown()
 	defer srv1.agent.Shutdown()
-	testutil.WaitForLeader(t, srv1.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv1.agent.RPC, "dc1")
 
 	dir2, srv2 := makeHTTPServerWithConfig(t,
 		func(c *Config) {
 			c.Datacenter = "dc2"
 			c.TranslateWanAddrs = true
+			c.ACLDatacenter = ""
 		})
 	defer os.RemoveAll(dir2)
 	defer srv2.Shutdown()
 	defer srv2.agent.Shutdown()
-	testutil.WaitForLeader(t, srv2.agent.RPC, "dc2")
+	testrpc.WaitForLeader(t, srv2.agent.RPC, "dc2")
 
 	// Wait for the WAN join.
 	addr := fmt.Sprintf("127.0.0.1:%d",
@@ -699,11 +700,11 @@ func TestCatalogServiceNodes_WanTranslation(t *testing.T) {
 	if _, err := srv2.agent.JoinWAN([]string{addr}); err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if err := testutil.WaitForResult(func() (bool, error) {
-		return len(srv1.agent.WANMembers()) > 1, nil
-	}); err != nil {
-		t.Fatalf("Failed waiting for WAN join: %v", err)
-	}
+	retry.Run(t, func(r *retry.R) {
+		if got, want := len(srv1.agent.WANMembers()), 2; got < want {
+			r.Fatalf("got %d WAN members want at least %d", got, want)
+		}
+	})
 
 	// Register a node with DC2.
 	{
@@ -773,7 +774,7 @@ func TestCatalogServiceNodes_DistanceSort(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	// Register nodes.
 	args := &structs.RegisterRequest{
@@ -875,7 +876,7 @@ func TestCatalogNodeServices(t *testing.T) {
 	defer srv.Shutdown()
 	defer srv.agent.Shutdown()
 
-	testutil.WaitForLeader(t, srv.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv.agent.RPC, "dc1")
 
 	// Register node
 	args := &structs.RegisterRequest{
@@ -916,21 +917,23 @@ func TestCatalogNodeServices_WanTranslation(t *testing.T) {
 		func(c *Config) {
 			c.Datacenter = "dc1"
 			c.TranslateWanAddrs = true
+			c.ACLDatacenter = ""
 		})
 	defer os.RemoveAll(dir1)
 	defer srv1.Shutdown()
 	defer srv1.agent.Shutdown()
-	testutil.WaitForLeader(t, srv1.agent.RPC, "dc1")
+	testrpc.WaitForLeader(t, srv1.agent.RPC, "dc1")
 
 	dir2, srv2 := makeHTTPServerWithConfig(t,
 		func(c *Config) {
 			c.Datacenter = "dc2"
 			c.TranslateWanAddrs = true
+			c.ACLDatacenter = ""
 		})
 	defer os.RemoveAll(dir2)
 	defer srv2.Shutdown()
 	defer srv2.agent.Shutdown()
-	testutil.WaitForLeader(t, srv2.agent.RPC, "dc2")
+	testrpc.WaitForLeader(t, srv2.agent.RPC, "dc2")
 
 	// Wait for the WAN join.
 	addr := fmt.Sprintf("127.0.0.1:%d",
@@ -938,11 +941,11 @@ func TestCatalogNodeServices_WanTranslation(t *testing.T) {
 	if _, err := srv2.agent.JoinWAN([]string{addr}); err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if err := testutil.WaitForResult(func() (bool, error) {
-		return len(srv1.agent.WANMembers()) > 1, nil
-	}); err != nil {
-		t.Fatalf("Failed waiting for WAN join: %v", err)
-	}
+	retry.Run(t, func(r *retry.R) {
+		if got, want := len(srv1.agent.WANMembers()), 2; got < want {
+			r.Fatalf("got %d WAN members want at least %d", got, want)
+		}
+	})
 
 	// Register a node with DC2.
 	{

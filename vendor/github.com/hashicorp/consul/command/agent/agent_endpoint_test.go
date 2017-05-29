@@ -3,7 +3,6 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -15,10 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/command/base"
 	"github.com/hashicorp/consul/consul/structs"
 	"github.com/hashicorp/consul/logger"
-	"github.com/hashicorp/consul/testutil"
+	"github.com/hashicorp/consul/testutil/retry"
 	"github.com/hashicorp/consul/types"
 	"github.com/hashicorp/serf/serf"
 	"github.com/mitchellh/cli"
@@ -130,7 +130,7 @@ func TestAgent_Checks(t *testing.T) {
 		Node:    srv.agent.config.NodeName,
 		CheckID: "mysql",
 		Name:    "mysql",
-		Status:  structs.HealthPassing,
+		Status:  api.HealthPassing,
 	}
 	srv.agent.state.AddCheck(chk1, "")
 
@@ -147,7 +147,7 @@ func TestAgent_Checks(t *testing.T) {
 	if len(val) != 1 {
 		t.Fatalf("bad checks: %v", obj)
 	}
-	if val["mysql"].Status != structs.HealthPassing {
+	if val["mysql"].Status != api.HealthPassing {
 		t.Fatalf("bad check: %v", obj)
 	}
 }
@@ -162,7 +162,7 @@ func TestAgent_Checks_ACLFilter(t *testing.T) {
 		Node:    srv.agent.config.NodeName,
 		CheckID: "mysql",
 		Name:    "mysql",
-		Status:  structs.HealthPassing,
+		Status:  api.HealthPassing,
 	}
 	srv.agent.state.AddCheck(chk1, "")
 
@@ -222,7 +222,7 @@ func TestAgent_Self(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	val := obj.(AgentSelf)
+	val := obj.(Self)
 	if int(val.Member.Port) != srv.agent.config.Ports.SerfLan {
 		t.Fatalf("incorrect port: %v", obj)
 	}
@@ -330,12 +330,13 @@ func TestAgent_Reload(t *testing.T) {
 		ShutdownCh: shutdownCh,
 		Command: base.Command{
 			Flags: base.FlagSetNone,
-			Ui:    new(cli.MockUi),
+			UI:    new(cli.MockUi),
 		},
 	}
 
 	args := []string{
 		"-server",
+		"-advertise", "127.0.0.1",
 		"-data-dir", tmpDir,
 		"-http-port", fmt.Sprintf("%d", conf.Ports.HTTP),
 		"-config-file", tmpFile.Name(),
@@ -346,11 +347,11 @@ func TestAgent_Reload(t *testing.T) {
 		close(doneCh)
 	}()
 
-	if err := testutil.WaitForResult(func() (bool, error) {
-		return len(cmd.httpServers) == 1, nil
-	}); err != nil {
-		t.Fatalf("should have an http server")
-	}
+	retry.Run(t, func(r *retry.R) {
+		if got, want := len(cmd.httpServers), 1; got != want {
+			r.Fatalf("got %d servers want %d", got, want)
+		}
+	})
 
 	if _, ok := cmd.agent.state.services["redis"]; !ok {
 		t.Fatalf("missing redis service")
@@ -535,11 +536,11 @@ func TestAgent_Join(t *testing.T) {
 		t.Fatalf("should have 2 members")
 	}
 
-	if err := testutil.WaitForResult(func() (bool, error) {
-		return len(a2.LANMembers()) == 2, nil
-	}); err != nil {
-		t.Fatal("should have 2 members")
-	}
+	retry.Run(t, func(r *retry.R) {
+		if got, want := len(a2.LANMembers()), 2; got != want {
+			r.Fatalf("got %d LAN members want %d", got, want)
+		}
+	})
 }
 
 func TestAgent_Join_WAN(t *testing.T) {
@@ -570,11 +571,11 @@ func TestAgent_Join_WAN(t *testing.T) {
 		t.Fatalf("should have 2 members")
 	}
 
-	if err := testutil.WaitForResult(func() (bool, error) {
-		return len(a2.WANMembers()) == 2, nil
-	}); err != nil {
-		t.Fatal("should have 2 members")
-	}
+	retry.Run(t, func(r *retry.R) {
+		if got, want := len(a2.WANMembers()), 2; got != want {
+			r.Fatalf("got %d WAN members want %d", got, want)
+		}
+	})
 }
 
 func TestAgent_Join_ACLDeny(t *testing.T) {
@@ -662,14 +663,12 @@ func TestAgent_Leave(t *testing.T) {
 	if obj != nil {
 		t.Fatalf("Err: %v", obj)
 	}
-
-	if err := testutil.WaitForResult(func() (bool, error) {
+	retry.Run(t, func(r *retry.R) {
 		m := srv.agent.LANMembers()
-		success := m[1].Status == serf.StatusLeft
-		return success, errors.New(m[1].Status.String())
-	}); err != nil {
-		t.Fatalf("member status is %v, should be left", err)
-	}
+		if got, want := m[1].Status, serf.StatusLeft; got != want {
+			r.Fatalf("got status %q want %q", got, want)
+		}
+	})
 }
 
 func TestAgent_Leave_ACLDeny(t *testing.T) {
@@ -761,14 +760,13 @@ func TestAgent_ForceLeave(t *testing.T) {
 	if obj != nil {
 		t.Fatalf("Err: %v", obj)
 	}
-
-	if err := testutil.WaitForResult(func() (bool, error) {
+	retry.Run(t, func(r *retry.R) {
 		m := srv.agent.LANMembers()
-		success := m[1].Status == serf.StatusLeft
-		return success, errors.New(m[1].Status.String())
-	}); err != nil {
-		t.Fatalf("member status is %v, should be left", err)
-	}
+		if got, want := m[1].Status, serf.StatusLeft; got != want {
+			r.Fatalf("got status %q want %q", got, want)
+		}
+	})
+
 }
 
 func TestAgent_ForceLeave_ACLDeny(t *testing.T) {
@@ -862,7 +860,7 @@ func TestAgent_RegisterCheck(t *testing.T) {
 
 	// By default, checks start in critical state.
 	state := srv.agent.state.Checks()[checkID]
-	if state.Status != structs.HealthCritical {
+	if state.Status != api.HealthCritical {
 		t.Fatalf("bad: %v", state)
 	}
 }
@@ -883,7 +881,7 @@ func TestAgent_RegisterCheck_Passing(t *testing.T) {
 		CheckType: CheckType{
 			TTL: 15 * time.Second,
 		},
-		Status: structs.HealthPassing,
+		Status: api.HealthPassing,
 	}
 	req.Body = encodeReq(args)
 
@@ -906,7 +904,7 @@ func TestAgent_RegisterCheck_Passing(t *testing.T) {
 	}
 
 	state := srv.agent.state.Checks()[checkID]
-	if state.Status != structs.HealthPassing {
+	if state.Status != api.HealthPassing {
 		t.Fatalf("bad: %v", state)
 	}
 }
@@ -1065,7 +1063,7 @@ func TestAgent_PassCheck(t *testing.T) {
 
 	// Ensure we have a check mapping
 	state := srv.agent.state.Checks()["test"]
-	if state.Status != structs.HealthPassing {
+	if state.Status != api.HealthPassing {
 		t.Fatalf("bad: %v", state)
 	}
 }
@@ -1130,7 +1128,7 @@ func TestAgent_WarnCheck(t *testing.T) {
 
 	// Ensure we have a check mapping
 	state := srv.agent.state.Checks()["test"]
-	if state.Status != structs.HealthWarning {
+	if state.Status != api.HealthWarning {
 		t.Fatalf("bad: %v", state)
 	}
 }
@@ -1195,7 +1193,7 @@ func TestAgent_FailCheck(t *testing.T) {
 
 	// Ensure we have a check mapping
 	state := srv.agent.state.Checks()["test"]
-	if state.Status != structs.HealthCritical {
+	if state.Status != api.HealthCritical {
 		t.Fatalf("bad: %v", state)
 	}
 }
@@ -1246,9 +1244,9 @@ func TestAgent_UpdateCheck(t *testing.T) {
 	}
 
 	cases := []checkUpdate{
-		checkUpdate{structs.HealthPassing, "hello-passing"},
-		checkUpdate{structs.HealthCritical, "hello-critical"},
-		checkUpdate{structs.HealthWarning, "hello-warning"},
+		checkUpdate{api.HealthPassing, "hello-passing"},
+		checkUpdate{api.HealthCritical, "hello-critical"},
+		checkUpdate{api.HealthWarning, "hello-warning"},
 	}
 
 	for _, c := range cases {
@@ -1284,7 +1282,7 @@ func TestAgent_UpdateCheck(t *testing.T) {
 		}
 
 		update := checkUpdate{
-			Status: structs.HealthPassing,
+			Status: api.HealthPassing,
 			Output: strings.Repeat("-= bad -=", 5*CheckBufSize),
 		}
 		req.Body = encodeReq(update)
@@ -1305,7 +1303,7 @@ func TestAgent_UpdateCheck(t *testing.T) {
 		// rough check that the output buffer was cut down so this test
 		// isn't super brittle.
 		state := srv.agent.state.Checks()["test"]
-		if state.Status != structs.HealthPassing || len(state.Output) > 2*CheckBufSize {
+		if state.Status != api.HealthPassing || len(state.Output) > 2*CheckBufSize {
 			t.Fatalf("bad: %v", state)
 		}
 	}
@@ -1343,7 +1341,7 @@ func TestAgent_UpdateCheck(t *testing.T) {
 		}
 
 		update := checkUpdate{
-			Status: structs.HealthPassing,
+			Status: api.HealthPassing,
 		}
 		req.Body = encodeReq(update)
 
@@ -1378,7 +1376,7 @@ func TestAgent_UpdateCheck_ACLDeny(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	req.Body = encodeReq(checkUpdate{structs.HealthPassing, "hello-passing"})
+	req.Body = encodeReq(checkUpdate{api.HealthPassing, "hello-passing"})
 	_, err = srv.AgentCheckUpdate(nil, req)
 	if err == nil || !strings.Contains(err.Error(), permissionDenied) {
 		t.Fatalf("err: %v", err)
@@ -1389,7 +1387,7 @@ func TestAgent_UpdateCheck_ACLDeny(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	req.Body = encodeReq(checkUpdate{structs.HealthPassing, "hello-passing"})
+	req.Body = encodeReq(checkUpdate{api.HealthPassing, "hello-passing"})
 	_, err = srv.AgentCheckUpdate(nil, req)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -1930,8 +1928,7 @@ func TestAgent_Monitor(t *testing.T) {
 	}
 
 	// Try to stream logs until we see the expected log line
-	expected := []byte("raft: Initial configuration (index=1)")
-	if err := testutil.WaitForResult(func() (bool, error) {
+	retry.Run(t, func(r *retry.R) {
 		req, _ = http.NewRequest("GET", "/v1/agent/monitor?loglevel=debug", nil)
 		resp = newClosableRecorder()
 		done := make(chan struct{})
@@ -1945,14 +1942,12 @@ func TestAgent_Monitor(t *testing.T) {
 		resp.Close()
 		<-done
 
-		if bytes.Contains(resp.Body.Bytes(), expected) {
-			return true, nil
-		} else {
-			return false, fmt.Errorf("didn't see expected")
+		got := resp.Body.Bytes()
+		want := []byte("raft: Initial configuration (index=1)")
+		if !bytes.Contains(got, want) {
+			r.Fatalf("got %q and did not find %q", got, want)
 		}
-	}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	})
 }
 
 type closableRecorder struct {

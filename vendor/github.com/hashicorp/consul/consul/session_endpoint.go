@@ -43,15 +43,18 @@ func (s *Session) Apply(args *structs.SessionRequest, reply *string) error {
 			state := s.srv.fsm.State()
 			_, existing, err := state.SessionGet(nil, args.Session.ID)
 			if err != nil {
+				return fmt.Errorf("Session lookup failed: %v", err)
+			}
+			if existing == nil {
 				return fmt.Errorf("Unknown session %q", args.Session.ID)
 			}
 			if !acl.SessionWrite(existing.Node) {
-				return permissionDeniedErr
+				return errPermissionDenied
 			}
 
 		case structs.SessionCreate:
 			if !acl.SessionWrite(args.Session.Node) {
-				return permissionDeniedErr
+				return errPermissionDenied
 			}
 
 		default:
@@ -144,7 +147,7 @@ func (s *Session) Get(args *structs.SessionSpecificRequest,
 	return s.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		func(ws memdb.WatchSet, state *state.StateStore) error {
+		func(ws memdb.WatchSet, state *state.Store) error {
 			index, session, err := state.SessionGet(ws, args.Session)
 			if err != nil {
 				return err
@@ -173,7 +176,7 @@ func (s *Session) List(args *structs.DCSpecificRequest,
 	return s.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		func(ws memdb.WatchSet, state *state.StateStore) error {
+		func(ws memdb.WatchSet, state *state.Store) error {
 			index, sessions, err := state.SessionList(ws)
 			if err != nil {
 				return err
@@ -197,7 +200,7 @@ func (s *Session) NodeSessions(args *structs.NodeSpecificRequest,
 	return s.srv.blockingQuery(
 		&args.QueryOptions,
 		&reply.QueryMeta,
-		func(ws memdb.WatchSet, state *state.StateStore) error {
+		func(ws memdb.WatchSet, state *state.Store) error {
 			index, sessions, err := state.NodeSessions(ws, args.Node)
 			if err != nil {
 				return err
@@ -238,7 +241,7 @@ func (s *Session) Renew(args *structs.SessionSpecificRequest,
 	}
 	if acl != nil && s.srv.config.ACLEnforceVersion8 {
 		if !acl.SessionWrite(session.Node) {
-			return permissionDeniedErr
+			return errPermissionDenied
 		}
 	}
 

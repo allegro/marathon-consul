@@ -22,10 +22,22 @@ on Raft Protocol versions.
 ## Configuration
 
 The configuration of Autopilot is loaded by the leader from the agent's
-[`autopilot`](/docs/agent/options.html#autopilot) settings when initially
-bootstrapping the cluster. After bootstrapping, the configuration can
-be viewed or modified either via the [`operator autopilot`]
-(/docs/commands/operator/autopilot.html) subcommand or the
+[Autopilot settings](/docs/agent/options.html#autopilot) when initially
+bootstrapping the cluster:
+
+```
+{
+    "cleanup_dead_servers": true,
+    "last_contact_threshold": "200ms",
+    "max_trailing_logs": 250,
+    "server_stabilization_time": "10s",
+    "redundancy_zone_tag": "az",
+    "disable_upgrade_migration": false
+}
+```
+
+After bootstrapping, the configuration can be viewed or modified either via the
+[`operator autopilot`](/docs/commands/operator/autopilot.html) subcommand or the
 [`/v1/operator/autopilot/configuration`](/api/operator.html#autopilot-configuration)
 HTTP endpoint:
 
@@ -61,7 +73,8 @@ Prior to Autopilot, it would take 72 hours for dead servers to be automatically 
 or operators had to script a `consul force-leave`. If another server failure occurred,
 it could jeopardize the quorum, even if the failed Consul server had been automatically
 replaced. Autopilot helps prevent these kinds of outages by quickly removing failed
-servers as soon as a replacement Consul server comes online.
+servers as soon as a replacement Consul server comes online. When servers are removed
+by the cleanup process they will enter the "left" state.
 
 This option can be disabled by running `consul operator autopilot set-config`
 with the `-cleanup-dead-servers=false` option.
@@ -69,7 +82,7 @@ with the `-cleanup-dead-servers=false` option.
 ## Server Health Checking
 
 An internal health check runs on the leader to track the stability of servers.
-</br>A server is considered healthy if:
+</br>A server is considered healthy if all of the following conditions are true:
 
 - It has a SerfHealth status of 'Alive'
 - The time since its last contact with the current leader is below
@@ -130,7 +143,7 @@ setting.
 ---
 
 ~> The following Autopilot features are available only in
-   [Consul Enterprise](https://www.hashicorp.com/consul.html) version 0.8.0 and later.
+   [Consul Enterprise](https://www.hashicorp.com/products/consul/) version 0.8.0 and later.
 
 ## Server Read Scaling
 

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/consul/command/base"
-	"github.com/hashicorp/consul/testutil"
+	"github.com/hashicorp/consul/testutil/retry"
 	"github.com/hashicorp/consul/version"
 	"github.com/mitchellh/cli"
 )
@@ -19,7 +19,7 @@ import (
 func baseCommand(ui *cli.MockUi) base.Command {
 	return base.Command{
 		Flags: base.FlagSetNone,
-		Ui:    ui,
+		UI:    ui,
 	}
 }
 
@@ -103,20 +103,14 @@ func TestRetryJoin(t *testing.T) {
 		}
 		close(doneCh)
 	}()
-
-	if err := testutil.WaitForResult(func() (bool, error) {
-		mem := agent.LANMembers()
-		if len(mem) != 2 {
-			return false, fmt.Errorf("bad: %#v", mem)
+	retry.Run(t, func(r *retry.R) {
+		if got, want := len(agent.LANMembers()), 2; got != want {
+			r.Fatalf("got %d LAN members want %d", got, want)
 		}
-		mem = agent.WANMembers()
-		if len(mem) != 2 {
-			return false, fmt.Errorf("bad (wan): %#v", mem)
+		if got, want := len(agent.WANMembers()), 2; got != want {
+			r.Fatalf("got %d WAN members want %d", got, want)
 		}
-		return true, nil
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 }
 
 func TestReadCliConfig(t *testing.T) {
@@ -272,6 +266,7 @@ func TestRetryJoinFail(t *testing.T) {
 		"-data-dir", tmpDir,
 		"-retry-join", serfAddr,
 		"-retry-max", "1",
+		"-retry-interval", "10ms",
 	}
 
 	if code := cmd.Run(args); code == 0 {
@@ -302,6 +297,7 @@ func TestRetryJoinWanFail(t *testing.T) {
 		"-data-dir", tmpDir,
 		"-retry-join-wan", serfAddr,
 		"-retry-max-wan", "1",
+		"-retry-interval-wan", "10ms",
 	}
 
 	if code := cmd.Run(args); code == 0 {
@@ -386,7 +382,7 @@ func TestSetupScadaConn(t *testing.T) {
 	if err := cmd.setupScadaConn(conf1); err != nil {
 		t.Fatalf("err: %s", err)
 	}
-	http1 := cmd.scadaHttp
+	http1 := cmd.scadaHTTP
 	provider1 := cmd.scadaProvider
 
 	// Performing setup again tears down original and replaces
@@ -397,8 +393,8 @@ func TestSetupScadaConn(t *testing.T) {
 	if err := cmd.setupScadaConn(conf2); err != nil {
 		t.Fatalf("err: %s", err)
 	}
-	if cmd.scadaHttp == http1 || cmd.scadaProvider == provider1 {
-		t.Fatalf("should change: %#v %#v", cmd.scadaHttp, cmd.scadaProvider)
+	if cmd.scadaHTTP == http1 || cmd.scadaProvider == provider1 {
+		t.Fatalf("should change: %#v %#v", cmd.scadaHTTP, cmd.scadaProvider)
 	}
 
 	// Original provider and listener must be closed

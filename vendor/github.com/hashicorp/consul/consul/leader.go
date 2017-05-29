@@ -5,9 +5,11 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/armon/go-metrics"
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/consul/agent"
 	"github.com/hashicorp/consul/consul/structs"
 	"github.com/hashicorp/consul/types"
@@ -29,18 +31,29 @@ const (
 // as the leader in the Raft cluster. There is some work the leader is
 // expected to do, so we must react to changes
 func (s *Server) monitorLeadership() {
-	leaderCh := s.raft.LeaderCh()
+	// We use the notify channel we configured Raft with, NOT Raft's
+	// leaderCh, which is only notified best-effort. Doing this ensures
+	// that we get all notifications in order, which is required for
+	// cleanup and to ensure we never run multiple leader loops.
+	leaderCh := s.leaderCh
+
+	var wg sync.WaitGroup
 	var stopCh chan struct{}
 	for {
 		select {
 		case isLeader := <-leaderCh:
 			if isLeader {
 				stopCh = make(chan struct{})
-				go s.leaderLoop(stopCh)
+				wg.Add(1)
+				go func() {
+					s.leaderLoop(stopCh)
+					wg.Done()
+				}()
 				s.logger.Printf("[INFO] consul: cluster leadership acquired")
 			} else if stopCh != nil {
 				close(stopCh)
 				stopCh = nil
+				wg.Wait()
 				s.logger.Printf("[INFO] consul: cluster leadership lost")
 			}
 		case <-s.shutdownCh:
@@ -52,9 +65,6 @@ func (s *Server) monitorLeadership() {
 // leaderLoop runs as long as we are the leader to run various
 // maintenance activities
 func (s *Server) leaderLoop(stopCh chan struct{}) {
-	// Ensure we revoke leadership on stepdown
-	defer s.revokeLeadership()
-
 	// Fire a user event indicating a new leader
 	payload := []byte(s.config.NodeName)
 	if err := s.serfLAN.UserEvent(newLeaderEvent, payload, false); err != nil {
@@ -65,6 +75,19 @@ func (s *Server) leaderLoop(stopCh chan struct{}) {
 	// has succeeded
 	var reconcileCh chan serf.Member
 	establishedLeader := false
+
+	reassert := func() error {
+		if !establishedLeader {
+			return fmt.Errorf("leadership has not been established")
+		}
+		if err := s.revokeLeadership(); err != nil {
+			return err
+		}
+		if err := s.establishLeadership(); err != nil {
+			return err
+		}
+		return nil
+	}
 
 RECONCILE:
 	// Setup a reconciliation timer
@@ -83,11 +106,11 @@ RECONCILE:
 	// Check if we need to handle initial leadership actions
 	if !establishedLeader {
 		if err := s.establishLeadership(); err != nil {
-			s.logger.Printf("[ERR] consul: failed to establish leadership: %v",
-				err)
+			s.logger.Printf("[ERR] consul: failed to establish leadership: %v", err)
 			goto WAIT
 		}
 		establishedLeader = true
+		defer s.revokeLeadership()
 	}
 
 	// Reconcile any missing data
@@ -115,6 +138,8 @@ WAIT:
 			s.reconcileMember(member)
 		case index := <-s.tombstoneGC.ExpireCh():
 			go s.reapTombstones(index)
+		case errCh := <-s.reassertLeaderCh:
+			errCh <- reassert()
 		}
 	}
 }
@@ -153,11 +178,8 @@ func (s *Server) establishLeadership() error {
 		return err
 	}
 
-	// Setup autopilot config if we are the leader and need to
-	if err := s.initializeAutopilot(); err != nil {
-		s.logger.Printf("[ERR] consul: Autopilot initialization failed: %v", err)
-		return err
-	}
+	// Setup autopilot config if we need to
+	s.getOrCreateAutopilotConfig()
 
 	s.startAutopilot()
 
@@ -249,27 +271,31 @@ func (s *Server) initializeACL() error {
 	return nil
 }
 
-// initializeAutopilot is used to setup the autopilot config if we are
-// the leader and need to do this
-func (s *Server) initializeAutopilot() error {
-	// Bail if the config has already been initialized
+// getOrCreateAutopilotConfig is used to get the autopilot config, initializing it if necessary
+func (s *Server) getOrCreateAutopilotConfig() (*structs.AutopilotConfig, bool) {
 	state := s.fsm.State()
 	_, config, err := state.AutopilotConfig()
 	if err != nil {
-		return fmt.Errorf("failed to get autopilot config: %v", err)
+		s.logger.Printf("[ERR] autopilot: failed to get config: %v", err)
+		return nil, false
 	}
 	if config != nil {
-		return nil
+		return config, true
 	}
 
-	req := structs.AutopilotSetConfigRequest{
-		Config: *s.config.AutopilotConfig,
+	if !ServersMeetMinimumVersion(s.LANMembers(), minAutopilotVersion) {
+		s.logger.Printf("[WARN] autopilot: can't initialize until all servers are >= %s", minAutopilotVersion.String())
+		return nil, false
 	}
+
+	config = s.config.AutopilotConfig
+	req := structs.AutopilotSetConfigRequest{Config: *config}
 	if _, err = s.raftApply(structs.AutopilotRequestType, req); err != nil {
-		return fmt.Errorf("failed to initialize autopilot config")
+		s.logger.Printf("[ERR] autopilot: failed to initialize config: %v", err)
+		return nil, false
 	}
 
-	return nil
+	return config, true
 }
 
 // reconcile is used to reconcile the differences between Serf
@@ -297,7 +323,7 @@ func (s *Server) reconcile() (err error) {
 // a "reap" event to cause the node to be cleaned up.
 func (s *Server) reconcileReaped(known map[string]struct{}) error {
 	state := s.fsm.State()
-	_, checks, err := state.ChecksInState(nil, structs.HealthAny)
+	_, checks, err := state.ChecksInState(nil, api.HealthAny)
 	if err != nil {
 		return err
 	}
@@ -425,7 +451,7 @@ func (s *Server) handleAliveMember(member serf.Member) error {
 				return err
 			}
 			if services != nil {
-				for id, _ := range services.Services {
+				for id := range services.Services {
 					if id == service.ID {
 						match = true
 					}
@@ -442,7 +468,7 @@ func (s *Server) handleAliveMember(member serf.Member) error {
 			return err
 		}
 		for _, check := range checks {
-			if check.CheckID == SerfCheckID && check.Status == structs.HealthPassing {
+			if check.CheckID == SerfCheckID && check.Status == api.HealthPassing {
 				return nil
 			}
 		}
@@ -461,7 +487,7 @@ AFTER_CHECK:
 			Node:    member.Name,
 			CheckID: SerfCheckID,
 			Name:    SerfCheckName,
-			Status:  structs.HealthPassing,
+			Status:  api.HealthPassing,
 			Output:  SerfCheckAliveOutput,
 		},
 
@@ -489,7 +515,7 @@ func (s *Server) handleFailedMember(member serf.Member) error {
 			return err
 		}
 		for _, check := range checks {
-			if check.CheckID == SerfCheckID && check.Status == structs.HealthCritical {
+			if check.CheckID == SerfCheckID && check.Status == api.HealthCritical {
 				return nil
 			}
 		}
@@ -506,7 +532,7 @@ func (s *Server) handleFailedMember(member serf.Member) error {
 			Node:    member.Name,
 			CheckID: SerfCheckID,
 			Name:    SerfCheckName,
-			Status:  structs.HealthCritical,
+			Status:  api.HealthCritical,
 			Output:  SerfCheckFailedOutput,
 		},
 
@@ -613,19 +639,18 @@ func (s *Server) joinConsulServer(m serf.Member, parts *agent.Server) error {
 			// Exit with no-op if this is being called on an existing server
 			if server.Address == raft.ServerAddress(addr) && server.ID == raft.ServerID(parts.ID) {
 				return nil
-			} else {
-				future := s.raft.RemoveServer(server.ID, 0, 0)
-				if server.Address == raft.ServerAddress(addr) {
-					if err := future.Error(); err != nil {
-						return fmt.Errorf("error removing server with duplicate address %q: %s", server.Address, err)
-					}
-					s.logger.Printf("[INFO] consul: removed server with duplicate address: %s", server.Address)
-				} else {
-					if err := future.Error(); err != nil {
-						return fmt.Errorf("error removing server with duplicate ID %q: %s", server.ID, err)
-					}
-					s.logger.Printf("[INFO] consul: removed server with duplicate ID: %s", server.ID)
+			}
+			future := s.raft.RemoveServer(server.ID, 0, 0)
+			if server.Address == raft.ServerAddress(addr) {
+				if err := future.Error(); err != nil {
+					return fmt.Errorf("error removing server with duplicate address %q: %s", server.Address, err)
 				}
+				s.logger.Printf("[INFO] consul: removed server with duplicate address: %s", server.Address)
+			} else {
+				if err := future.Error(); err != nil {
+					return fmt.Errorf("error removing server with duplicate ID %q: %s", server.ID, err)
+				}
+				s.logger.Printf("[INFO] consul: removed server with duplicate ID: %s", server.ID)
 			}
 		}
 	}

@@ -93,7 +93,7 @@ func (a *ACL) Apply(args *structs.ACLRequest, reply *string) error {
 	if acl, err := a.srv.resolveToken(args.Token); err != nil {
 		return err
 	} else if acl == nil || !acl.ACLModify() {
-		return permissionDeniedErr
+		return errPermissionDenied
 	}
 
 	// If no ID is provided, generate a new ID. This must be done prior to
@@ -148,7 +148,7 @@ func (a *ACL) Get(args *structs.ACLSpecificRequest,
 
 	return a.srv.blockingQuery(&args.QueryOptions,
 		&reply.QueryMeta,
-		func(ws memdb.WatchSet, state *state.StateStore) error {
+		func(ws memdb.WatchSet, state *state.Store) error {
 			index, acl, err := state.ACLGet(ws, args.ACL)
 			if err != nil {
 				return err
@@ -220,12 +220,12 @@ func (a *ACL) List(args *structs.DCSpecificRequest,
 	if acl, err := a.srv.resolveToken(args.Token); err != nil {
 		return err
 	} else if acl == nil || !acl.ACLList() {
-		return permissionDeniedErr
+		return errPermissionDenied
 	}
 
 	return a.srv.blockingQuery(&args.QueryOptions,
 		&reply.QueryMeta,
-		func(ws memdb.WatchSet, state *state.StateStore) error {
+		func(ws memdb.WatchSet, state *state.Store) error {
 			index, acls, err := state.ACLList(ws)
 			if err != nil {
 				return err

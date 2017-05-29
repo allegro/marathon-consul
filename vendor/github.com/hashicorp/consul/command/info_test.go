@@ -1,10 +1,11 @@
 package command
 
 import (
-	"github.com/hashicorp/consul/command/base"
-	"github.com/mitchellh/cli"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/consul/command/base"
+	"github.com/mitchellh/cli"
 )
 
 func TestInfoCommand_implements(t *testing.T) {
@@ -18,7 +19,7 @@ func TestInfoCommandRun(t *testing.T) {
 	ui := new(cli.MockUi)
 	c := &InfoCommand{
 		Command: base.Command{
-			Ui:    ui,
+			UI:    ui,
 			Flags: base.FlagSetClientHTTP,
 		},
 	}

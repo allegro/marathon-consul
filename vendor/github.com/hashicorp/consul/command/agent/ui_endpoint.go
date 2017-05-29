@@ -1,10 +1,12 @@
 package agent
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/consul/structs"
 )
 
@@ -67,7 +69,7 @@ func (s *HTTPServer) UINodeInfo(resp http.ResponseWriter, req *http.Request) (in
 	args.Node = strings.TrimPrefix(req.URL.Path, "/v1/internal/ui/node/")
 	if args.Node == "" {
 		resp.WriteHeader(400)
-		resp.Write([]byte("Missing node name"))
+		fmt.Fprint(resp, "Missing node name")
 		return nil, nil
 	}
 
@@ -155,11 +157,11 @@ func summarizeServices(dump structs.NodeDump) []*ServiceSummary {
 			}
 			for _, sum := range services {
 				switch check.Status {
-				case structs.HealthPassing:
+				case api.HealthPassing:
 					sum.ChecksPassing++
-				case structs.HealthWarning:
+				case api.HealthWarning:
 					sum.ChecksWarning++
-				case structs.HealthCritical:
+				case api.HealthCritical:
 					sum.ChecksCritical++
 				}
 			}

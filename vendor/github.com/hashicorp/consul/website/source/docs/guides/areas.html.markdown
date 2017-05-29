@@ -10,7 +10,7 @@ description: |-
 ## Advanced Federation with Network Areas
 
 ~> The network area functionality described here is available only in
-   [Consul Enterprise](https://www.hashicorp.com/consul.html) version 0.8.0 and later.
+   [Consul Enterprise](https://www.hashicorp.com/products/consul/) version 0.8.0 and later.
 
 One of the key features of Consul is its support for multiple datacenters.
 The [architecture](/docs/internals/architecture.html) of Consul is designed to
@@ -20,7 +20,7 @@ datacenters. This means each datacenter runs independently, each having a dedica
 group of servers and a private LAN [gossip pool](/docs/internals/gossip.html).
 
 This guide covers the advanced form of federating Consul clusters using the new
-network areas capability added in [Consul Enterprise](https://www.hashicorp.com/consul.html)
+network areas capability added in [Consul Enterprise](https://www.hashicorp.com/products/consul/)
 version 0.8.0. For the basic form of federation available in the open source version
 of Consul, please see the [Basic Federation Guide](/docs/guides/datacenters.html)
 for more details.
@@ -48,8 +48,8 @@ to via an area (or via the WAN), but future versions of Consul may add routing s
 
 The following can be used to manage network areas:
 
-* [Network Areas HTTP Endpoint](/api/operator.html#network-areas)
-* [Network Areas Operator CLI](/docs/commands/operator/area.html)
+* [Network Areas HTTP Endpoint](/api/operator/area.html)
+* [Network Areas CLI](/docs/commands/operator/area.html)
 
 ## Network Areas and the WAN Gossip Pool
 

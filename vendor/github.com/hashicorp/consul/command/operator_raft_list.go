@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/command/base"
+	"github.com/hashicorp/serf/serf"
 	"github.com/ryanuber/columnize"
 )
 
@@ -36,45 +37,67 @@ func (c *OperatorRaftListCommand) Run(args []string) int {
 		if err == flag.ErrHelp {
 			return 0
 		}
-		c.Ui.Error(fmt.Sprintf("Failed to parse args: %v", err))
+		c.UI.Error(fmt.Sprintf("Failed to parse args: %v", err))
 		return 1
 	}
 
 	// Set up a client.
 	client, err := c.Command.HTTPClient()
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error initializing client: %s", err))
+		c.UI.Error(fmt.Sprintf("Error initializing client: %s", err))
 		return 1
 	}
 
 	// Fetch the current configuration.
-	result, err := raftListPeers(client.Operator(), c.Command.HTTPStale())
+	result, err := raftListPeers(client, c.Command.HTTPStale())
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error getting peers: %v", err))
+		c.UI.Error(fmt.Sprintf("Error getting peers: %v", err))
 	}
-	c.Ui.Output(result)
+	c.UI.Output(result)
 
 	return 0
 }
 
-func raftListPeers(operator *api.Operator, stale bool) (string, error) {
+func raftListPeers(client *api.Client, stale bool) (string, error) {
+	raftProtocols := make(map[string]string)
+	members, err := client.Agent().Members(false)
+	if err != nil {
+		return "", err
+	}
+
+	for _, member := range members {
+		if serf.MemberStatus(member.Status) == serf.StatusLeft {
+			continue
+		}
+
+		if member.Tags["role"] != "consul" {
+			continue
+		}
+
+		raftProtocols[member.Name] = member.Tags["raft_vsn"]
+	}
+
 	q := &api.QueryOptions{
 		AllowStale: stale,
 	}
-	reply, err := operator.RaftGetConfiguration(q)
+	reply, err := client.Operator().RaftGetConfiguration(q)
 	if err != nil {
 		return "", fmt.Errorf("Failed to retrieve raft configuration: %v", err)
 	}
 
 	// Format it as a nice table.
-	result := []string{"Node|ID|Address|State|Voter"}
+	result := []string{"Node|ID|Address|State|Voter|RaftProtocol"}
 	for _, s := range reply.Servers {
+		raftProtocol := raftProtocols[s.Node]
+		if raftProtocol == "" {
+			raftProtocol = "<=1"
+		}
 		state := "follower"
 		if s.Leader {
 			state = "leader"
 		}
-		result = append(result, fmt.Sprintf("%s|%s|%s|%s|%v",
-			s.Node, s.ID, s.Address, state, s.Voter))
+		result = append(result, fmt.Sprintf("%s|%s|%s|%s|%v|%s",
+			s.Node, s.ID, s.Address, state, s.Voter, raftProtocol))
 	}
 
 	return columnize.SimpleFormat(result), nil

@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/consul/structs"
-	"github.com/hashicorp/consul/testutil"
+	"github.com/hashicorp/consul/testrpc"
+	"github.com/hashicorp/consul/testutil/retry"
 	"github.com/hashicorp/net-rpc-msgpackrpc"
 	"github.com/hashicorp/serf/serf"
 )
@@ -79,32 +80,18 @@ func TestClient_JoinLAN(t *testing.T) {
 	defer c1.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := c1.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if err := testutil.WaitForResult(func() (bool, error) {
-		return c1.servers.NumServers() == 1, nil
-	}); err != nil {
-		t.Fatal("expected consul server")
-	}
-
-	// Check the members
-	if err := testutil.WaitForResult(func() (bool, error) {
-		server_check := len(s1.LANMembers()) == 2
-		client_check := len(c1.LANMembers()) == 2
-		return server_check && client_check, nil
-	}); err != nil {
-		t.Fatal("bad len")
-	}
-
-	// Check we have a new consul
-	if err := testutil.WaitForResult(func() (bool, error) {
-		return c1.servers.NumServers() == 1, nil
-	}); err != nil {
-		t.Fatal("expected consul server")
-	}
+	joinLAN(t, c1, s1)
+	retry.Run(t, func(r *retry.R) {
+		if got, want := c1.servers.NumServers(), 1; got != want {
+			r.Fatalf("got %d servers want %d", got, want)
+		}
+		if got, want := len(s1.LANMembers()), 2; got != want {
+			r.Fatalf("got %d server LAN members want %d", got, want)
+		}
+		if got, want := len(c1.LANMembers()), 2; got != want {
+			r.Fatalf("got %d client LAN members want %d", got, want)
+		}
+	})
 }
 
 func TestClient_JoinLAN_Invalid(t *testing.T) {
@@ -117,10 +104,8 @@ func TestClient_JoinLAN_Invalid(t *testing.T) {
 	defer c1.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := c1.JoinLAN([]string{addr}); err == nil {
-		t.Fatalf("should error")
+	if _, err := c1.JoinLAN([]string{joinAddrLAN(s1)}); err == nil {
+		t.Fatal("should error")
 	}
 
 	time.Sleep(50 * time.Millisecond)
@@ -142,10 +127,8 @@ func TestClient_JoinWAN_Invalid(t *testing.T) {
 	defer c1.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfWANConfig.MemberlistConfig.BindPort)
-	if _, err := c1.JoinLAN([]string{addr}); err == nil {
-		t.Fatalf("should error")
+	if _, err := c1.JoinLAN([]string{joinAddrWAN(s1)}); err == nil {
+		t.Fatal("should error")
 	}
 
 	time.Sleep(50 * time.Millisecond)
@@ -173,11 +156,7 @@ func TestClient_RPC(t *testing.T) {
 	}
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := c1.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, c1, s1)
 
 	// Check the members
 	if len(s1.LANMembers()) != 2 {
@@ -189,12 +168,11 @@ func TestClient_RPC(t *testing.T) {
 	}
 
 	// RPC should succeed
-	if err := testutil.WaitForResult(func() (bool, error) {
-		err := c1.RPC("Status.Ping", struct{}{}, &out)
-		return err == nil, err
-	}); err != nil {
-		t.Fatal(err)
-	}
+	retry.Run(t, func(r *retry.R) {
+		if err := c1.RPC("Status.Ping", struct{}{}, &out); err != nil {
+			r.Fatal("ping failed", err)
+		}
+	})
 }
 
 func TestClient_RPC_Pool(t *testing.T) {
@@ -207,19 +185,17 @@ func TestClient_RPC_Pool(t *testing.T) {
 	defer c1.Shutdown()
 
 	// Try to join.
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := c1.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, c1, s1)
 
 	// Wait for both agents to finish joining
-	if err := testutil.WaitForResult(func() (bool, error) {
-		return len(s1.LANMembers()) == 2 && len(c1.LANMembers()) == 2, nil
-	}); err != nil {
-		t.Fatalf("Server has %v of %v expected members; Client has %v of %v expected members.",
-			len(s1.LANMembers()), 2, len(c1.LANMembers()), 2)
-	}
+	retry.Run(t, func(r *retry.R) {
+		if got, want := len(s1.LANMembers()), 2; got != want {
+			r.Fatalf("got %d server LAN members want %d", got, want)
+		}
+		if got, want := len(c1.LANMembers()), 2; got != want {
+			r.Fatalf("got %d client LAN members want %d", got, want)
+		}
+	})
 
 	// Blast out a bunch of RPC requests at the same time to try to get
 	// contention opening new connections.
@@ -230,12 +206,11 @@ func TestClient_RPC_Pool(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			var out struct{}
-			if err := testutil.WaitForResult(func() (bool, error) {
-				err := c1.RPC("Status.Ping", struct{}{}, &out)
-				return err == nil, err
-			}); err != nil {
-				t.Fatal(err)
-			}
+			retry.Run(t, func(r *retry.R) {
+				if err := c1.RPC("Status.Ping", struct{}{}, &out); err != nil {
+					r.Fatal("ping failed", err)
+				}
+			})
 		}()
 	}
 
@@ -267,17 +242,13 @@ func TestClient_RPC_ConsulServerPing(t *testing.T) {
 
 	// Join all servers.
 	for _, s := range servers {
-		addr := fmt.Sprintf("127.0.0.1:%d",
-			s.config.SerfLANConfig.MemberlistConfig.BindPort)
-		if _, err := c.JoinLAN([]string{addr}); err != nil {
-			t.Fatalf("err: %v", err)
-		}
+		joinLAN(t, c, s)
 	}
 
 	// Sleep to allow Serf to sync, shuffle, and let the shuffle complete
-	time.Sleep(1 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 	c.servers.ResetRebalanceTimer()
-	time.Sleep(1 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 
 	if len(c.LANMembers()) != numServers+numClients {
 		t.Errorf("bad len: %d", len(c.LANMembers()))
@@ -291,13 +262,13 @@ func TestClient_RPC_ConsulServerPing(t *testing.T) {
 	// Ping each server in the list
 	var pingCount int
 	for range servers {
-		time.Sleep(1 * time.Second)
+		time.Sleep(100 * time.Millisecond)
 		s := c.servers.FindServer()
 		ok, err := c.connPool.PingConsulServer(s)
 		if !ok {
 			t.Errorf("Unable to ping server %v: %s", s.String(), err)
 		}
-		pingCount += 1
+		pingCount++
 
 		// Artificially fail the server in order to rotate the server
 		// list
@@ -338,27 +309,20 @@ func TestClient_RPC_TLS(t *testing.T) {
 	}
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := c1.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, c1, s1)
 
 	// Wait for joins to finish/RPC to succeed
-	if err := testutil.WaitForResult(func() (bool, error) {
-		if len(s1.LANMembers()) != 2 {
-			return false, fmt.Errorf("bad len: %v", len(s1.LANMembers()))
+	retry.Run(t, func(r *retry.R) {
+		if got, want := len(s1.LANMembers()), 2; got != want {
+			r.Fatalf("got %d server LAN members want %d", got, want)
 		}
-
-		if len(c1.LANMembers()) != 2 {
-			return false, fmt.Errorf("bad len: %v", len(c1.LANMembers()))
+		if got, want := len(c1.LANMembers()), 2; got != want {
+			r.Fatalf("got %d client LAN members want %d", got, want)
 		}
-
-		err := c1.RPC("Status.Ping", struct{}{}, &out)
-		return err == nil, err
-	}); err != nil {
-		t.Fatal(err)
-	}
+		if err := c1.RPC("Status.Ping", struct{}{}, &out); err != nil {
+			r.Fatal("ping failed", err)
+		}
+	})
 }
 
 func TestClient_SnapshotRPC(t *testing.T) {
@@ -371,24 +335,20 @@ func TestClient_SnapshotRPC(t *testing.T) {
 	defer c1.Shutdown()
 
 	// Wait for the leader
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Try to join.
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := c1.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, c1, s1)
 	if len(s1.LANMembers()) != 2 || len(c1.LANMembers()) != 2 {
 		t.Fatalf("Server has %v of %v expected members; Client has %v of %v expected members.", len(s1.LANMembers()), 2, len(c1.LANMembers()), 2)
 	}
 
 	// Wait until we've got a healthy server.
-	if err := testutil.WaitForResult(func() (bool, error) {
-		return c1.servers.NumServers() == 1, nil
-	}); err != nil {
-		t.Fatal("expected consul server")
-	}
+	retry.Run(t, func(r *retry.R) {
+		if got, want := c1.servers.NumServers(), 1; got != want {
+			r.Fatalf("got %d servers want %d", got, want)
+		}
+	})
 
 	// Take a snapshot.
 	var snap bytes.Buffer
@@ -430,24 +390,20 @@ func TestClient_SnapshotRPC_TLS(t *testing.T) {
 	defer c1.Shutdown()
 
 	// Wait for the leader
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Try to join.
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := c1.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, c1, s1)
 	if len(s1.LANMembers()) != 2 || len(c1.LANMembers()) != 2 {
 		t.Fatalf("Server has %v of %v expected members; Client has %v of %v expected members.", len(s1.LANMembers()), 2, len(c1.LANMembers()), 2)
 	}
 
 	// Wait until we've got a healthy server.
-	if err := testutil.WaitForResult(func() (bool, error) {
-		return c1.servers.NumServers() == 1, nil
-	}); err != nil {
-		t.Fatal("expected consul server")
-	}
+	retry.Run(t, func(r *retry.R) {
+		if got, want := c1.servers.NumServers(), 1; got != want {
+			r.Fatalf("got %d servers want %d", got, want)
+		}
+	})
 
 	// Take a snapshot.
 	var snap bytes.Buffer
@@ -486,21 +442,20 @@ func TestClientServer_UserEvent(t *testing.T) {
 	defer s1.Shutdown()
 
 	// Try to join
-	addr := fmt.Sprintf("127.0.0.1:%d",
-		s1.config.SerfLANConfig.MemberlistConfig.BindPort)
-	if _, err := c1.JoinLAN([]string{addr}); err != nil {
-		t.Fatalf("err: %v", err)
-	}
+	joinLAN(t, c1, s1)
 
 	// Wait for the leader
-	testutil.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForLeader(t, s1.RPC, "dc1")
 
 	// Check the members
-	if err := testutil.WaitForResult(func() (bool, error) {
-		return len(c1.LANMembers()) == 2 && len(s1.LANMembers()) == 2, nil
-	}); err != nil {
-		t.Fatal("bad len")
-	}
+	retry.Run(t, func(r *retry.R) {
+		if got, want := len(s1.LANMembers()), 2; got != want {
+			r.Fatalf("got %d server LAN members want %d", got, want)
+		}
+		if got, want := len(c1.LANMembers()), 2; got != want {
+			r.Fatalf("got %d client LAN members want %d", got, want)
+		}
+	})
 
 	// Fire the user event
 	codec := rpcClient(t, s1)
