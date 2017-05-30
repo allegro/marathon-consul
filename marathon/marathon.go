@@ -116,7 +116,7 @@ func (m Marathon) Leader() (string, error) {
 func (m Marathon) EventStream(desiredEvents []string, retries, retryBackoff int) (*Streamer, error) {
 	subURL := m.urlWithQuery("/v2/events", params{"event_type": desiredEvents})
 
-	// Before creating actual streamer, this function blocks until configured leader for this (m) reciever is elected.
+	// Before creating actual streamer, this function blocks until configured leader for this receiver is elected.
 	// When leaderPoll function successfully exit this instance of marathon-consul,
 	// consider itself as a new leader and initializes Streamer.
 	err := m.leaderPoll()
@@ -139,17 +139,17 @@ func (m Marathon) EventStream(desiredEvents []string, retries, retryBackoff int)
 // leaderPoll just blocks until configured myleader is equal to
 // leader returned from marathon (/v2/leader endpoint)
 func (m Marathon) leaderPoll() error {
-	pollTicker := time.Tick(1 * time.Second)
+	pollTicker := time.NewTicker(1 * time.Second)
+	defer pollTicker.Stop()
 	retries := 5
 	i := 0
-	for range pollTicker {
+	for range pollTicker.C {
 		leading, err := m.IsLeader()
 		if err != nil {
 			if i >= retries {
 				return fmt.Errorf("Failed to get a leader after %d retries", i)
 			}
 			i++
-			log.WithError(err).Error("Error while getting leader")
 			continue
 		}
 		if leading {
