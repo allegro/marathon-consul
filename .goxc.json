@@ -8,7 +8,7 @@
 		"deb-source"
 	],
 	"BuildConstraints": "linux,!arm darwin",
-	"PackageVersion": "1.3.2",
+	"PackageVersion": "1.3.3",
 	"TaskSettings": {
 		"bintray": {
 			"downloadspage": "bintray.md",
