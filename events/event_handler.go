@@ -107,7 +107,7 @@ func (fh *eventHandler) handleHealthyTask(body []byte) error {
 
 	appID := taskHealthChange.AppID
 	taskID := taskHealthChange.TaskID()
-	log.WithField("Id", taskID).Info("Got HealthStatusEvent")
+	log.WithFields(log.Fields{"taskID": taskID, "appId": appID}).Info("Got HealthStatusEvent")
 
 	if !taskHealthChange.Alive {
 		log.WithField("Id", taskID).Debug("Task is not alive. Not registering")
@@ -147,21 +147,36 @@ func (fh *eventHandler) handleHealthyTask(body []byte) error {
 }
 
 func (fh *eventHandler) handleStatusEvent(body []byte) error {
-	task, err := apps.ParseTask(body)
+	task, err := ParseTaskHealthChange(body)
 	if err != nil {
-		log.WithError(err).WithField("Body", body).Error("Could not parse event body")
+		log.WithError(err).WithField("Body", string(body[:])).Error("Could not parse event body")
 		return err
 	}
 	delay := task.Timestamp.Delay()
 	metrics.UpdateGauge("events.read.delay.current", int64(delay))
 
+	appID := task.AppID
+	taskID := task.TaskID()
+
 	log.WithFields(log.Fields{
-		"Id":         task.ID,
+		"taskId":     taskID,
+		"appID":      appID,
 		"TaskStatus": task.TaskStatus,
 	}).Info("Got StatusEvent")
 
 	switch task.TaskStatus {
 	case "TASK_FINISHED", "TASK_FAILED", "TASK_KILLING", "TASK_KILLED", "TASK_LOST":
+		app, err := fh.marathon.App(appID)
+		if err != nil {
+			log.WithField("Id", taskID).WithError(err).Error("There was a problem obtaining app info")
+			return err
+		}
+
+		if !app.IsConsulApp() {
+			err = fmt.Errorf("%s is not consul app. Missing consul label", app.ID)
+			log.WithField("Id", taskID).WithError(err).Debug("Skipping app registration in Consul")
+			return nil
+		}
 		return fh.deregister(task.ID)
 	default:
 		log.WithFields(log.Fields{
