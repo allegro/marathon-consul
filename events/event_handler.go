@@ -2,6 +2,7 @@ package events
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"time"
 
@@ -30,6 +31,7 @@ type StopEvent struct{}
 const (
 	StatusUpdateEventType        = "status_update_event"
 	HealthStatusChangedEventType = "health_status_changed_event"
+	EmptyEventType               = ""
 )
 
 func NewEventHandler(id int, serviceRegistry service.ServiceRegistry, marathon marathon.Marathoner, eventQueue <-chan Event) *eventHandler {
@@ -89,6 +91,13 @@ func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 		return fh.handleStatusEvent(body)
 	case HealthStatusChangedEventType:
 		return fh.handleHealthyTask(body)
+	case EmptyEventType:
+		err := errors.New("Empty event type")
+		log.WithError(err).Warn("Event type is empty. " +
+			"This means event was not properly serialized. " +
+			"This can ocure when connection with Marathon breaks " +
+			"due to network error or Marathon restarts.")
+		return err
 	default:
 		err := fmt.Errorf("Unsuported event type: %s", eventType)
 		log.WithError(err).WithField("EventType", eventType).Error("This should never happen. Not handled event type")
