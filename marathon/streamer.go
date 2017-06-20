@@ -3,6 +3,7 @@ package marathon
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -22,19 +23,15 @@ type Streamer struct {
 	noRecover    bool
 }
 
-func (s *Streamer) stop() {
-	s.cancel()
-}
 func (s *Streamer) Stop() {
+	s.cancel()
 	s.noRecover = true
-	s.stop()
 }
 
 func (s *Streamer) Start() error {
 	req, err := http.NewRequest("GET", s.subURL, nil)
 	if err != nil {
-		log.Fatal("Unable to create Streamer request")
-		return nil
+		return fmt.Errorf("Unable to create request: %s", err)
 	}
 	req.SetBasicAuth(s.username, s.password)
 	req.Header.Set("Accept", "text/event-stream")
@@ -44,14 +41,10 @@ func (s *Streamer) Start() error {
 	res, err := s.client.Do(req)
 	if err != nil {
 		s.cancel()
-		return err
+		return fmt.Errorf("Subscription request errored: %s", err)
 	}
 	if res.StatusCode != http.StatusOK {
-		log.WithFields(log.Fields{
-			"Host":   req.Host,
-			"URI":    req.URL.RequestURI(),
-			"Method": "GET",
-		}).Errorf("Got status code : %d", res.StatusCode)
+		return fmt.Errorf("Event stream not connected: Expected %d but got %d", http.StatusOK, res.StatusCode)
 	}
 	log.WithFields(log.Fields{
 		"Host":   req.Host,
@@ -65,9 +58,9 @@ func (s *Streamer) Start() error {
 
 func (s *Streamer) Recover() error {
 	if s.noRecover {
-		return fmt.Errorf("Streamer is not recoverable")
+		return errors.New("Streamer is not recoverable")
 	}
-	s.stop()
+	s.cancel()
 
 	err := s.Start()
 	i := 0
@@ -76,5 +69,8 @@ func (s *Streamer) Recover() error {
 		time.Sleep(seconds * time.Second)
 		i++
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("Cannot recover Streamer: %s", err)
+	}
+	return nil
 }
