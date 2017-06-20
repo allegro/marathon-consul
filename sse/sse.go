@@ -1,6 +1,7 @@
 package sse
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -14,21 +15,30 @@ import (
 type Stop func()
 type Handler func(w http.ResponseWriter, r *http.Request)
 
-func NewHandler(config Config, webConfig web.Config, marathon marathon.Marathoner, serviceOperations service.ServiceRegistry) Stop {
+func NewHandler(config Config, webConfig web.Config, marathon marathon.Marathoner, serviceOperations service.ServiceRegistry) (Stop, error) {
 	stopChannels := make([]chan<- events.StopEvent, webConfig.WorkersCount, webConfig.WorkersCount)
+	stopFunc := stop(stopChannels)
 	eventQueue := make(chan events.Event, webConfig.QueueSize)
 	for i := 0; i < webConfig.WorkersCount; i++ {
 		handler := events.NewEventHandler(i, serviceOperations, marathon, eventQueue)
 		stopChannels[i] = handler.Start()
 	}
 
-	sse := newSSEHandler(eventQueue, marathon, webConfig.MaxEventSize, config)
-	dispatcherStop := sse.start()
+	sse, err := newSSEHandler(eventQueue, marathon, webConfig.MaxEventSize, config)
+	if err != nil {
+		stopFunc()
+		return nil, fmt.Errorf("Cannot create SSE handler: %s", err)
+	}
+	dispatcherStop, err := sse.start()
+	if err != nil {
+		stopFunc()
+		return nil, fmt.Errorf("Cannot start SSE handler: %s", err)
+	}
 
 	guardQuit := leaderGuard(sse.Streamer, marathon)
 	stopChannels = append(stopChannels, dispatcherStop, guardQuit)
 
-	return stop(stopChannels)
+	return stopFunc, nil
 }
 
 func stop(channels []chan<- events.StopEvent) Stop {

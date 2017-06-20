@@ -44,7 +44,10 @@ func main() {
 	sync.New(config.Sync, remote, consulInstance, consulInstance.AddAgentsFromApps).StartSyncServicesJob()
 
 	if config.SSE.Enabled {
-		stopSSE := sse.NewHandler(config.SSE, config.Web, remote, consulInstance)
+		stopSSE, err := sse.NewHandler(config.SSE, config.Web, remote, consulInstance)
+		if err != nil {
+			log.WithError(err).Fatal("Cannot instantiate SSE handler")
+		}
 		defer stopSSE()
 	}
 

@@ -2,15 +2,15 @@ package sse
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/events"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 // SSEHandler defines handler for marathon event stream, opening and closing
@@ -26,7 +26,7 @@ type SSEHandler struct {
 	maxLineSize int64
 }
 
-func newSSEHandler(eventQueue chan events.Event, service marathon.Marathoner, maxLineSize int64, config Config) *SSEHandler {
+func newSSEHandler(eventQueue chan events.Event, service marathon.Marathoner, maxLineSize int64, config Config) (*SSEHandler, error) {
 
 	streamer, err := service.EventStream(
 		[]string{events.StatusUpdateEventType, events.HealthStatusChangedEventType},
@@ -34,7 +34,7 @@ func newSSEHandler(eventQueue chan events.Event, service marathon.Marathoner, ma
 		config.RetryBackoff,
 	)
 	if err != nil {
-		log.WithError(err).Fatal("Unable to start Streamer")
+		return nil, fmt.Errorf("Unable to start Streamer: %s", err)
 	}
 
 	return &SSEHandler{
@@ -42,11 +42,15 @@ func newSSEHandler(eventQueue chan events.Event, service marathon.Marathoner, ma
 		eventQueue:  eventQueue,
 		Streamer:    streamer,
 		maxLineSize: maxLineSize,
-	}
+	}, nil
 }
 
 // Open connection to marathon v2/events
-func (h *SSEHandler) start() chan<- events.StopEvent {
+func (h *SSEHandler) start() (chan<- events.StopEvent, error) {
+	if err := h.Streamer.Start(); err != nil {
+		return nil, fmt.Errorf("Cannot start Streamer: %s", err)
+	}
+
 	stopChan := make(chan events.StopEvent)
 	go func() {
 		<-stopChan
@@ -56,10 +60,6 @@ func (h *SSEHandler) start() chan<- events.StopEvent {
 	go func() {
 		defer h.stop()
 
-		err := h.Streamer.Start()
-		if err != nil {
-			log.WithError(err).Error("Unable to start streamer")
-		}
 		// buffer used for token storage,
 		// if token is greater than buffer, empty token is stored
 		buffer := make([]byte, h.maxLineSize)
@@ -70,7 +70,7 @@ func (h *SSEHandler) start() chan<- events.StopEvent {
 			metrics.Time("events.read", func() { h.handle() })
 		}
 	}()
-	return stopChan
+	return stopChan, nil
 }
 
 func (h *SSEHandler) handle() {

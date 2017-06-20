@@ -119,9 +119,8 @@ func (m Marathon) EventStream(desiredEvents []string, retries, retryBackoff int)
 	// Before creating actual streamer, this function blocks until configured leader for this receiver is elected.
 	// When leaderPoll function successfully exit this instance of marathon-consul,
 	// consider itself as a new leader and initializes Streamer.
-	err := m.leaderPoll()
-	if err != nil {
-		log.WithError(err).Fatal("Leader poll failed. Check marathon and previous errors. Exiting")
+	if err := m.leaderPoll(); err != nil {
+		return nil, fmt.Errorf("Leader poll failed: %s", err)
 	}
 
 	return &Streamer{
