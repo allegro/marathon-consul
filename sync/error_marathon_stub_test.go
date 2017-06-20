@@ -26,8 +26,8 @@ func (m errorMarathon) Leader() (string, error) {
 	return "", errors.New("Error")
 }
 
-func (m errorMarathon) EventStream([]string, int, int) (*marathon.Streamer, error) {
-	return &marathon.Streamer{}, errors.New("Error")
+func (m errorMarathon) EventStream([]string, int, int) (marathon.Streamer, error) {
+	return nil, errors.New("Error")
 }
 
 func (m errorMarathon) IsLeader() (bool, error) {

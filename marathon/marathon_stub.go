@@ -43,8 +43,8 @@ func (m *MarathonerStub) Leader() (string, error) {
 	return m.leader, nil
 }
 
-func (m *MarathonerStub) EventStream([]string, int, int) (*Streamer, error) {
-	return &Streamer{}, nil
+func (m *MarathonerStub) EventStream([]string, int, int) (Streamer, error) {
+	return &streamer{}, nil
 }
 
 func (m *MarathonerStub) IsLeader() (bool, error) {

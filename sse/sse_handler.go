@@ -1,6 +1,7 @@
 package sse
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -22,8 +23,9 @@ type SSEHandler struct {
 	client      *http.Client
 	close       context.CancelFunc
 	req         *http.Request
-	Streamer    *marathon.Streamer
+	streamer    marathon.Streamer
 	maxLineSize int64
+	scanner     *bufio.Scanner
 }
 
 func newSSEHandler(eventQueue chan events.Event, service marathon.Marathoner, maxLineSize int64, config Config) (*SSEHandler, error) {
@@ -40,16 +42,19 @@ func newSSEHandler(eventQueue chan events.Event, service marathon.Marathoner, ma
 	return &SSEHandler{
 		config:      config,
 		eventQueue:  eventQueue,
-		Streamer:    streamer,
+		streamer:    streamer,
 		maxLineSize: maxLineSize,
 	}, nil
 }
 
 // Open connection to marathon v2/events
 func (h *SSEHandler) start() (chan<- events.StopEvent, error) {
-	if err := h.Streamer.Start(); err != nil {
+	reader, err := h.streamer.Start()
+	if err != nil {
 		return nil, fmt.Errorf("Cannot start Streamer: %s", err)
 	}
+
+	h.newScanner(reader)
 
 	stopChan := make(chan events.StopEvent)
 	go func() {
@@ -59,13 +64,6 @@ func (h *SSEHandler) start() (chan<- events.StopEvent, error) {
 
 	go func() {
 		defer h.stop()
-
-		// buffer used for token storage,
-		// if token is greater than buffer, empty token is stored
-		buffer := make([]byte, h.maxLineSize)
-		// configure streamer scanner :)
-		h.Streamer.Scanner.Buffer(buffer, cap(buffer))
-		h.Streamer.Scanner.Split(events.ScanLines)
 		for {
 			metrics.Time("events.read", func() { h.handle() })
 		}
@@ -74,17 +72,18 @@ func (h *SSEHandler) start() (chan<- events.StopEvent, error) {
 }
 
 func (h *SSEHandler) handle() {
-	e, err := events.ParseSSEEvent(h.Streamer.Scanner)
+	e, err := events.ParseSSEEvent(h.scanner)
 	if err != nil {
 		if err == io.EOF {
 			// Event could be partial at this point
 			h.enqueueEvent(e)
 		}
 		log.WithError(err).Error("Error when parsing the event")
-		err = h.Streamer.Recover()
+		reader, err := h.streamer.Recover()
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to recover streamer")
 		}
+		h.newScanner(reader)
 	}
 	metrics.Mark("events.read." + e.Type)
 	if e.Type != events.StatusUpdateEventType && e.Type != events.HealthStatusChangedEventType {
@@ -105,7 +104,17 @@ func (h *SSEHandler) enqueueEvent(e events.SSEEvent) {
 	}
 }
 
+func (h *SSEHandler) newScanner(reader io.Reader) {
+	scanner := bufio.NewScanner(reader)
+	// buffer used for token storage,
+	// if token is greater than buffer, empty token is stored
+	buffer := make([]byte, h.maxLineSize)
+	scanner.Buffer(buffer, cap(buffer))
+	scanner.Split(events.ScanLines)
+	h.scanner = scanner
+}
+
 // Close connections managed by context
 func (h *SSEHandler) stop() {
-	h.Streamer.Stop()
+	h.streamer.Stop()
 }

@@ -424,11 +424,10 @@ func TestEventStream_PassingStreamerCreated(t *testing.T) {
 	m.client.Transport = transport
 
 	// when
-	streamer, err := m.EventStream([]string{}, 1, 1)
+	_, err := m.EventStream([]string{}, 1, 1)
 
 	//then
 	assert.NoError(t, err)
-	assert.IsType(t, &Streamer{}, streamer)
 }
 
 func TestUrlWithQuery_NoProxyMarathon(t *testing.T) {

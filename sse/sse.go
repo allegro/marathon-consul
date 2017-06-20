@@ -35,7 +35,7 @@ func NewHandler(config Config, webConfig web.Config, marathon marathon.Marathone
 		return nil, fmt.Errorf("Cannot start SSE handler: %s", err)
 	}
 
-	guardQuit := leaderGuard(sse.Streamer, marathon)
+	guardQuit := leaderGuard(sse.streamer, marathon)
 	stopChannels = append(stopChannels, dispatcherStop, guardQuit)
 
 	return stopFunc, nil
@@ -53,7 +53,7 @@ func stop(channels []chan<- events.StopEvent) Stop {
 // periodically checks if leader has changed
 // if change is detected, passed streamer is stopped - unable to recover
 // if this goroutine is quited, agent is stopped - unable to recover
-func leaderGuard(s *marathon.Streamer, m marathon.Marathoner) chan<- events.StopEvent {
+func leaderGuard(s marathon.Streamer, m marathon.Marathoner) chan<- events.StopEvent {
 	// TODO(tz) - consider launching this goroutine from marathon,
 	// no need to pass marathon reciever then ??
 	quit := make(chan events.StopEvent)

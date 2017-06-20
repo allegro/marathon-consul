@@ -8,11 +8,19 @@ import (
 	"net/http"
 	"time"
 
+	"io"
+
 	log "github.com/Sirupsen/logrus"
 )
 
-type Streamer struct {
-	Scanner      *bufio.Scanner
+type Streamer interface {
+	Stop()
+	Start() (io.Reader, error)
+	Recover() (io.Reader, error)
+}
+
+type streamer struct {
+	scanner      *bufio.Scanner
 	cancel       context.CancelFunc
 	client       *http.Client
 	username     string
@@ -23,15 +31,15 @@ type Streamer struct {
 	noRecover    bool
 }
 
-func (s *Streamer) Stop() {
+func (s *streamer) Stop() {
 	s.cancel()
 	s.noRecover = true
 }
 
-func (s *Streamer) Start() error {
+func (s *streamer) Start() (io.Reader, error) {
 	req, err := http.NewRequest("GET", s.subURL, nil)
 	if err != nil {
-		return fmt.Errorf("Unable to create request: %s", err)
+		return nil, fmt.Errorf("Unable to create request: %s", err)
 	}
 	req.SetBasicAuth(s.username, s.password)
 	req.Header.Set("Accept", "text/event-stream")
@@ -41,36 +49,33 @@ func (s *Streamer) Start() error {
 	res, err := s.client.Do(req)
 	if err != nil {
 		s.cancel()
-		return fmt.Errorf("Subscription request errored: %s", err)
+		return nil, fmt.Errorf("Subscription request errored: %s", err)
 	}
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("Event stream not connected: Expected %d but got %d", http.StatusOK, res.StatusCode)
+		return nil, fmt.Errorf("Event stream not connected: Expected %d but got %d", http.StatusOK, res.StatusCode)
 	}
 	log.WithFields(log.Fields{
 		"Host":   req.Host,
 		"URI":    req.URL.RequestURI(),
 		"Method": "GET",
 	}).Debug("Subsciption success")
-	s.Scanner = bufio.NewScanner(res.Body)
-
-	return nil
+	return res.Body, nil
 }
 
-func (s *Streamer) Recover() error {
+func (s *streamer) Recover() (io.Reader, error) {
 	if s.noRecover {
-		return errors.New("Streamer is not recoverable")
+		return nil, errors.New("Streamer is not recoverable")
 	}
 	s.cancel()
 
-	err := s.Start()
-	i := 0
-	for ; err != nil && i <= s.retries; err = s.Start() {
+	reader, err := s.Start()
+	for i := 0; err != nil && i <= s.retries; reader, err = s.Start() {
 		seconds := time.Duration(i * s.retryBackoff)
 		time.Sleep(seconds * time.Second)
 		i++
 	}
 	if err != nil {
-		return fmt.Errorf("Cannot recover Streamer: %s", err)
+		return nil, fmt.Errorf("Cannot recover Streamer: %s", err)
 	}
-	return nil
+	return reader, nil
 }
