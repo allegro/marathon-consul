@@ -103,7 +103,6 @@ func (app App) RegistrationIntentsNumber() int {
 }
 
 func (app App) RegistrationIntents(task *Task, nameSeparator string) []RegistrationIntent {
-	commonTags := labelsToTags(app.Labels)
 	taskPortsCount := len(task.Ports)
 	definitions := app.findConsulPortDefinitions()
 	if len(definitions) == 0 && taskPortsCount != 0 {
@@ -111,7 +110,7 @@ func (app App) RegistrationIntents(task *Task, nameSeparator string) []Registrat
 			{
 				Name: app.labelsToName(app.Labels, nameSeparator),
 				Port: task.Ports[0],
-				Tags: commonTags,
+				Tags: labelsToTags(app.Labels),
 			},
 		}
 	}
@@ -125,7 +124,7 @@ func (app App) RegistrationIntents(task *Task, nameSeparator string) []Registrat
 		intents = append(intents, RegistrationIntent{
 			Name: app.labelsToName(d.Labels, nameSeparator),
 			Port: task.Ports[d.Index],
-			Tags: append(commonTags, labelsToTags(d.Labels)...),
+			Tags: append(labelsToTags(app.Labels), labelsToTags(d.Labels)...),
 		})
 	}
 	return intents
