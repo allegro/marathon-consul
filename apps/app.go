@@ -105,12 +105,13 @@ func (app App) RegistrationIntentsNumber() int {
 func (app App) RegistrationIntents(task *Task, nameSeparator string) []RegistrationIntent {
 	taskPortsCount := len(task.Ports)
 	definitions := app.findConsulPortDefinitions()
+	commonTags := labelsToTags(app.Labels)
 	if len(definitions) == 0 && taskPortsCount != 0 {
 		return []RegistrationIntent{
 			{
 				Name: app.labelsToName(app.Labels, nameSeparator),
 				Port: task.Ports[0],
-				Tags: labelsToTags(app.Labels),
+				Tags: commonTags,
 			},
 		}
 	}
@@ -124,7 +125,7 @@ func (app App) RegistrationIntents(task *Task, nameSeparator string) []Registrat
 		intents = append(intents, RegistrationIntent{
 			Name: app.labelsToName(d.Labels, nameSeparator),
 			Port: task.Ports[d.Index],
-			Tags: append(labelsToTags(app.Labels), labelsToTags(d.Labels)...),
+			Tags: append(labelsToTags(d.Labels), commonTags...),
 		})
 	}
 	return intents
@@ -135,7 +136,7 @@ func marathonAppNameToServiceName(name string, nameSeparator string) string {
 }
 
 func labelsToTags(labels map[string]string) []string {
-	tags := []string{}
+	tags := make([]string, 0, len(labels))
 	for key, value := range labels {
 		if value == "tag" {
 			tags = append(tags, key)
