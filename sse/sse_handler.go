@@ -1,10 +1,8 @@
 package sse
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -18,10 +16,6 @@ import (
 type SSEHandler struct {
 	config      Config
 	eventQueue  chan events.Event
-	loc         string
-	client      *http.Client
-	close       context.CancelFunc
-	req         *http.Request
 	Streamer    *marathon.Streamer
 	maxLineSize int64
 }

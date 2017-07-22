@@ -1,7 +1,6 @@
 package events
 
 import (
-	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -403,12 +402,6 @@ func TestEventHandler_HandleHealthStatusEventWhenTaskIsNotInMarathon(t *testing.
 
 	// then
 	assert.True(t, marathon.Interactions())
-}
-
-type BadReader struct{}
-
-func (r BadReader) Read(p []byte) (int, error) {
-	return 0, errors.New("Some error")
 }
 
 func healthStatusChangeEventForTask(taskID string) []byte {

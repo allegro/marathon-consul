@@ -13,7 +13,7 @@ type Handler func(w http.ResponseWriter, r *http.Request)
 
 func NewHandler(config Config, marathon marathon.Marathoner, serviceOperations service.ServiceRegistry) (Handler, Stop) {
 
-	stopChannels := make([]chan<- events.StopEvent, config.WorkersCount, config.WorkersCount)
+	stopChannels := make([]chan<- events.StopEvent, config.WorkersCount)
 	eventQueue := make(chan events.Event, config.QueueSize)
 	for i := 0; i < config.WorkersCount; i++ {
 		handler := events.NewEventHandler(i, serviceOperations, marathon, eventQueue)

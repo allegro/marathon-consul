@@ -9,11 +9,10 @@ import (
 
 // Event holds state of parsed fields from marathon EventStream
 type SSEEvent struct {
-	Type        string
-	Body        []byte
-	ID          string
-	Delay       string
-	maxLineSize int64
+	Type  string
+	Body  []byte
+	ID    string
+	Delay string
 }
 
 var (
@@ -29,7 +28,7 @@ func (e *SSEEvent) parseLine(line []byte) bool {
 	// or a single U+000D CARRIAGE RETURN (CR) character.
 
 	//If the line is empty (a blank line)
-	if len(line) == 0 || bytes.Compare(line, lineFeed) == 0 {
+	if len(line) == 0 || bytes.Equal(line, lineFeed) {
 		//Dispatch the event, as defined below.
 		return !e.isEmpty()
 	}

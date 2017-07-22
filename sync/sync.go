@@ -47,7 +47,6 @@ func (s *Sync) StartSyncServicesJob() {
 			}
 		}
 	}()
-	return
 }
 
 func (s *Sync) SyncServices() error {
