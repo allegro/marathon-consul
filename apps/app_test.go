@@ -10,7 +10,7 @@ import (
 func TestParseApps(t *testing.T) {
 	t.Parallel()
 
-	appBlob, _ := ioutil.ReadFile("apps.json")
+	appBlob, _ := ioutil.ReadFile("testdata/apps.json")
 
 	expected := []*App{
 		{
@@ -58,18 +58,18 @@ func TestAppInt(t *testing.T) {
 	assert.Equal(t, 2, app.RegistrationIntentsNumber())
 
 	task := Task{Ports: []int{0, 1, 2, 3}}
-	intents := app.RegistrationIntents(&task,".")
+	intents := app.RegistrationIntents(&task, ".")
 
-	assert.Contains(t,  intents[0].Tags, "Lorem ipsum dolor sit amet, consectetur adipiscing elit")
-	assert.Contains(t,  intents[1].Tags, "secureConnection:true")
-	assert.NotContains(t,  intents[0].Tags, "secureConnection:true")
-	assert.NotContains(t,  intents[1].Tags, "Lorem ipsum dolor sit amet, consectetur adipiscing elit")
+	assert.Contains(t, intents[0].Tags, "Lorem ipsum dolor sit amet, consectetur adipiscing elit")
+	assert.Contains(t, intents[1].Tags, "secureConnection:true")
+	assert.NotContains(t, intents[0].Tags, "secureConnection:true")
+	assert.NotContains(t, intents[1].Tags, "Lorem ipsum dolor sit amet, consectetur adipiscing elit")
 }
 
 func TestParseApp(t *testing.T) {
 	t.Parallel()
 
-	appBlob, _ := ioutil.ReadFile("app.json")
+	appBlob, _ := ioutil.ReadFile("testdata/app.json")
 
 	expected := &App{Labels: map[string]string{"consul": "true", "public": "tag"},
 		HealthChecks: []HealthCheck{
