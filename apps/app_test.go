@@ -58,12 +58,12 @@ func TestAppInt(t *testing.T) {
 	assert.Equal(t, 2, app.RegistrationIntentsNumber())
 
 	task := Task{Ports: []int{0, 1, 2, 3}}
-	intents := app.RegistrationIntents(&task,".")
+	intents := app.RegistrationIntents(&task, ".")
 
-	assert.Contains(t,  intents[0].Tags, "Lorem ipsum dolor sit amet, consectetur adipiscing elit")
-	assert.Contains(t,  intents[1].Tags, "secureConnection:true")
-	assert.NotContains(t,  intents[0].Tags, "secureConnection:true")
-	assert.NotContains(t,  intents[1].Tags, "Lorem ipsum dolor sit amet, consectetur adipiscing elit")
+	assert.Contains(t, intents[0].Tags, "Lorem ipsum dolor sit amet, consectetur adipiscing elit")
+	assert.Contains(t, intents[1].Tags, "secureConnection:true")
+	assert.NotContains(t, intents[0].Tags, "secureConnection:true")
+	assert.NotContains(t, intents[1].Tags, "Lorem ipsum dolor sit amet, consectetur adipiscing elit")
 }
 
 func TestParseApp(t *testing.T) {
@@ -312,7 +312,7 @@ func TestRegistrationIntent_OverrideNameAndAddTagsViaPortDefinitions(t *testing.
 	assert.Len(t, intents, 1)
 	assert.Equal(t, "other-name", intents[0].Name)
 	assert.Equal(t, 1234, intents[0].Port)
-	assert.Equal(t, []string{"private", "other"}, intents[0].Tags)
+	assert.Equal(t, []string{"other", "private"}, intents[0].Tags)
 }
 
 func TestRegistrationIntent_PickDifferentPortViaPortDefinitions(t *testing.T) {
@@ -367,10 +367,10 @@ func TestRegistrationIntent_MultipleIntentsViaPortDefinitionIfMultipleContainCon
 	assert.Len(t, intents, 2)
 	assert.Equal(t, "first-name", intents[0].Name)
 	assert.Equal(t, 1234, intents[0].Port)
-	assert.Equal(t, []string{"common-tag", "first-tag"}, intents[0].Tags)
+	assert.Equal(t, []string{"first-tag", "common-tag"}, intents[0].Tags)
 	assert.Equal(t, "second-name", intents[1].Name)
 	assert.Equal(t, 5678, intents[1].Port)
-	assert.Equal(t, []string{"common-tag", "second-tag"}, intents[1].Tags)
+	assert.Equal(t, []string{"second-tag", "common-tag"}, intents[1].Tags)
 }
 
 func TestRegistrationIntent_TaskHasLessPortsThanApp(t *testing.T) {
@@ -400,7 +400,7 @@ func TestRegistrationIntent_TaskHasLessPortsThanApp(t *testing.T) {
 	assert.Len(t, intents, 1)
 	assert.Equal(t, "first-name", intents[0].Name)
 	assert.Equal(t, 1234, intents[0].Port)
-	assert.Equal(t, []string{"common-tag", "first-tag"}, intents[0].Tags)
+	assert.Equal(t, []string{"first-tag", "common-tag"}, intents[0].Tags)
 }
 
 func TestRegistrationIntentsNumber(t *testing.T) {

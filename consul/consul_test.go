@@ -452,9 +452,9 @@ func TestRegisterServices_MultipleRegistrations(t *testing.T) {
 	assert.True(t, found, "second-name not found in services")
 
 	assert.Equal(t, "first-name", first.Name)
-	assert.Equal(t, []string{"marathon", "common-tag", "first-tag", "marathon-task:serviceA.0"}, first.Tags)
+	assert.Equal(t, []string{"marathon", "first-tag", "common-tag", "marathon-task:serviceA.0"}, first.Tags)
 	assert.Equal(t, "second-name", second.Name)
-	assert.Equal(t, []string{"marathon", "common-tag", "second-tag", "marathon-task:serviceA.0"}, second.Tags)
+	assert.Equal(t, []string{"marathon", "second-tag", "common-tag", "marathon-task:serviceA.0"}, second.Tags)
 }
 
 func findServiceByName(name string, services []*service.Service) (*service.Service, bool) {
