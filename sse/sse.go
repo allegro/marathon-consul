@@ -16,7 +16,7 @@ type Stop func()
 type Handler func(w http.ResponseWriter, r *http.Request)
 
 func NewHandler(config Config, webConfig web.Config, marathon marathon.Marathoner, serviceOperations service.ServiceRegistry) (Stop, error) {
-	stopChannels := make([]chan<- events.StopEvent, webConfig.WorkersCount, webConfig.WorkersCount)
+	stopChannels := make([]chan<- events.StopEvent, webConfig.WorkersCount)
 	stopFunc := stop(stopChannels)
 	eventQueue := make(chan events.Event, webConfig.QueueSize)
 	for i := 0; i < webConfig.WorkersCount; i++ {
@@ -38,7 +38,7 @@ func NewHandler(config Config, webConfig web.Config, marathon marathon.Marathone
 	guardQuit := leaderGuard(sse.Streamer, marathon)
 	stopChannels = append(stopChannels, dispatcherStop, guardQuit)
 
-	return stopFunc, nil
+	return stop(stopChannels), nil
 }
 
 func stop(channels []chan<- events.StopEvent) Stop {
@@ -59,12 +59,13 @@ func leaderGuard(s *marathon.Streamer, m marathon.Marathoner) chan<- events.Stop
 	quit := make(chan events.StopEvent)
 
 	go func() {
-		ticker := time.Tick(5 * time.Second)
+		ticker := time.NewTicker(5 * time.Second)
 		for {
 			select {
-			case <-ticker:
+			case <-ticker.C:
 				if iAMLeader, err := m.IsLeader(); !iAMLeader && err != nil {
 					// Leader changed, not revocerable.
+					ticker.Stop()
 					s.Stop()
 					log.Error("Tearing down SSE stream, marathon leader changed.")
 					return
@@ -73,6 +74,7 @@ func leaderGuard(s *marathon.Streamer, m marathon.Marathoner) chan<- events.Stop
 				}
 			case <-quit:
 				log.Info("Recieved quit notification. Quit checker")
+				ticker.Stop()
 				s.Stop()
 				return
 			}

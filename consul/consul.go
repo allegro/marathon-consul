@@ -173,7 +173,7 @@ func (c *Consul) registerMultipleServices(services []*consulapi.AgentServiceRegi
 		}
 	}
 
-	return utils.MergeErrorsOrNil(registerErrors, fmt.Sprint("registering services"))
+	return utils.MergeErrorsOrNil(registerErrors, "registering services")
 }
 
 func (c *Consul) register(service *consulapi.AgentServiceRegistration) error {
@@ -320,45 +320,53 @@ func (c *Consul) marathonToConsulChecks(task *apps.Task, healthChecks []apps.Hea
 			continue
 		}
 
-		consulCheck := consulapi.AgentServiceCheck{
-			Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
-			Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
-			Status:   "passing",
+		if c := marathonToConsulCheck(task, check, serviceAddress, port); c != nil {
+			checks = append(checks, c)
 		}
 
-		switch check.Protocol {
-		case "HTTP", "HTTPS", "MESOS_HTTP", "MESOS_HTTPS":
-			path := "/"
-			if check.Path != "" {
-				path = check.Path
-			}
-			if parsedURL, err := url.ParseRequestURI(path); err == nil {
-				if check.Protocol == "HTTP" || check.Protocol == "MESOS_HTTP" {
-					parsedURL.Scheme = "http"
-				} else {
-					parsedURL.Scheme = "https"
-				}
-				parsedURL.Host = fmt.Sprintf("%s:%d", serviceAddress, port)
-				consulCheck.HTTP = parsedURL.String()
-				checks = append(checks, &consulCheck)
-			} else {
-				log.WithError(err).
-					WithField("Id", task.AppID.String()).
-					WithField("Address", serviceAddress).
-					Warnf("Could not parse provided path: %s", path)
-			}
-		case "TCP", "MESOS_TCP":
-			consulCheck.TCP = fmt.Sprintf("%s:%d", serviceAddress, port)
-			checks = append(checks, &consulCheck)
-		case "COMMAND":
-			consulCheck.Script = substituteEnvironment(check.Command.Value, *task)
-			checks = append(checks, &consulCheck)
-		default:
-			log.WithField("Id", task.AppID.String()).WithField("Address", serviceAddress).
-				Warnf("Unrecognized check protocol %s", check.Protocol)
-		}
 	}
 	return checks
+}
+
+func marathonToConsulCheck(task *apps.Task, check apps.HealthCheck, serviceAddress string, port int) *consulapi.AgentServiceCheck {
+	consulCheck := &consulapi.AgentServiceCheck{
+		Interval: fmt.Sprintf("%ds", check.IntervalSeconds),
+		Timeout:  fmt.Sprintf("%ds", check.TimeoutSeconds),
+		Status:   "passing",
+	}
+
+	switch check.Protocol {
+	case "HTTP", "HTTPS", "MESOS_HTTP", "MESOS_HTTPS":
+		path := "/"
+		if check.Path != "" {
+			path = check.Path
+		}
+		if parsedURL, err := url.ParseRequestURI(path); err == nil {
+			if check.Protocol == "HTTP" || check.Protocol == "MESOS_HTTP" {
+				parsedURL.Scheme = "http"
+			} else {
+				parsedURL.Scheme = "https"
+			}
+			parsedURL.Host = fmt.Sprintf("%s:%d", serviceAddress, port)
+			consulCheck.HTTP = parsedURL.String()
+			return consulCheck
+		} else {
+			log.WithError(err).
+				WithField("Id", task.AppID.String()).
+				WithField("Address", serviceAddress).
+				Warnf("Could not parse provided path: %s", path)
+		}
+	case "TCP", "MESOS_TCP":
+		consulCheck.TCP = fmt.Sprintf("%s:%d", serviceAddress, port)
+		return consulCheck
+	case "COMMAND":
+		consulCheck.Script = substituteEnvironment(check.Command.Value, *task)
+		return consulCheck
+	default:
+		log.WithField("Id", task.AppID.String()).WithField("Address", serviceAddress).
+			Warnf("Unrecognized check protocol %s", check.Protocol)
+	}
+	return nil
 }
 
 func getHealthCheckPort(check apps.HealthCheck, task apps.Task) (int, error) {

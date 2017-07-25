@@ -118,7 +118,10 @@ func TestId_AppId(t *testing.T) {
 	assert.Equal(t, AppID("/pl.allegro/test/app"), TaskID(id).AppID())
 }
 
-func TestId_AppIdForInvalid(t *testing.T) {
+func TestId_AppIdForInvalidIdShouldPanic(t *testing.T) {
 	t.Parallel()
-	assert.Panics(t, func() { TaskID("id").AppID() })
+	assert.Panics(t, func() {
+		a := TaskID("id").AppID()
+		assert.Nil(t, a)
+	})
 }

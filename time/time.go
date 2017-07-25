@@ -26,7 +26,7 @@ func (t Timestamp) MarshalJSON() ([]byte, error) {
 }
 
 func (t *Timestamp) Delay() time.Duration {
-	return time.Now().Sub(t.Time)
+	return time.Since(t.Time)
 }
 
 func (t *Timestamp) String() string {
