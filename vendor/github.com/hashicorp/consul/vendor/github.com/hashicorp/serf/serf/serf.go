@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/armon/go-metrics"
@@ -74,7 +75,7 @@ type Serf struct {
 
 	eventBroadcasts *memberlist.TransmitLimitedQueue
 	eventBuffer     []*userEvents
-	eventJoinIgnore bool
+	eventJoinIgnore atomic.Value
 	eventMinTime    LamportTime
 	eventLock       sync.RWMutex
 
@@ -241,18 +242,13 @@ func Create(conf *Config) (*Serf, error) {
 			conf.ProtocolVersion, ProtocolVersionMin, ProtocolVersionMax)
 	}
 
-	if conf.LogOutput != nil && conf.Logger != nil {
-		return nil, fmt.Errorf("Cannot specify both LogOutput and Logger. Please choose a single log configuration setting.")
-	}
-
-	logDest := conf.LogOutput
-	if logDest == nil {
-		logDest = os.Stderr
-	}
-
 	logger := conf.Logger
 	if logger == nil {
-		logger = log.New(logDest, "", log.LstdFlags)
+		logOutput := conf.LogOutput
+		if logOutput == nil {
+			logOutput = os.Stderr
+		}
+		logger = log.New(logOutput, "", log.LstdFlags)
 	}
 
 	serf := &Serf{
@@ -263,6 +259,7 @@ func Create(conf *Config) (*Serf, error) {
 		shutdownCh:    make(chan struct{}),
 		state:         SerfAlive,
 	}
+	serf.eventJoinIgnore.Store(false)
 
 	// Check that the meta data length is okay
 	if len(serf.encodeTags(conf.Tags)) > memberlist.MetaMaxSize {
@@ -343,21 +340,15 @@ func Create(conf *Config) (*Serf, error) {
 	// Setup the various broadcast queues, which we use to send our own
 	// custom broadcasts along the gossip channel.
 	serf.broadcasts = &memberlist.TransmitLimitedQueue{
-		NumNodes: func() int {
-			return len(serf.members)
-		},
+		NumNodes:       serf.NumNodes,
 		RetransmitMult: conf.MemberlistConfig.RetransmitMult,
 	}
 	serf.eventBroadcasts = &memberlist.TransmitLimitedQueue{
-		NumNodes: func() int {
-			return len(serf.members)
-		},
+		NumNodes:       serf.NumNodes,
 		RetransmitMult: conf.MemberlistConfig.RetransmitMult,
 	}
 	serf.queryBroadcasts = &memberlist.TransmitLimitedQueue{
-		NumNodes: func() int {
-			return len(serf.members)
-		},
+		NumNodes:       serf.NumNodes,
 		RetransmitMult: conf.MemberlistConfig.RetransmitMult,
 	}
 
@@ -604,9 +595,9 @@ func (s *Serf) Join(existing []string, ignoreOld bool) (int, error) {
 	// Ignore any events from a potential join. This is safe since we hold
 	// the joinLock and nobody else can be doing a Join
 	if ignoreOld {
-		s.eventJoinIgnore = true
+		s.eventJoinIgnore.Store(true)
 		defer func() {
-			s.eventJoinIgnore = false
+			s.eventJoinIgnore.Store(false)
 		}()
 	}
 
@@ -807,13 +798,15 @@ func (s *Serf) Shutdown() error {
 		s.logger.Printf("[WARN] serf: Shutdown without a Leave")
 	}
 
+	// Wait to close the shutdown channel until after we've shut down the
+	// memberlist and its associated network resources, since the shutdown
+	// channel signals that we are cleaned up outside of Serf.
 	s.state = SerfShutdown
-	close(s.shutdownCh)
-
 	err := s.memberlist.Shutdown()
 	if err != nil {
 		return err
 	}
+	close(s.shutdownCh)
 
 	// Wait for the snapshoter to finish if we have one
 	if s.snapshotter != nil {
@@ -1323,11 +1316,9 @@ func (s *Serf) handleQueryResponse(resp *messageQueryResponse) {
 		}
 
 		metrics.IncrCounter([]string{"serf", "query_responses"}, 1)
-		select {
-		case query.respCh <- NodeResponse{From: resp.From, Payload: resp.Payload}:
-			query.responses[resp.From] = struct{}{}
-		default:
-			s.logger.Printf("[WARN] serf: Failed to deliver query response, dropping")
+		err := query.sendResponse(NodeResponse{From: resp.From, Payload: resp.Payload})
+		if err != nil {
+			s.logger.Printf("[WARN] %v", err)
 		}
 	}
 }
@@ -1387,7 +1378,7 @@ func (s *Serf) resolveNodeConflict() {
 
 		// Update the counters
 		responses++
-		if bytes.Equal(member.Addr, local.Addr) && member.Port == local.Port {
+		if member.Addr.Equal(local.Addr) && member.Port == local.Port {
 			matching++
 		}
 	}
@@ -1664,17 +1655,18 @@ func (s *Serf) Stats() map[string]string {
 		return strconv.FormatUint(v, 10)
 	}
 	stats := map[string]string{
-		"members":      toString(uint64(len(s.members))),
-		"failed":       toString(uint64(len(s.failedMembers))),
-		"left":         toString(uint64(len(s.leftMembers))),
-		"health_score": toString(uint64(s.memberlist.GetHealthScore())),
-		"member_time":  toString(uint64(s.clock.Time())),
-		"event_time":   toString(uint64(s.eventClock.Time())),
-		"query_time":   toString(uint64(s.queryClock.Time())),
-		"intent_queue": toString(uint64(s.broadcasts.NumQueued())),
-		"event_queue":  toString(uint64(s.eventBroadcasts.NumQueued())),
-		"query_queue":  toString(uint64(s.queryBroadcasts.NumQueued())),
-		"encrypted":    fmt.Sprintf("%v", s.EncryptionEnabled()),
+		"members":           toString(uint64(len(s.members))),
+		"failed":            toString(uint64(len(s.failedMembers))),
+		"left":              toString(uint64(len(s.leftMembers))),
+		"health_score":      toString(uint64(s.memberlist.GetHealthScore())),
+		"member_time":       toString(uint64(s.clock.Time())),
+		"event_time":        toString(uint64(s.eventClock.Time())),
+		"query_time":        toString(uint64(s.queryClock.Time())),
+		"intent_queue":      toString(uint64(s.broadcasts.NumQueued())),
+		"event_queue":       toString(uint64(s.eventBroadcasts.NumQueued())),
+		"query_queue":       toString(uint64(s.queryBroadcasts.NumQueued())),
+		"encrypted":         fmt.Sprintf("%v", s.EncryptionEnabled()),
+		"coordinate_resets": toString(uint64(s.coordClient.Stats().Resets)),
 	}
 	return stats
 }
