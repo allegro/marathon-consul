@@ -37,7 +37,7 @@ func TestParseTask(t *testing.T) {
 func TestParseTasks(t *testing.T) {
 	t.Parallel()
 
-	tasksBlob, _ := ioutil.ReadFile("tasks.json")
+	tasksBlob, _ := ioutil.ReadFile("testdata/tasks.json")
 
 	expectedTasks := []Task{
 		{

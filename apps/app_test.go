@@ -10,7 +10,7 @@ import (
 func TestParseApps(t *testing.T) {
 	t.Parallel()
 
-	appBlob, _ := ioutil.ReadFile("apps.json")
+	appBlob, _ := ioutil.ReadFile("testdata/apps.json")
 
 	expected := []*App{
 		{
@@ -69,7 +69,7 @@ func TestAppInt(t *testing.T) {
 func TestParseApp(t *testing.T) {
 	t.Parallel()
 
-	appBlob, _ := ioutil.ReadFile("app.json")
+	appBlob, _ := ioutil.ReadFile("testdata/app.json")
 
 	expected := &App{Labels: map[string]string{"consul": "true", "public": "tag"},
 		HealthChecks: []HealthCheck{
