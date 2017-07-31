@@ -98,23 +98,15 @@ your cert store might be different depending on your system.
 docker run '/etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt' -P  allegro/marathon-consul
 ```
 
-## Setting up `marathon-consul` after installation
-
-The Marathon [event bus](https://mesosphere.github.io/marathon/docs/event-bus.html) should point to [`/events`](#endpoints). You can set up the event subscription with a call similar to this one:
-```
-curl -X POST 'http://marathon.service.consul:8080/v2/eventSubscriptions?callbackUrl=http://marathon-consul.service.consul:4000/events'
-```
-The event subscription should be set to `localhost` to reduce network traffic.
-
 ## Usage
 
 ### Marathon masters
 
 - marathon-consul should be installed on all Marathon masters
 
-### Mesos slaves
+### Mesos agents
 
-- Consul Agents should be available on every Mesos slave.
+- Consul Agents should be available on every Mesos agent.
 - Tasks will be registered at the Mesos slave they run on.
 
 ### Tagging tasks
@@ -236,15 +228,12 @@ sync-enabled                | `true`          | Enable Marathon-consul scheduled
 sync-force                  | `false`         | Force leadership-independent Marathon-consul sync (run always)
 sync-interval               | `15m0s`         | Marathon-consul sync interval
 workers-pool-size           | `10`            | Number of concurrent workers processing events
-sse-enabled                 | `false`         | Enable marathon-consul SSE on this node
-web-enabled                 | `true`          | Enable marathon-consul Web callbacks on this node
 
 ### Endpoints
 
 Endpoint  | Description
 ----------|------------------------------------------------------------------------------------
 `/health` | healthcheck - returns `OK`
-`/events` | event sink - returns `OK` if all keys are set in an event, error message otherwise
 
 ## Advanced usage
 
@@ -322,13 +311,18 @@ reregister all healthy services managed by marathon-consul to the new format. Un
 
 ## SSE Support
 
-In future callback interface between marathon and marathon-consul will be replaced by SSE.
 While using SSE please consider:
 - SSE is using Web module config for queues, event sizes, in the future will be moved to sse module,
 - SSE is using marathon-leader config for determining current leader, when this value match leader returned by marathon (/v2/leader endpoint)
 then SSE is started on this instance,
 - when enabled SSE is spawning its own own set of workers and separated dispatcher,
 - be advised to disable marathon callback subscription when enabling SSE, otherwise it might result in doubling registers and deregisers.
+
+## HTTP callbacks support
+
+Marathon-Consul does not support HTTP callbacks.
+Marathon [deprecated support for HTTP callbacks in 1.4](https://github.com/mesosphere/marathon/blob/master/changelog.md#deprecate-event-callback-subscriptions).
+This mechanism is no longer available starting from [Marathon 1.5](https://github.com/mesosphere/marathon/blob/master/changelog.md#event-subscribers-has-been-removed).
 
 ## Known limitations
 

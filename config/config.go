@@ -85,10 +85,8 @@ func (config *Config) parseFlags() {
 	flag.IntVar(&config.Web.QueueSize, "events-queue-size", 1000, "Size of events queue")
 	flag.IntVar(&config.Web.WorkersCount, "workers-pool-size", 10, "Number of concurrent workers processing events")
 	flag.Int64Var(&config.Web.MaxEventSize, "event-max-size", 4096, "Maximum size of event to process (bytes)")
-	flag.BoolVar(&config.Web.Enabled, "web-enabled", true, "Enable web events (callbacks).")
 
 	// SSE
-	flag.BoolVar(&config.SSE.Enabled, "sse-enabled", false, "Enable sse event stream.")
 
 	// Sync
 	flag.BoolVar(&config.Sync.Enabled, "sync-enabled", true, "Enable Marathon-consul scheduled sync")
