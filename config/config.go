@@ -87,6 +87,8 @@ func (config *Config) parseFlags() {
 	flag.Int64Var(&config.Web.MaxEventSize, "event-max-size", 4096, "Maximum size of event to process (bytes)")
 
 	// SSE
+	flag.IntVar(&config.SSE.Retries, "sse-retries", 0, "Number of times to recover SSE stream.")
+	flag.DurationVar(&config.SSE.RetryBackoff.Duration, "sse-retry-backoff", 0, "Configuration of initial time between retries to recover SSE stream.")
 
 	// Sync
 	flag.BoolVar(&config.Sync.Enabled, "sync-enabled", true, "Enable Marathon-consul scheduled sync")

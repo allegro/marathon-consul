@@ -3,6 +3,7 @@ package marathon
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/allegro/marathon-consul/apps"
 )
@@ -43,7 +44,7 @@ func (m *MarathonerStub) Leader() (string, error) {
 	return m.leader, nil
 }
 
-func (m *MarathonerStub) EventStream([]string, int, int) (*Streamer, error) {
+func (m *MarathonerStub) EventStream([]string, int, time.Duration) (*Streamer, error) {
 	return &Streamer{}, nil
 }
 
