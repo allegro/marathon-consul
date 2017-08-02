@@ -43,19 +43,13 @@ func main() {
 
 	sync.New(config.Sync, remote, consulInstance, consulInstance.AddAgentsFromApps).StartSyncServicesJob()
 
-	if config.SSE.Enabled {
+	go func() {
 		stopSSE, err := sse.NewHandler(config.SSE, config.Web, remote, consulInstance)
 		if err != nil {
 			log.WithError(err).Fatal("Cannot instantiate SSE handler")
 		}
 		defer stopSSE()
-	}
-
-	if config.Web.Enabled {
-		handler, stop := web.NewHandler(config.Web, remote, consulInstance)
-		defer stop()
-		http.HandleFunc("/events", handler)
-	}
+	}()
 
 	http.HandleFunc("/health", web.HealthHandler)
 

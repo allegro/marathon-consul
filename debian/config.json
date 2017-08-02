@@ -24,11 +24,9 @@
     "Listen": ":4000",
     "QueueSize": 1000,
     "WorkersCount": 10,
-    "MaxEventSize": 4096,
-    "Enabled": true
+    "MaxEventSize": 4096
   },
   "SSE": {
-    "Enabled": false
   },
   "Sync": {
     "Enabled": true,

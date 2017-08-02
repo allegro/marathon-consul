@@ -111,11 +111,8 @@ func TestConfig_ShouldBeMergedWithFileDefaultsAndFlags(t *testing.T) {
 			QueueSize:    1000,
 			WorkersCount: 10,
 			MaxEventSize: 4096,
-			Enabled:      true,
 		},
-		SSE: sse.Config{
-			Enabled: false,
-		},
+		SSE: sse.Config{},
 		Sync: sync.Config{
 			Interval: timeutil.Interval{Duration: 15 * time.Minute},
 			Enabled:  true,
