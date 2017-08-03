@@ -19,7 +19,7 @@ type Streamer struct {
 	password     string
 	subURL       string
 	retries      int
-	retryBackoff int
+	retryBackoff time.Duration
 	noRecover    bool
 }
 
@@ -65,8 +65,7 @@ func (s *Streamer) Recover() error {
 	err := s.Start()
 	i := 0
 	for ; err != nil && i <= s.retries; err = s.Start() {
-		seconds := time.Duration(i * s.retryBackoff)
-		time.Sleep(seconds * time.Second)
+		time.Sleep(s.retryBackoff)
 		i++
 	}
 	if err != nil {

@@ -23,7 +23,7 @@ type Marathoner interface {
 	App(apps.AppID) (*apps.App, error)
 	Tasks(apps.AppID) ([]apps.Task, error)
 	Leader() (string, error)
-	EventStream([]string, int, int) (*Streamer, error)
+	EventStream([]string, int, time.Duration) (*Streamer, error)
 	IsLeader() (bool, error)
 }
 
@@ -113,7 +113,7 @@ func (m Marathon) Leader() (string, error) {
 
 // EventStream method creates Streamer handler which is configured based on marathon
 // client and credentials.
-func (m Marathon) EventStream(desiredEvents []string, retries, retryBackoff int) (*Streamer, error) {
+func (m Marathon) EventStream(desiredEvents []string, retries int, retryBackoff time.Duration) (*Streamer, error) {
 	subURL := m.urlWithQuery("/v2/events", params{"event_type": desiredEvents})
 
 	// Before creating actual streamer, this function blocks until configured leader for this receiver is elected.

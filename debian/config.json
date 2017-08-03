@@ -27,6 +27,8 @@
     "MaxEventSize": 4096
   },
   "SSE": {
+    "Retries": 0,
+    "RetryBackoff": "0s"
   },
   "Sync": {
     "Enabled": true,

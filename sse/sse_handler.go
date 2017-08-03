@@ -25,7 +25,7 @@ func newSSEHandler(eventQueue chan events.Event, service marathon.Marathoner, ma
 	streamer, err := service.EventStream(
 		[]string{events.StatusUpdateEventType, events.HealthStatusChangedEventType},
 		config.Retries,
-		config.RetryBackoff,
+		config.RetryBackoff.Duration,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start Streamer: %s", err)

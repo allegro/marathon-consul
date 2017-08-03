@@ -224,6 +224,8 @@ sentry-dsn                  |                 | Sentry DSN. If it's not set sent
 sentry-env                  |                 | Sentry environment
 sentry-level                | `error`         | Sentry alerting level (info|warning|error|fatal|panic)
 sentry-timeout              | `1s`            | Sentry hook initialization timeout
+sse-retries                 | `0`             | Number of times to recover SSE stream.
+sse-retry-backoff           | `0s`            | Configuration of initial time between retries to recover SSE stream.
 sync-enabled                | `true`          | Enable Marathon-consul scheduled sync
 sync-force                  | `false`         | Force leadership-independent Marathon-consul sync (run always)
 sync-interval               | `15m0s`         | Marathon-consul sync interval

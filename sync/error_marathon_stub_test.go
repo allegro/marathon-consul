@@ -2,6 +2,7 @@ package sync
 
 import (
 	"errors"
+	"time"
 
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/marathon"
@@ -26,7 +27,7 @@ func (m errorMarathon) Leader() (string, error) {
 	return "", errors.New("Error")
 }
 
-func (m errorMarathon) EventStream([]string, int, int) (*marathon.Streamer, error) {
+func (m errorMarathon) EventStream([]string, int, time.Duration) (*marathon.Streamer, error) {
 	return &marathon.Streamer{}, errors.New("Error")
 }
 
