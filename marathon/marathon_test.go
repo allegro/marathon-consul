@@ -408,9 +408,42 @@ func TestIsLeader_NotPassingMyLeaderIsEmptyStringShouldFillItWithLocalHostname(t
 	leading, err := m.IsLeader()
 
 	//then
-	assert.Equal(t, m.MyLeader, fmt.Sprintf("%s:8080", myHostname))
+	assert.Equal(t, m.MyLeader, fmt.Sprintf("%s:%s", myHostname, url.Port()))
 	assert.False(t, leading)
 	assert.NoError(t, err)
+}
+
+func TestIsLeader_ShouldUsePortFromMarathonConfigToConnectToLocalLeader(t *testing.T) {
+	t.Parallel()
+
+	// given
+	server, _ := stubServer("/v2/leader", `{"leader": "other.leader:8080"}`)
+	defer server.Close()
+	url, _ := url.Parse(server.URL)
+	m, _ := New(Config{Location: url.Host, Protocol: "HTTP", Leader: ""})
+
+	// when
+	leading, err := m.IsLeader()
+
+	//then
+	assert.False(t, leading)
+	assert.NoError(t, err)
+}
+
+func TestIsLeader_ShouldReturnErrorWhenCanNotParseLocation(t *testing.T) {
+	t.Parallel()
+
+	// given
+	server, _ := stubServer("/v2/leader", `{"leader": "other.leader:8080"}`)
+	defer server.Close()
+	m, _ := New(Config{Location: "invalid", Protocol: "1337", Leader: ""})
+
+	// when
+	leading, err := m.IsLeader()
+
+	//then
+	assert.False(t, leading)
+	assert.EqualError(t, err, `Could not resolve hostname: Could not parse marathon location (invalid): parse 1337://invalid: first path segment in URL cannot contain colon`)
 }
 
 func TestEventStream_PassingStreamerCreated(t *testing.T) {
