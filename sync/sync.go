@@ -92,7 +92,7 @@ func (s *Sync) shouldPerformSync() (bool, error) {
 		log.Debug("Forcing sync")
 		return true, nil
 	}
-	leading, err := s.marathon.IsLeader()
+	leading, err := s.marathon.IsLeader(s.config.Port)
 	if err != nil {
 		return false, fmt.Errorf("Could not get Marathon leader: %v", err)
 	}
