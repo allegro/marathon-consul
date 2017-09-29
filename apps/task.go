@@ -14,6 +14,7 @@ type Task struct {
 	// As well as for Marathon Task.
 	Timestamp          time.Timestamp      `json:"timestamp"`
 	TaskStatus         string              `json:"taskStatus"`
+	State              string              `json:"state"`
 	AppID              AppID               `json:"appId"`
 	Host               string              `json:"host"`
 	Ports              []int               `json:"ports"`
@@ -69,7 +70,7 @@ func (t Task) IsHealthy() bool {
 	}
 	register := true
 	for _, healthCheckResult := range t.HealthCheckResults {
-		register = register && healthCheckResult.Alive
+		register = register && healthCheckResult.Alive && t.State != "TASK_KILLING"
 	}
 	return register
 }
