@@ -105,6 +105,18 @@ func TestIsHealthy(t *testing.T) {
 
 	// then
 	assert.True(t, task.IsHealthy())
+
+        // when
+        task.State = "TASK_KILLING"
+
+        // then
+        assert.False(t, task.IsHealthy())
+
+        // when
+        task.State = "TASK_RUNNING"
+
+        // then
+        assert.True(t, task.IsHealthy())
 }
 
 func TestId_String(t *testing.T) {
