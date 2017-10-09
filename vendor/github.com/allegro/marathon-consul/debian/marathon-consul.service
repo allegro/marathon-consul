@@ -1,0 +1,13 @@
+[Unit]
+Description=Marathon-consul service (performs Marathon Tasks registration as Consul Services for service discovery)
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/marathon-consul --config-file=/etc/marathon-consul.d/config.json
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

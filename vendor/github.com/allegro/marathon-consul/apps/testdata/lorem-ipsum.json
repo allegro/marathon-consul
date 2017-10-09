@@ -1,0 +1,47 @@
+{
+  "app": {
+  "id": "lorem/ipsum",
+  "cmd": "Lorem ipsum dolor sit amet, consectetur adipiscing elit",
+  "healthChecks": [
+    {
+      "path": "/ping",
+      "protocol": "HTTP"
+    }
+  ],
+  "labels": {
+    "artifactId": "Lorem ipsum",
+    "default-monitoring": "tag",
+    "hystrix-dashboard": "tag",
+    "weight:50": "tag",
+    "consul": "lorem-ipsum"
+  },
+  "portDefinitions": [
+    {
+      "port": 10115,
+      "protocol": "tcp",
+      "labels": {
+        "consul": "lorem-ipsum",
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit": "tag"
+      }
+    },
+    {
+      "port": 10116,
+      "protocol": "tcp",
+      "labels": {}
+    },
+    {
+      "port": 10130,
+      "protocol": "tcp",
+      "labels": {
+        "consul": "lorem-ipsum-secured",
+        "secureConnection:true": "tag"
+      }
+    },
+    {
+      "port": 10214,
+      "protocol": "tcp",
+      "labels": {}
+    }
+  ]
+}
+}

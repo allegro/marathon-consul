@@ -1,0 +1,28 @@
+{
+	"ArtifactsDest": "dist",
+	"TasksExclude": [
+		"go-vet",
+		"go-test",
+		"deb",
+		"deb-dev",
+		"deb-source"
+	],
+	"BuildConstraints": "linux,!arm darwin",
+	"PackageVersion": "1.4.1",
+	"TaskSettings": {
+		"bintray": {
+			"downloadspage": "bintray.md",
+			"exclude": "*.tar.gz,*.zip,bintray.md,.goxc-temp",
+			"include:": "*.deb",
+			"package": "marathon-consul",
+			"repository": "deb",
+			"subject": "allegro"
+		},
+		"publish-github": {
+			"body": "",
+			"owner": "allegro",
+			"repository": "marathon-consul"
+		}
+	},
+	"ConfigVersion": "0.9"
+}

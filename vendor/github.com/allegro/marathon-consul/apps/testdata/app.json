@@ -1,0 +1,116 @@
+{
+  "app": {
+    "id": "/myapp",
+    "cmd": "env && python -m SimpleHTTPServer $PORT0",
+    "args": null,
+    "user": null,
+    "env": {},
+    "instances": 2,
+    "cpus": 0.1,
+    "mem": 32.0,
+    "disk": 0.0,
+    "executor": "",
+    "constraints": [],
+    "uris": [],
+    "storeUrls": [],
+    "ports": [
+      10002,
+      1,
+      2,
+      3
+    ],
+    "requirePorts": false,
+    "backoffSeconds": 1,
+    "backoffFactor": 1.15,
+    "maxLaunchDelaySeconds": 3600,
+    "container": null,
+    "healthChecks": [
+      {
+        "path": "/",
+        "protocol": "HTTP",
+        "portIndex": 0,
+        "gracePeriodSeconds": 10,
+        "intervalSeconds": 5,
+        "timeoutSeconds": 10,
+        "maxConsecutiveFailures": 3,
+        "ignoreHttp1xx": false
+      },
+      {
+        "path": "/custom",
+        "protocol": "HTTP",
+        "port": 8123,
+        "gracePeriodSeconds": 10,
+        "intervalSeconds": 5,
+        "timeoutSeconds": 10,
+        "maxConsecutiveFailures": 3,
+        "ignoreHttp1xx": false
+      }
+    ],
+    "dependencies": [],
+    "upgradeStrategy": {
+      "minimumHealthCapacity": 1.0,
+      "maximumOverCapacity": 1.0
+    },
+    "labels": {
+      "consul": "true",
+      "public": "tag"
+    },
+    "version": "2015-12-01T10:03:32.003Z",
+    "tasksStaged": 0,
+    "tasksRunning": 2,
+    "tasksHealthy": 2,
+    "tasksUnhealthy": 0,
+    "deployments": [],
+    "tasks": [
+      {
+        "id": "myapp.cc49ccc1-9812-11e5-a06e-56847afe9799",
+        "host": "10.141.141.10",
+        "ports": [
+          31678,
+          31679,
+          31680,
+          31681
+        ],
+        "startedAt": "2015-12-01T10:03:40.966Z",
+        "stagedAt": "2015-12-01T10:03:40.890Z",
+        "version": "2015-12-01T10:03:32.003Z",
+        "appId": "/myapp",
+        "healthCheckResults": [
+          {
+            "alive": true,
+            "consecutiveFailures": 0,
+            "firstSuccess": "2015-12-01T10:03:42.324Z",
+            "lastFailure": null,
+            "lastSuccess": "2015-12-01T10:03:42.324Z",
+            "taskId": "myapp.cc49ccc1-9812-11e5-a06e-56847afe9799"
+          }
+        ]
+      },
+      {
+        "id": "myapp.c8b449f0-9812-11e5-a06e-56847afe9799",
+        "host": "10.141.141.10",
+        "ports": [
+          31307,
+          31308,
+          31309,
+          31310
+        ],
+        "startedAt": "2015-12-01T10:03:34.945Z",
+        "stagedAt": "2015-12-01T10:03:34.877Z",
+        "version": "2015-12-01T10:03:32.003Z",
+        "appId": "/myapp",
+        "healthCheckResults": [
+          {
+            "alive": true,
+            "consecutiveFailures": 0,
+            "firstSuccess": "2015-12-01T10:03:37.313Z",
+            "lastFailure": null,
+            "lastSuccess": "2015-12-01T10:03:42.337Z",
+            "taskId": "myapp.c8b449f0-9812-11e5-a06e-56847afe9799"
+          }
+        ]
+      }
+    ],
+    "lastTaskFailure": null
+  }
+}
