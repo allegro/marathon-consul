@@ -8,12 +8,6 @@
   version = "v0.11.5"
 
 [[projects]]
-  name = "github.com/allegro/marathon-consul"
-  packages = ["apps","config","consul","events","marathon","metrics","sentry","service","sse","sync","time","utils","web"]
-  revision = "3103a4e6e0878882a8b0c7baa4788f6c798fab87"
-  version = "1.4.1"
-
-[[projects]]
   name = "github.com/certifi/gocertifi"
   packages = ["."]
   revision = "a9c833d2837d3b16888d55d5aafa9ffe9afb22b0"
