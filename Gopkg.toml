@@ -1,0 +1,29 @@
+
+[[constraint]]
+  name = "github.com/Sirupsen/logrus"
+  version = "0.11.5"
+
+[[constraint]]
+  name = "github.com/cyberdelia/go-metrics-graphite"
+
+[[constraint]]
+  name = "github.com/evalphobia/logrus_sentry"
+  version = "0.2.10"
+
+[[constraint]]
+  name = "github.com/getsentry/raven-go"
+
+[[constraint]]
+  name = "github.com/hashicorp/consul"
+  version = "0.9.0"
+
+[[constraint]]
+  name = "github.com/ogier/pflag"
+  version = "0.0.1"
+
+[[constraint]]
+  name = "github.com/rcrowley/go-metrics"
+
+[[constraint]]
+  name = "github.com/stretchr/testify"
+  version = "1.1.4"
