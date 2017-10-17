@@ -20,7 +20,7 @@ hash consul 2>/dev/null || {
         os="windows"
         arch="386"
     fi
-    version="0.9.0"
+    version="0.9.3"
     archive="consul_${version}_${os}_${arch}.zip"
 
     mkdir -p bin
