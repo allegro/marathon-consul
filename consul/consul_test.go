@@ -1057,3 +1057,51 @@ func Test_substituteEnvironment(t *testing.T) {
 		})
 	}
 }
+
+func TestTokenIsUsedToConnectToConsul(t *testing.T) {
+	// given
+	t.Parallel()
+	server := CreateSecuredTestServer(t)
+	defer server.Stop()
+
+	bareClient := ClientAtServer(server)
+	bareClient.config.Tag = "marathon"
+
+	clientWithToken := SecuredClientAtServer(server)
+	clientWithToken.config.Tag = "marathon"
+
+	// and
+	app := utils.ConsulApp("serviceA", 1)
+	app.Tasks[0].Host = server.Config.Bind
+	app.Labels["test"] = "tag"
+
+	// when
+	err := bareClient.Register(&app.Tasks[0], app)
+
+	// then
+	assert.NoError(t, err, "Though it seems surprising, consul should not report an error here")
+
+	// when
+	services, _ := clientWithToken.GetAllServices()
+
+	// then
+	assert.Len(t, services, 0, "Registration without ACL token should be blocked by ACLs")
+
+	// when
+	err = clientWithToken.Register(&app.Tasks[0], app)
+	assert.NoError(t, err, "Registering service with proper ACL token should not report errors")
+
+	// when
+	services, _ = clientWithToken.GetAllServices()
+
+	// then
+	assert.Len(t, services, 1, "Expecting a registered service after using ACL token")
+	assert.Equal(t, "serviceA", services[0].Name)
+	assert.Equal(t, []string{"marathon", "test", "marathon-task:serviceA.0"}, services[0].Tags)
+
+	// when
+	services, _ = bareClient.GetAllServices()
+
+	// then
+	assert.Len(t, services, 0, "Reading services list without ACL token should yield empty response")
+}
