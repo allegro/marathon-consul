@@ -243,13 +243,13 @@ func (m Marathon) urlWithQuery(path string, params params) string {
 	return marathon.String()
 }
 
-func (m *Marathon) IsLeader() (bool, error) {
+func (m *Marathon) IsLeader(port uint32) (bool, error) {
 	if m.MyLeader == "*" {
 		log.Debug("Leader detection disable")
 		return true, nil
 	}
 	if m.MyLeader == "" {
-		if err := m.resolveHostname(); err != nil {
+		if err := m.resolveHostname(port); err != nil {
 			return false, fmt.Errorf("Could not resolve hostname: %v", err)
 		}
 	}
@@ -257,12 +257,12 @@ func (m *Marathon) IsLeader() (bool, error) {
 	return m.MyLeader == leader, err
 }
 
-func (m *Marathon) resolveHostname() error {
+func (m *Marathon) resolveHostname(port uint32) error {
 	hostname, err := hostname()
 	if err != nil {
 		return err
 	}
-	m.MyLeader = fmt.Sprintf("%s:8080", hostname)
+	m.MyLeader = fmt.Sprintf("%s:%s", hostname, port)
 	log.WithField("Leader", m.MyLeader).Info("Marathon Leader mode set to resolved hostname")
 	return nil
 }

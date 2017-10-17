@@ -94,6 +94,7 @@ func (config *Config) parseFlags() {
 	flag.BoolVar(&config.Sync.Enabled, "sync-enabled", true, "Enable Marathon-consul scheduled sync")
 	flag.DurationVar(&config.Sync.Interval.Duration, "sync-interval", 15*time.Minute, "Marathon-consul sync interval")
 	flag.BoolVar(&config.Sync.Force, "sync-force", false, "Force leadership-independent Marathon-consul sync (run always)")
+	flag.IntVar(&config.Sync.Port, "sync-port", 8080, "Marathon port (defaults to 8080)")
 
 	// Marathon
 	flag.StringVar(&config.Marathon.Location, "marathon-location", "localhost:8080", "Marathon URL")

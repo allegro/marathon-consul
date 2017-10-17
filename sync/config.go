@@ -6,5 +6,6 @@ type Config struct {
 	Enabled  bool
 	Force    bool
 	Interval time.Interval
+        Port     uint32
 	Leader   string
 }
