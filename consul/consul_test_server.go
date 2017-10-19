@@ -2,11 +2,11 @@ package consul
 
 import (
 	"fmt"
-	"net"
 	"testing"
 	"time"
 
 	timeutil "github.com/allegro/marathon-consul/time"
+	"github.com/hashicorp/consul/test/porter"
 	"github.com/hashicorp/consul/testutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,42 +38,17 @@ func CreateSecuredTestServer(t *testing.T) *testutil.TestServer {
 	return server
 }
 func testPortConfig(t *testing.T) *testutil.TestPortConfig {
-	ports, err := getPorts(6)
+	ports, err := porter.RandomPorts(6)
 	assert.NoError(t, err)
 
 	return &testutil.TestPortConfig{
 		DNS:     ports[0],
 		HTTP:    ports[1],
-		RPC:     ports[2],
+		HTTPS:   ports[2],
 		SerfLan: ports[3],
 		SerfWan: ports[4],
 		Server:  ports[5],
 	}
-}
-
-// Ask the kernel for free open ports that are ready to use
-func getPorts(number int) ([]int, error) {
-	ports := make([]int, number)
-	listener := make([]*net.TCPListener, number)
-	defer func() {
-		for _, l := range listener {
-			l.Close()
-		}
-
-	}()
-	for i := 0; i < number; i++ {
-		addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-		if err != nil {
-			return nil, err
-		}
-
-		listener[i], err = net.ListenTCP("tcp", addr)
-		if err != nil {
-			return nil, err
-		}
-		ports[i] = listener[i].Addr().(*net.TCPAddr).Port
-	}
-	return ports, nil
 }
 
 func ClientAtServer(server *testutil.TestServer) *Consul {

@@ -37,9 +37,9 @@
 
 [[projects]]
   name = "github.com/hashicorp/consul"
-  packages = ["api","testutil","testutil/retry"]
-  revision = "112c0603d3d6fb23ab5f15e8fdb1a761da8eaf9a"
-  version = "v0.9.3"
+  packages = ["api","test/porter","testutil","testutil/retry"]
+  revision = "51ea240df8476e02215d53fbfad5838bf0d44d21"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -105,6 +105,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9c8801d828d650f62b46091a09f3675c5084dcce2eb4fedaf1d63529bb95c0de"
+  inputs-digest = "7230391c65cbe979ab2bb87a1fe18cab0099cc50914a03c04fd6657b461801be"
   solver-name = "gps-cdcl"
   solver-version = 1
