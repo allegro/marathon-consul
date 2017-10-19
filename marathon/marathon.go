@@ -262,7 +262,13 @@ func (m *Marathon) resolveHostname() error {
 	if err != nil {
 		return err
 	}
-	m.MyLeader = fmt.Sprintf("%s:8080", hostname)
+
+	u, err := url.Parse(m.url(""))
+	if err != nil {
+		return fmt.Errorf("Could not parse marathon location (%s): %v", m.Location, err)
+	}
+
+	m.MyLeader = fmt.Sprintf("%s:%s", hostname, u.Port())
 	log.WithField("Leader", m.MyLeader).Info("Marathon Leader mode set to resolved hostname")
 	return nil
 }
