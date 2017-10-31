@@ -38,14 +38,18 @@ func (c *Consul) GetServices(name string) ([]*service.Service, error) {
 
 func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide ServicesProvider) ([]*service.Service, error) {
 	for retry := uint32(0); retry <= c.config.RequestRetries; retry++ {
-		agent, err := c.agents.GetAnyAgent()
+		localAgent, err := c.agents.GetLocalAgent()
+		agent := localAgent
+		if err != nil {
+			agent, err = c.agents.GetAnyAgent()
+		}
 		if err != nil {
 			return nil, err
 		}
 		if services, err := provide(agent.Client); err != nil {
 			log.WithError(err).WithField("Address", agent.IP).
-				Error("An error occurred getting services from Consul, retrying with another agent")
-			if failures := agent.IncFailures(); failures > c.config.AgentFailuresTolerance {
+				Error("An error occurred getting services from Consul, retrying locally or with another agent")
+			if failures := agent.IncFailures(); agent != localAgent && failures > c.config.AgentFailuresTolerance {
 				log.WithField("Address", agent.IP).WithField("Failures", failures).
 					Warn("Removing agent due to too many failures")
 				c.agents.RemoveAgent(agent.IP)

@@ -191,7 +191,7 @@ consul-auth-password        |                 | The basic authentication passwor
 consul-auth-username        |                 | The basic authentication username
 consul-enable-tag-override  | `false`         | Disable the anti-entropy feature for all services
 consul-ignored-healthchecks |                 | A comma separated blacklist of Marathon health check types that will not be migrated to Consul, e.g. command,tcp
-consul-local-agent-host     |                 | Consul Agent hostname or IP that should be used for startup sync
+consul-local-agent-host     |                 | Consul Agent hostname or IP that should be used for startup sync and service listing operations
 consul-name-separator       | `.`             | Separator used to create default service name for Consul
 consul-get-services-retry   | `3`             | Number of retries on failure when performing requests to Consul. Each retry uses different cached agent
 consul-max-agent-failures   | `3`             | Max number of consecutive request failures for agent before removal from cache

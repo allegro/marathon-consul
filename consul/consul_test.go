@@ -291,6 +291,33 @@ func TestGetServicesUsingProviderWithRetriesOnAgentFailure_ShouldRetryConfigured
 
 	//then
 	assert.Equal(t, consul.config.RequestRetries+1, called)
+	assert.Len(t, consul.agents.(*ConcurrentAgents).agents, 2)
+}
+
+func TestGetServicesUsingProviderWithRetriesOnAgentFailure_ShouldRemoveFailedAgentWhenNoLocalGiven(t *testing.T) {
+	t.Parallel()
+	server1 := CreateTestServer(t)
+	defer server1.Stop()
+
+	// create client
+	consul := ClientAtRemoteServer(server1)
+	consul.config.AgentFailuresTolerance = 2
+	consul.config.RequestRetries = 4
+
+	var called uint32
+	provider := func(agent *consulapi.Client) ([]*service.Service, error) {
+		called++
+		return nil, fmt.Errorf("error")
+	}
+
+	// add failing client
+	consul.AddAgent("127.0.0.2")
+
+	// when
+	consul.getServicesUsingProviderWithRetriesOnAgentFailure(provider)
+
+	//then
+	assert.Equal(t, consul.config.RequestRetries+1, called)
 	assert.Len(t, consul.agents.(*ConcurrentAgents).agents, 1)
 }
 

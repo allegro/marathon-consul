@@ -14,15 +14,17 @@ import (
 
 type Agents interface {
 	GetAgent(agentAddress string) (agent *Agent, err error)
+	GetLocalAgent() (agent *Agent, err error)
 	GetAnyAgent() (agent *Agent, err error)
 	RemoveAgent(agentAddress string)
 }
 
 type ConcurrentAgents struct {
-	agents map[string]*Agent
-	config *Config
-	lock   sync.Mutex
-	client *http.Client
+	localAgent *Agent
+	agents     map[string]*Agent
+	config     *Config
+	lock       sync.Mutex
+	client     *http.Client
 }
 
 func NewAgents(config *Config) *ConcurrentAgents {
@@ -47,23 +49,7 @@ func NewAgents(config *Config) *ConcurrentAgents {
 			log.WithError(err).WithField("agent", config.LocalAgentHost).Fatal(
 				"Cannot connect with consul agent. Check if configuration is valid.")
 		}
-
-		client := agent.Client
-
-		// Get all agents from current DC and store them in cache
-		nodes, _, err := client.Catalog().Nodes(nil)
-		if err != nil {
-			log.WithError(err).WithField("agent", config.LocalAgentHost).Warn(
-				"Cannot obtain agents from local consul agent.")
-			return agents
-		}
-		for _, node := range nodes {
-			_, err := agents.GetAgent(node.Address)
-			if err != nil {
-				log.WithError(err).WithField("agent", node.Address).Warn(
-					"Cannot connect with consul agent. Check if configuration is valid.")
-			}
-		}
+		agents.localAgent = agent
 	}
 	return agents
 }
@@ -77,6 +63,13 @@ func (a *ConcurrentAgents) GetAnyAgent() (*Agent, error) {
 		return a.agents[ipAddress], nil
 	}
 	return nil, errors.New("No Consul client available in agents cache")
+}
+
+func (a *ConcurrentAgents) GetLocalAgent() (*Agent, error) {
+	if a.localAgent == nil {
+		return nil, errors.New("No local consul agent defined")
+	}
+	return a.localAgent, nil
 }
 
 func (a *ConcurrentAgents) getRandomAgentIPAddress() string {
