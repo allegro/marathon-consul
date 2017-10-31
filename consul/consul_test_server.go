@@ -77,7 +77,15 @@ func getPorts(number int) ([]int, error) {
 }
 
 func ClientAtServer(server *testutil.TestServer) *Consul {
-	return consulClientAtAddress(server.Config.Bind, server.Config.Ports.HTTP)
+	return clientAtServer(server, true)
+}
+
+func ClientAtRemoteServer(server *testutil.TestServer) *Consul {
+	return clientAtServer(server, false)
+}
+
+func clientAtServer(server *testutil.TestServer, local bool) *Consul {
+	return consulClientAtAddress(server.Config.Bind, server.Config.Ports.HTTP, local)
 }
 
 func SecuredClientAtServer(server *testutil.TestServer) *Consul {
@@ -97,13 +105,17 @@ func FailingClient() *Consul {
 	return consul
 }
 
-func consulClientAtAddress(host string, port int) *Consul {
+func consulClientAtAddress(host string, port int, local bool) *Consul {
+	localAgent := ""
+	if (local) {
+		localAgent = host
+	}
 	config := Config{
 		Timeout:             timeutil.Interval{Duration: 10 * time.Second},
 		Port:                fmt.Sprintf("%d", port),
 		ConsulNameSeparator: ".",
 		EnableTagOverride:   true,
-		LocalAgentHost:      host,
+		LocalAgentHost:      localAgent,
 	}
 	consul := New(config)
 	// initialize the agents cache with a single client pointing at provided location
