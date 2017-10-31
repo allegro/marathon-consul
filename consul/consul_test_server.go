@@ -107,7 +107,7 @@ func FailingClient() *Consul {
 
 func consulClientAtAddress(host string, port int, local bool) *Consul {
 	localAgent := ""
-	if (local) {
+	if local {
 		localAgent = host
 	}
 	config := Config{
