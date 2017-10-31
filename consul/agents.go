@@ -10,11 +10,10 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/utils"
-	consulapi "github.com/hashicorp/consul/api"
 )
 
 type Agents interface {
-	GetAgent(agentAddress string) (agent *consulapi.Client, err error)
+	GetAgent(agentAddress string) (agent *Agent, err error)
 	GetAnyAgent() (agent *Agent, err error)
 	RemoveAgent(agentAddress string)
 }
@@ -49,8 +48,10 @@ func NewAgents(config *Config) *ConcurrentAgents {
 				"Cannot connect with consul agent. Check if configuration is valid.")
 		}
 
+		client := agent.Client
+
 		// Get all agents from current DC and store them in cache
-		nodes, _, err := agent.Catalog().Nodes(nil)
+		nodes, _, err := client.Catalog().Nodes(nil)
 		if err != nil {
 			log.WithError(err).WithField("agent", config.LocalAgentHost).Warn(
 				"Cannot obtain agents from local consul agent.")
@@ -101,7 +102,7 @@ func (a *ConcurrentAgents) RemoveAgent(agentAddress string) {
 	}
 }
 
-func (a *ConcurrentAgents) GetAgent(agentAddress string) (*consulapi.Client, error) {
+func (a *ConcurrentAgents) GetAgent(agentAddress string) (*Agent, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
@@ -112,7 +113,7 @@ func (a *ConcurrentAgents) GetAgent(agentAddress string) (*consulapi.Client, err
 	ipAddress := IP.String()
 
 	if agent, ok := a.agents[ipAddress]; ok {
-		return agent.Client, nil
+		return agent, nil
 	}
 
 	newAgent, err := a.createAgent(ipAddress)
@@ -121,7 +122,7 @@ func (a *ConcurrentAgents) GetAgent(agentAddress string) (*consulapi.Client, err
 	}
 	a.addAgent(ipAddress, newAgent)
 
-	return newAgent.Client, nil
+	return newAgent, nil
 }
 
 func (a *ConcurrentAgents) addAgent(agentHost string, agent *Agent) {

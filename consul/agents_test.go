@@ -3,7 +3,6 @@ package consul
 import (
 	"testing"
 
-	consulapi "github.com/hashicorp/consul/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -58,7 +57,7 @@ func TestGetAnyAgent(t *testing.T) {
 
 	// then
 	assert.NoError(t, err)
-	assert.Contains(t, []*consulapi.Client{agent1, agent2, agent3}, anyAgent.Client)
+	assert.Contains(t, []*Agent{agent1, agent2, agent3}, anyAgent)
 }
 
 func TestGetAgent_ShouldResolveAddressToIP(t *testing.T) {
@@ -124,7 +123,7 @@ func TestRemoveAgent(t *testing.T) {
 	// then
 	for i := 0; i < 10; i++ {
 		agent, err := agents.GetAnyAgent()
-		assert.Equal(t, agent.Client, agent2)
+		assert.Equal(t, agent, agent2)
 		assert.Equal(t, "127.0.0.2", agent.IP)
 		assert.NoError(t, err)
 	}
