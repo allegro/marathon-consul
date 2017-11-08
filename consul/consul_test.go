@@ -149,9 +149,9 @@ func TestServiceHasEnabledTagOverriding(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	consul_services, err := consul.GetServices("serviceA")
+	consulServices, err := consul.GetServices("serviceA")
 	services := make(map[string]*service.Service)
-	for _, s := range consul_services {
+	for _, s := range consulServices {
 		services[s.Name] = s
 	}
 

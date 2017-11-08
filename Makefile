@@ -31,6 +31,9 @@ deps:
         (go get github.com/laher/goxc)
 	@which goimports > /dev/null || \
         (go get golang.org/x/tools/cmd/goimports)
+	@which porter > /dev/null || \
+        (go get github.com/hashicorp/consul/test/porter/cmd/porter && \
+         go install github.com/hashicorp/consul/test/porter/cmd/porter)
 
 build-deps: deps format test check
 	@mkdir -p bin/
@@ -48,7 +51,7 @@ test: deps $(SOURCES) $(TEST_TARGETS)
 	gover $(COVERAGEDIR) $(COVERAGEDIR)/gover.coverprofile
 
 $(TEST_TARGETS):
-	go test -coverprofile=coverage/$(shell basename $@).coverprofile $(TESTARGS) $@
+	porter go test -coverprofile=coverage/$(shell basename $@).coverprofile $(TESTARGS) $@
 
 check-deps: deps
 	@which gometalinter > /dev/null || \
