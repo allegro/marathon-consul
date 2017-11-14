@@ -1,9 +1,9 @@
 package sentry
 
 import (
-	log "github.com/Sirupsen/logrus"
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/getsentry/raven-go"
+	log "github.com/sirupsen/logrus"
 )
 
 func Init(config Config) error {

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // Only Marathon apps with this label will be registered in Consul

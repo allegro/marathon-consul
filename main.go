@@ -3,7 +3,6 @@ package main
 import (
 	"net/http"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/config"
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
@@ -12,6 +11,7 @@ import (
 	"github.com/allegro/marathon-consul/sse"
 	"github.com/allegro/marathon-consul/sync"
 	"github.com/allegro/marathon-consul/web"
+	log "github.com/sirupsen/logrus"
 )
 
 var VERSION string

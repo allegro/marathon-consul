@@ -5,10 +5,10 @@ import (
 	"io"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/events"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
+	log "github.com/sirupsen/logrus"
 )
 
 // SSEHandler defines handler for marathon event stream, opening and closing

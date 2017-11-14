@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	log "github.com/Sirupsen/logrus"
 	consulapi "github.com/hashicorp/consul/api"
+	log "github.com/sirupsen/logrus"
 )
 
 type Agent struct {

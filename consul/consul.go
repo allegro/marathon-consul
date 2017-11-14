@@ -6,12 +6,12 @@ import (
 	"net/url"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/service"
 	"github.com/allegro/marathon-consul/utils"
 	consulapi "github.com/hashicorp/consul/api"
+	log "github.com/sirupsen/logrus"
 )
 
 type Consul struct {
