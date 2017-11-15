@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/events"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/service"
 	"github.com/allegro/marathon-consul/web"
+	log "github.com/sirupsen/logrus"
 )
 
 type Stop func()

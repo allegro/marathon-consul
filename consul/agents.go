@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/utils"
+	log "github.com/sirupsen/logrus"
 )
 
 type Agents interface {

@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/getsentry/raven-go"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,7 +18,7 @@ func TestLen(t *testing.T) {
 	tests := []struct {
 		fieldSize int
 	}{
-		{0},   // empty fileds
+		{0},   // empty fields
 		{1},   // "0"
 		{2},   // "0", "1"
 		{9},   // "0", "1", "2" ... "8"
@@ -178,6 +178,43 @@ func TestGetTags(t *testing.T) {
 			assert.True(df.isOmit("tags"), "`tags` should be in omitList")
 		} else {
 			assert.False(df.isOmit("tags"), "`tags` should not be in omitList")
+		}
+	}
+}
+
+func TestGetFingerprint(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		key         string
+		value       interface{}
+		expected    bool
+		description string
+	}{
+		{"fingerprint", []string{"a", "fingerprint"}, true, "valid fingerprint"},
+		{"fingerprint", []string{}, true, "valid fingerprint"},
+		{"not_fingerprint", []string{"a", "fingerprint"}, false, "invalid key"},
+		{"fingerprint", []int{}, false, "invalid value type"},
+		{"fingerprint", "test_fingerprint", false, "invalid value type"},
+		{"fingerprint", 1, false, "invalid value type"},
+		{"fingerprint", true, false, "invalid value type"},
+		{"fingerprint", struct{}{}, false, "invalid value type"},
+	}
+
+	for _, tt := range tests {
+		target := fmt.Sprintf("%+v", tt)
+
+		fields := logrus.Fields{}
+		fields[tt.key] = tt.value
+
+		df := newDataField(fields)
+		fingerprint, ok := df.getFingerprint()
+		assert.Equal(tt.expected, ok, target)
+		if ok {
+			assert.Equal(tt.value, fingerprint, target)
+			assert.True(df.isOmit("fingerprint"), "`fingerprint` should be in omitList")
+		} else {
+			assert.False(df.isOmit("fingerprint"), "`fingerprint` should not be in omitList")
 		}
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/consul"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
@@ -16,6 +15,7 @@ import (
 	"github.com/allegro/marathon-consul/sync"
 	"github.com/allegro/marathon-consul/web"
 	flag "github.com/ogier/pflag"
+	log "github.com/sirupsen/logrus"
 )
 
 type Config struct {

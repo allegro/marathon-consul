@@ -2,12 +2,6 @@
 
 
 [[projects]]
-  name = "github.com/Sirupsen/logrus"
-  packages = ["."]
-  revision = "ba1b36c82c5e05c4f912a88eab0dcd91a171688f"
-  version = "v0.11.5"
-
-[[projects]]
   name = "github.com/certifi/gocertifi"
   packages = ["."]
   revision = "a9c833d2837d3b16888d55d5aafa9ffe9afb22b0"
@@ -27,8 +21,8 @@
 [[projects]]
   name = "github.com/evalphobia/logrus_sentry"
   packages = ["."]
-  revision = "02fca77698040f9b436f5caec92ac43119c88bde"
-  version = "v0.2.10"
+  revision = "13ba9278e2adf1537fd94143a6b6a1c0dc008ac7"
+  version = "v0.4.2"
 
 [[projects]]
   name = "github.com/getsentry/raven-go"
@@ -92,19 +86,30 @@
   revision = "bdb33529eca3e55eac7328e07c57012a797af602"
 
 [[projects]]
+  name = "github.com/sirupsen/logrus"
+  packages = ["."]
+  revision = "f006c2ac4710855cf0f916dd6b77acf6b048dc6e"
+  version = "v1.0.3"
+
+[[projects]]
   name = "github.com/stretchr/testify"
   packages = ["assert","require"]
   revision = "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
   version = "v1.1.4"
 
 [[projects]]
+  name = "golang.org/x/crypto"
+  packages = ["ssh/terminal"]
+  revision = "ca1fcd4ab4c10bc58852a894bcf195fab2229efe"
+
+[[projects]]
   name = "golang.org/x/sys"
-  packages = ["unix"]
-  revision = "c4489faa6e5ab84c0ef40d6ee878f7a030281f0f"
+  packages = ["unix","windows"]
+  revision = "665f6529cca930e27b831a0d1dafffbe1c172924"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9c8801d828d650f62b46091a09f3675c5084dcce2eb4fedaf1d63529bb95c0de"
+  inputs-digest = "58efe88d12c1ae7497049615bac37885d997b7531c722bcb091790074507a93c"
   solver-name = "gps-cdcl"
   solver-version = 1

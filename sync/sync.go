@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/service"
+	log "github.com/sirupsen/logrus"
 )
 
 type Sync struct {
