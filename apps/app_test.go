@@ -21,11 +21,11 @@ func TestExtractPortDefintions(t *testing.T) {
 	}
 
 	ports := extractPortDefinitions(&app)
-	assert.Equal(t, app.Container.PortMappings[0].Labels['other'], ports[0].Labels['other'])
+	assert.Equal(t, app.Container.PortMappings[0].Labels["other"], ports[0].Labels["other"])
 
 	app = App{PortDefinitions: definitions}
 	ports := extractPortDefinitions(&app)
-	assert.Equal(t, app.PortDefinitions[0].Labels['other'], ports[0].Labels['other'])
+	assert.Equal(t, app.PortDefinitions[0].Labels["other"], ports[0].Labels["other"])
 }
 
 func TestParseApps(t *testing.T) {
