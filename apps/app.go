@@ -168,7 +168,7 @@ type indexedPortDefinition struct {
 
 func (app App) findConsulPortDefinitions() []indexedPortDefinition {
 	var definitions []indexedPortDefinition
-	for i, d := range extractPortDefinitions(app) {
+	for i, d := range extractPortDefinitions(&app) {
 		if _, ok := d.Labels[MarathonConsulLabel]; ok {
 			definitions = append(definitions, indexedPortDefinition{
 				Index:  i,
