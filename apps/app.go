@@ -28,6 +28,10 @@ type PortDefinition struct {
 	Labels map[string]string `json:"labels"`
 }
 
+type Container struct {
+	PortMappings []PortDefinition `json:"portMappings"`
+}
+
 type appWrapper struct {
 	App App `json:"app"`
 }
@@ -37,6 +41,7 @@ type Apps struct {
 }
 
 type App struct {
+	Container       Container         `json:"container"`
 	Labels          map[string]string `json:"labels"`
 	HealthChecks    []HealthCheck     `json:"healthChecks"`
 	ID              AppID             `json:"id"`
@@ -163,7 +168,7 @@ type indexedPortDefinition struct {
 
 func (app App) findConsulPortDefinitions() []indexedPortDefinition {
 	var definitions []indexedPortDefinition
-	for i, d := range app.PortDefinitions {
+	for i, d := range app.extractPortDefinitions() {
 		if _, ok := d.Labels[MarathonConsulLabel]; ok {
 			definitions = append(definitions, indexedPortDefinition{
 				Index:  i,
@@ -171,5 +176,20 @@ func (app App) findConsulPortDefinitions() []indexedPortDefinition {
 			})
 		}
 	}
+
 	return definitions
+}
+
+// Deprecated: Allows for backward compatibility with Marathons' network API
+// PortDefinitions are deprecated in favor of Marathons' new PortMappings
+// see https://github.com/mesosphere/marathon/pull/5391
+func (app App) extractPortDefinitions() []PortDefinition {
+	var appPortDefinitions []PortDefinition
+	if len(app.Container.PortMappings) > 0 {
+		appPortDefinitions = app.Container.PortMappings
+	} else {
+		appPortDefinitions = app.PortDefinitions
+	}
+	
+	return appPortDefinitions
 }
