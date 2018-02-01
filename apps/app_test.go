@@ -7,6 +7,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestExtractPortDefintions(t *testing.T) {
+	definitions := []PortDefinition{
+		{
+			Labels: map[string]string{"other": "tag"},
+		},
+		{},
+	}
+	app := App{
+		Container: Container{
+			PortMappings: definitions,
+		},
+	}
+
+	ports := extractPortDefinitions(&app)
+	assert.Equal(t, app.Container.PortMappings[0].Labels['other'], ports[0].Labels['other'])
+
+	app = App{PortDefinitions: definitions}
+	ports := extractPortDefinitions(&app)
+	assert.Equal(t, app.PortDefinitions[0].Labels['other'], ports[0].Labels['other'])
+}
+
 func TestParseApps(t *testing.T) {
 	t.Parallel()
 
