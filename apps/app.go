@@ -168,7 +168,7 @@ type indexedPortDefinition struct {
 
 func (app App) findConsulPortDefinitions() []indexedPortDefinition {
 	var definitions []indexedPortDefinition
-	for i, d := range extractPortDefinitions(&app) {
+	for i, d := range app.extractPortDefinitions() {
 		if _, ok := d.Labels[MarathonConsulLabel]; ok {
 			definitions = append(definitions, indexedPortDefinition{
 				Index:  i,
@@ -183,7 +183,7 @@ func (app App) findConsulPortDefinitions() []indexedPortDefinition {
 // Deprecated: Allows for backward compatibility with Marathons' network API
 // PortDefinitions are deprecated in favor of Marathons' new PortMappings
 // see https://github.com/mesosphere/marathon/pull/5391
-func extractPortDefinitions(app *App) []PortDefinition {
+func (app App) extractPortDefinitions() []PortDefinition {
 	var appPortDefinitions []PortDefinition
 	if len(app.Container.PortMappings) > 0 {
 		appPortDefinitions = app.Container.PortMappings
