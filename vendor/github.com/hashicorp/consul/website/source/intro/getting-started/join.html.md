@@ -12,8 +12,7 @@ description: >
 # Consul Cluster
 
 We've started our first agent and registered and queried a service on that
-agent. This showed how easy it is to use Consul but didn't show how this could
-be extended to a scalable, production-grade service discovery infrastructure.
+agent. Additionally, we've configured Consul Connect to automatically authorize and encrypt connections between services. This showed how easy it is to use Consul but didn't show how this could be extended to a scalable, production-grade service mesh infrastructure.
 In this step, we'll create our first real cluster with multiple members.
 
 When a Consul agent is started, it begins without knowledge of any other node:
@@ -72,7 +71,7 @@ the replicated log until the expected number of servers has successfully joined.
 You can read more about this in the [bootstrapping
 guide](/docs/guides/bootstrapping.html).
 
-We've included the [`-enable_script_checks`](/docs/agent/options.html#_enable_script_checks)
+We've included the [`-enable-script-checks`](/docs/agent/options.html#_enable_script_checks)
 flag set to `true` in order to enable health checks that can execute external scripts.
 This will be used in examples later. For production use, you'd want to configure
 [ACLs](/docs/guides/acl.html) in conjunction with this to control the ability to

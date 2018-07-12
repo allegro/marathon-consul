@@ -50,16 +50,19 @@ func (op *Operator) RaftGetConfiguration(args *structs.DCSpecificRequest, reply 
 	reply.Index = future.Index()
 	for _, server := range future.Configuration().Servers {
 		node := "(unknown)"
+		raftProtocolVersion := "unknown"
 		if member, ok := serverMap[server.Address]; ok {
 			node = member.Name
+			raftProtocolVersion = member.Tags["raft_vsn"]
 		}
 
 		entry := &structs.RaftServer{
-			ID:      server.ID,
-			Node:    node,
-			Address: server.Address,
-			Leader:  server.Address == leader,
-			Voter:   server.Suffrage == raft.Voter,
+			ID:              server.ID,
+			Node:            node,
+			Address:         server.Address,
+			Leader:          server.Address == leader,
+			Voter:           server.Suffrage == raft.Voter,
+			ProtocolVersion: raftProtocolVersion,
 		}
 		reply.Servers = append(reply.Servers, entry)
 	}
@@ -112,7 +115,7 @@ REMOVE:
 	// doing if you are calling this. If you remove a peer that's known to
 	// Serf, for example, it will come back when the leader does a reconcile
 	// pass.
-	minRaftProtocol, err := ServerMinRaftProtocol(op.srv.serfLAN.Members())
+	minRaftProtocol, err := op.srv.autopilot.MinRaftProtocol()
 	if err != nil {
 		return err
 	}
@@ -179,7 +182,7 @@ REMOVE:
 	// doing if you are calling this. If you remove a peer that's known to
 	// Serf, for example, it will come back when the leader does a reconcile
 	// pass.
-	minRaftProtocol, err := ServerMinRaftProtocol(op.srv.serfLAN.Members())
+	minRaftProtocol, err := op.srv.autopilot.MinRaftProtocol()
 	if err != nil {
 		return err
 	}

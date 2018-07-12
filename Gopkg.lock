@@ -31,9 +31,14 @@
 
 [[projects]]
   name = "github.com/hashicorp/consul"
-  packages = ["api","testutil","testutil/retry"]
-  revision = "112c0603d3d6fb23ab5f15e8fdb1a761da8eaf9a"
-  version = "v0.9.3"
+  packages = [
+    "api",
+    "lib/freeport",
+    "testutil",
+    "testutil/retry"
+  ]
+  revision = "28141971f966e99916da2c5e461dd968746491cd"
+  version = "v1.2.0"
 
 [[projects]]
   branch = "master"
@@ -65,6 +70,18 @@
   revision = "b8bc1bf767474819792c23f32d8286a45736f1c6"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/mitchellh/go-testing-interface"
+  packages = ["."]
+  revision = "a61a99592b77c9ba629d254a693acffaeb4b7e28"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mitchellh/mapstructure"
+  packages = ["."]
+  revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
+
+[[projects]]
   name = "github.com/ogier/pflag"
   packages = ["."]
   revision = "32a05c62658bd1d7c7e75cbc8195de5d585fde0f"
@@ -93,7 +110,10 @@
 
 [[projects]]
   name = "github.com/stretchr/testify"
-  packages = ["assert","require"]
+  packages = [
+    "assert",
+    "require"
+  ]
   revision = "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
   version = "v1.1.4"
 
@@ -104,12 +124,15 @@
 
 [[projects]]
   name = "golang.org/x/sys"
-  packages = ["unix","windows"]
+  packages = [
+    "unix",
+    "windows"
+  ]
   revision = "665f6529cca930e27b831a0d1dafffbe1c172924"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "58efe88d12c1ae7497049615bac37885d997b7531c722bcb091790074507a93c"
+  inputs-digest = "ecf2509f6afccf2dfdedb70469a52ff0e44801de4e6063b5b7f6069f8695cfb6"
   solver-name = "gps-cdcl"
   solver-version = 1

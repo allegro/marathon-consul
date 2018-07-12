@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/hashicorp/consul/agent/structs"
+	"github.com/hashicorp/consul/types"
+	"github.com/stretchr/testify/require"
 )
 
 // MockPreparedQuery is a fake endpoint that we inject into the Consul server
@@ -70,7 +72,7 @@ func (m *MockPreparedQuery) Explain(args *structs.PreparedQueryExecuteRequest,
 
 func TestPreparedQuery_Create(t *testing.T) {
 	t.Parallel()
-	a := NewTestAgent(t.Name(), nil)
+	a := NewTestAgent(t.Name(), "")
 	defer a.Shutdown()
 
 	m := MockPreparedQuery{
@@ -87,9 +89,10 @@ func TestPreparedQuery_Create(t *testing.T) {
 							NearestN:    4,
 							Datacenters: []string{"dc1", "dc2"},
 						},
-						OnlyPassing: true,
-						Tags:        []string{"foo", "bar"},
-						NodeMeta:    map[string]string{"somekey": "somevalue"},
+						IgnoreCheckIDs: []types.CheckID{"broken_check"},
+						OnlyPassing:    true,
+						Tags:           []string{"foo", "bar"},
+						NodeMeta:       map[string]string{"somekey": "somevalue"},
 					},
 					DNS: structs.QueryDNSOptions{
 						TTL: "10s",
@@ -122,9 +125,10 @@ func TestPreparedQuery_Create(t *testing.T) {
 				"NearestN":    4,
 				"Datacenters": []string{"dc1", "dc2"},
 			},
-			"OnlyPassing": true,
-			"Tags":        []string{"foo", "bar"},
-			"NodeMeta":    map[string]string{"somekey": "somevalue"},
+			"IgnoreCheckIDs": []string{"broken_check"},
+			"OnlyPassing":    true,
+			"Tags":           []string{"foo", "bar"},
+			"NodeMeta":       map[string]string{"somekey": "somevalue"},
 		},
 		"DNS": map[string]interface{}{
 			"TTL": "10s",
@@ -155,7 +159,7 @@ func TestPreparedQuery_Create(t *testing.T) {
 func TestPreparedQuery_List(t *testing.T) {
 	t.Parallel()
 	t.Run("", func(t *testing.T) {
-		a := NewTestAgent(t.Name(), nil)
+		a := NewTestAgent(t.Name(), "")
 		defer a.Shutdown()
 
 		m := MockPreparedQuery{
@@ -188,7 +192,7 @@ func TestPreparedQuery_List(t *testing.T) {
 	})
 
 	t.Run("", func(t *testing.T) {
-		a := NewTestAgent(t.Name(), nil)
+		a := NewTestAgent(t.Name(), "")
 		defer a.Shutdown()
 
 		m := MockPreparedQuery{
@@ -238,7 +242,7 @@ func TestPreparedQuery_List(t *testing.T) {
 func TestPreparedQuery_Execute(t *testing.T) {
 	t.Parallel()
 	t.Run("", func(t *testing.T) {
-		a := NewTestAgent(t.Name(), nil)
+		a := NewTestAgent(t.Name(), "")
 		defer a.Shutdown()
 
 		m := MockPreparedQuery{
@@ -271,7 +275,7 @@ func TestPreparedQuery_Execute(t *testing.T) {
 	})
 
 	t.Run("", func(t *testing.T) {
-		a := NewTestAgent(t.Name(), nil)
+		a := NewTestAgent(t.Name(), "")
 		defer a.Shutdown()
 
 		m := MockPreparedQuery{
@@ -325,9 +329,141 @@ func TestPreparedQuery_Execute(t *testing.T) {
 		}
 	})
 
+	t.Run("", func(t *testing.T) {
+		a := NewTestAgent(t.Name(), "")
+		defer a.Shutdown()
+
+		m := MockPreparedQuery{
+			executeFn: func(args *structs.PreparedQueryExecuteRequest, reply *structs.PreparedQueryExecuteResponse) error {
+				expected := &structs.PreparedQueryExecuteRequest{
+					Datacenter:    "dc1",
+					QueryIDOrName: "my-id",
+					Limit:         5,
+					Source: structs.QuerySource{
+						Datacenter: "dc1",
+						Node:       "_ip",
+						Ip:         "127.0.0.1",
+					},
+					Agent: structs.QuerySource{
+						Datacenter: a.Config.Datacenter,
+						Node:       a.Config.NodeName,
+					},
+					QueryOptions: structs.QueryOptions{
+						Token:             "my-token",
+						RequireConsistent: true,
+					},
+				}
+				if !reflect.DeepEqual(args, expected) {
+					t.Fatalf("bad: %v", args)
+				}
+
+				// Just set something so we can tell this is returned.
+				reply.Failovers = 99
+				return nil
+			},
+		}
+		if err := a.registerEndpoint("PreparedQuery", &m); err != nil {
+			t.Fatalf("err: %v", err)
+		}
+
+		body := bytes.NewBuffer(nil)
+		req, _ := http.NewRequest("GET", "/v1/query/my-id/execute?token=my-token&consistent=true&near=_ip&limit=5", body)
+		req.Header.Add("X-Forwarded-For", "127.0.0.1")
+		resp := httptest.NewRecorder()
+		obj, err := a.srv.PreparedQuerySpecific(resp, req)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		if resp.Code != 200 {
+			t.Fatalf("bad code: %d", resp.Code)
+		}
+		r, ok := obj.(structs.PreparedQueryExecuteResponse)
+		if !ok {
+			t.Fatalf("unexpected: %T", obj)
+		}
+		if r.Failovers != 99 {
+			t.Fatalf("bad: %v", r)
+		}
+	})
+
+	t.Run("", func(t *testing.T) {
+		a := NewTestAgent(t.Name(), "")
+		defer a.Shutdown()
+
+		m := MockPreparedQuery{
+			executeFn: func(args *structs.PreparedQueryExecuteRequest, reply *structs.PreparedQueryExecuteResponse) error {
+				expected := &structs.PreparedQueryExecuteRequest{
+					Datacenter:    "dc1",
+					QueryIDOrName: "my-id",
+					Limit:         5,
+					Source: structs.QuerySource{
+						Datacenter: "dc1",
+						Node:       "_ip",
+						Ip:         "198.18.0.1",
+					},
+					Agent: structs.QuerySource{
+						Datacenter: a.Config.Datacenter,
+						Node:       a.Config.NodeName,
+					},
+					QueryOptions: structs.QueryOptions{
+						Token:             "my-token",
+						RequireConsistent: true,
+					},
+				}
+				if !reflect.DeepEqual(args, expected) {
+					t.Fatalf("bad: %v", args)
+				}
+
+				// Just set something so we can tell this is returned.
+				reply.Failovers = 99
+				return nil
+			},
+		}
+		if err := a.registerEndpoint("PreparedQuery", &m); err != nil {
+			t.Fatalf("err: %v", err)
+		}
+
+		body := bytes.NewBuffer(nil)
+		req, _ := http.NewRequest("GET", "/v1/query/my-id/execute?token=my-token&consistent=true&near=_ip&limit=5", body)
+		req.Header.Add("X-Forwarded-For", "198.18.0.1")
+		resp := httptest.NewRecorder()
+		obj, err := a.srv.PreparedQuerySpecific(resp, req)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		if resp.Code != 200 {
+			t.Fatalf("bad code: %d", resp.Code)
+		}
+		r, ok := obj.(structs.PreparedQueryExecuteResponse)
+		if !ok {
+			t.Fatalf("unexpected: %T", obj)
+		}
+		if r.Failovers != 99 {
+			t.Fatalf("bad: %v", r)
+		}
+
+		req, _ = http.NewRequest("GET", "/v1/query/my-id/execute?token=my-token&consistent=true&near=_ip&limit=5", body)
+		req.Header.Add("X-Forwarded-For", "198.18.0.1, 198.19.0.1")
+		resp = httptest.NewRecorder()
+		obj, err = a.srv.PreparedQuerySpecific(resp, req)
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		if resp.Code != 200 {
+			t.Fatalf("bad code: %d", resp.Code)
+		}
+		r, ok = obj.(structs.PreparedQueryExecuteResponse)
+		if !ok {
+			t.Fatalf("unexpected: %T", obj)
+		}
+		if r.Failovers != 99 {
+			t.Fatalf("bad: %v", r)
+		}
+	})
+
 	// Ensure the proper params are set when no special args are passed
 	t.Run("", func(t *testing.T) {
-		a := NewTestAgent(t.Name(), nil)
+		a := NewTestAgent(t.Name(), "")
 		defer a.Shutdown()
 
 		m := MockPreparedQuery{
@@ -358,10 +494,10 @@ func TestPreparedQuery_Execute(t *testing.T) {
 
 	// Ensure WAN translation occurs for a response outside of the local DC.
 	t.Run("", func(t *testing.T) {
-		cfg := TestConfig()
-		cfg.Datacenter = "dc1"
-		cfg.TranslateWanAddrs = true
-		a := NewTestAgent(t.Name(), cfg)
+		a := NewTestAgent(t.Name(), `
+			datacenter = "dc1"
+			translate_wan_addrs = true
+		`)
 		defer a.Shutdown()
 
 		m := MockPreparedQuery{
@@ -408,10 +544,10 @@ func TestPreparedQuery_Execute(t *testing.T) {
 
 	// Ensure WAN translation doesn't occur for the local DC.
 	t.Run("", func(t *testing.T) {
-		cfg := TestConfig()
-		cfg.Datacenter = "dc1"
-		cfg.TranslateWanAddrs = true
-		a := NewTestAgent(t.Name(), cfg)
+		a := NewTestAgent(t.Name(), `
+			datacenter = "dc1"
+			translate_wan_addrs = true
+		`)
 		defer a.Shutdown()
 
 		m := MockPreparedQuery{
@@ -457,7 +593,7 @@ func TestPreparedQuery_Execute(t *testing.T) {
 	})
 
 	t.Run("", func(t *testing.T) {
-		a := NewTestAgent(t.Name(), nil)
+		a := NewTestAgent(t.Name(), "")
 		defer a.Shutdown()
 
 		body := bytes.NewBuffer(nil)
@@ -475,7 +611,7 @@ func TestPreparedQuery_Execute(t *testing.T) {
 func TestPreparedQuery_Explain(t *testing.T) {
 	t.Parallel()
 	t.Run("", func(t *testing.T) {
-		a := NewTestAgent(t.Name(), nil)
+		a := NewTestAgent(t.Name(), "")
 		defer a.Shutdown()
 
 		m := MockPreparedQuery{
@@ -530,7 +666,7 @@ func TestPreparedQuery_Explain(t *testing.T) {
 	})
 
 	t.Run("", func(t *testing.T) {
-		a := NewTestAgent(t.Name(), nil)
+		a := NewTestAgent(t.Name(), "")
 		defer a.Shutdown()
 
 		body := bytes.NewBuffer(nil)
@@ -543,12 +679,34 @@ func TestPreparedQuery_Explain(t *testing.T) {
 			t.Fatalf("bad code: %d", resp.Code)
 		}
 	})
+
+	// Ensure that Connect is passed through
+	t.Run("", func(t *testing.T) {
+		a := NewTestAgent(t.Name(), "")
+		defer a.Shutdown()
+		require := require.New(t)
+
+		m := MockPreparedQuery{
+			executeFn: func(args *structs.PreparedQueryExecuteRequest, reply *structs.PreparedQueryExecuteResponse) error {
+				require.True(args.Connect)
+				return nil
+			},
+		}
+		require.NoError(a.registerEndpoint("PreparedQuery", &m))
+
+		body := bytes.NewBuffer(nil)
+		req, _ := http.NewRequest("GET", "/v1/query/my-id/execute?connect=true", body)
+		resp := httptest.NewRecorder()
+		_, err := a.srv.PreparedQuerySpecific(resp, req)
+		require.NoError(err)
+		require.Equal(200, resp.Code)
+	})
 }
 
 func TestPreparedQuery_Get(t *testing.T) {
 	t.Parallel()
 	t.Run("", func(t *testing.T) {
-		a := NewTestAgent(t.Name(), nil)
+		a := NewTestAgent(t.Name(), "")
 		defer a.Shutdown()
 
 		m := MockPreparedQuery{
@@ -596,7 +754,7 @@ func TestPreparedQuery_Get(t *testing.T) {
 	})
 
 	t.Run("", func(t *testing.T) {
-		a := NewTestAgent(t.Name(), nil)
+		a := NewTestAgent(t.Name(), "")
 		defer a.Shutdown()
 
 		body := bytes.NewBuffer(nil)
@@ -613,7 +771,7 @@ func TestPreparedQuery_Get(t *testing.T) {
 
 func TestPreparedQuery_Update(t *testing.T) {
 	t.Parallel()
-	a := NewTestAgent(t.Name(), nil)
+	a := NewTestAgent(t.Name(), "")
 	defer a.Shutdown()
 
 	m := MockPreparedQuery{
@@ -691,7 +849,7 @@ func TestPreparedQuery_Update(t *testing.T) {
 
 func TestPreparedQuery_Delete(t *testing.T) {
 	t.Parallel()
-	a := NewTestAgent(t.Name(), nil)
+	a := NewTestAgent(t.Name(), "")
 	defer a.Shutdown()
 
 	m := MockPreparedQuery{
@@ -737,39 +895,6 @@ func TestPreparedQuery_Delete(t *testing.T) {
 	}
 }
 
-func TestPreparedQuery_BadMethods(t *testing.T) {
-	t.Parallel()
-	t.Run("", func(t *testing.T) {
-		a := NewTestAgent(t.Name(), nil)
-		defer a.Shutdown()
-
-		body := bytes.NewBuffer(nil)
-		req, _ := http.NewRequest("DELETE", "/v1/query", body)
-		resp := httptest.NewRecorder()
-		if _, err := a.srv.PreparedQueryGeneral(resp, req); err != nil {
-			t.Fatalf("err: %v", err)
-		}
-		if resp.Code != 405 {
-			t.Fatalf("bad code: %d", resp.Code)
-		}
-	})
-
-	t.Run("", func(t *testing.T) {
-		a := NewTestAgent(t.Name(), nil)
-		defer a.Shutdown()
-
-		body := bytes.NewBuffer(nil)
-		req, _ := http.NewRequest("POST", "/v1/query/my-id", body)
-		resp := httptest.NewRecorder()
-		if _, err := a.srv.PreparedQuerySpecific(resp, req); err != nil {
-			t.Fatalf("err: %v", err)
-		}
-		if resp.Code != 405 {
-			t.Fatalf("bad code: %d", resp.Code)
-		}
-	})
-}
-
 func TestPreparedQuery_parseLimit(t *testing.T) {
 	t.Parallel()
 	body := bytes.NewBuffer(nil)
@@ -801,7 +926,7 @@ func TestPreparedQuery_parseLimit(t *testing.T) {
 // correctly when calling through to the real endpoints.
 func TestPreparedQuery_Integration(t *testing.T) {
 	t.Parallel()
-	a := NewTestAgent(t.Name(), nil)
+	a := NewTestAgent(t.Name(), "")
 	defer a.Shutdown()
 
 	// Register a node and a service.

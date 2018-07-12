@@ -19,13 +19,17 @@ Configuration precedence is evaluated in the following order:
 2. Environment Variables
 3. Configuration files
 
-When loading configuration, Consul loads the configuration from files
-and directories in lexical order. For example, configuration file `basic_config.json`
-will be processed before `extra_config.json`. Configuration specified later
-will be merged into configuration specified earlier. In most cases,
-"merge" means that the later version will override the earlier. In
-some cases, such as event handlers, merging appends the handlers to the
-existing configuration. The exact merging behavior is specified for each
+When loading configuration, Consul loads the configuration from files and
+directories in lexical order. For example, configuration file
+`basic_config.json` will be processed before `extra_config.json`. Configuration
+can be in either [HCL](https://github.com/hashicorp/hcl#syntax) or JSON format.
+Available in Consul 1.0 and later, the HCL support now requires an `.hcl` or
+`.json` extension on all configuration files in order to specify their format.
+
+Configuration specified later will be merged into configuration specified
+earlier. In most cases, "merge" means that the later version will override the
+earlier. In some cases, such as event handlers, merging appends the handlers to
+the existing configuration. The exact merging behavior is specified for each
 option below.
 
 Consul also supports reloading configuration when it receives the
@@ -39,13 +43,16 @@ configuration reload.
 
 The options below are all specified on the command-line.
 
-* <a name="_advertise"></a><a href="#_advertise">`-advertise`</a> - The advertise
-  address is used to change the address that we
-  advertise to other nodes in the cluster. By default, the [`-bind`](#_bind) address is
-  advertised. However, in some cases, there may be a routable address that cannot
-  be bound. This flag enables gossiping a different address to support this.
-  If this address is not routable, the node will be in a constant flapping state
-  as other nodes will treat the non-routability as a failure.
+* <a name="_advertise"></a><a href="#_advertise">`-advertise`</a> - The
+  advertise address is used to change the address that we advertise to other
+  nodes in the cluster. By default, the [`-bind`](#_bind) address is advertised.
+  However, in some cases, there may be a routable address that cannot be bound.
+  This flag enables gossiping a different address to support this. If this
+  address is not routable, the node will be in a constant flapping state as
+  other nodes will treat the non-routability as a failure. In Consul 1.0 and
+  later this can be set to a
+  [go-sockaddr](https://godoc.org/github.com/hashicorp/go-sockaddr/template)
+  template.
 
 * <a name="_advertise-wan"></a><a href="#_advertise-wan">`-advertise-wan`</a> - The
   advertise WAN address is used to change the address that we advertise to server nodes
@@ -57,7 +64,10 @@ The options below are all specified on the command-line.
   nodes gossiping through the public network for the WAN while using private VLANs for gossiping
   to each other and their client agents, and it allows client agents to be reached at this
   address when being accessed from a remote datacenter if the remote datacenter is configured
-  with <a href="#translate_wan_addrs">`translate_wan_addrs`</a>.
+  with <a href="#translate_wan_addrs">`translate_wan_addrs`</a>. In Consul 1.0 and
+  later this can be set to a
+  [go-sockaddr](https://godoc.org/github.com/hashicorp/go-sockaddr/template)
+  template
 
 * <a name="_bootstrap"></a><a href="#_bootstrap">`-bootstrap`</a> - This flag is used to control if a
   server is in "bootstrap" mode. It is important that
@@ -72,7 +82,7 @@ The options below are all specified on the command-line.
   the cluster. When provided, Consul waits until the specified number of servers are
   available and then bootstraps the cluster. This allows an initial leader to be elected
   automatically. This cannot be used in conjunction with the legacy [`-bootstrap`](#_bootstrap) flag.
-  This flag implies server mode.
+  This flag requires [`-server`](#_server) mode.
 
 * <a name="_bind"></a><a href="#_bind">`-bind`</a> - The address that should be bound to
   for internal cluster communications.
@@ -86,19 +96,37 @@ at startup. If you specify "[::]", Consul will
 IPv6 address. If there are multiple public IPv6 addresses available, Consul
 will exit with an error at startup.
   Consul uses both TCP and UDP and the same port for both. If you
-  have any firewalls, be sure to allow both protocols.
+  have any firewalls, be sure to allow both protocols. In Consul 1.0 and later
+  this can be set to a space-separated list of addresses to bind to, or a
+  [go-sockaddr](https://godoc.org/github.com/hashicorp/go-sockaddr/template) template
+  that can potentially resolve to multiple addresses.
 
-* <a name="_serf_wan_bind"></a><a href="#_serf_wan_bind">`-serf-wan-bind`</a> - The address that should be bound to for Serf WAN gossip communications.
-  By default, the value follows the same rules as [`-bind` command-line flag](#_bind), and if this is not specified, the `-bind` option is used. This
-  is available in Consul 0.7.1 and later.
+* <a name="_serf_wan_bind"></a><a href="#_serf_wan_bind">`-serf-wan-bind`</a> -
+  The address that should be bound to for Serf WAN gossip communications. By
+  default, the value follows the same rules as [`-bind` command-line
+  flag](#_bind), and if this is not specified, the `-bind` option is used. This
+  is available in Consul 0.7.1 and later. In Consul 1.0 and later this can be
+  set to a
+  [go-sockaddr](https://godoc.org/github.com/hashicorp/go-sockaddr/template)
+  template
 
-* <a name="_serf_lan_bind"></a><a href="#_serf_lan_bind">`-serf-lan-bind`</a> - The address that should be bound to for Serf LAN gossip communications.
-  This is an IP address that should be reachable by all other LAN nodes in the cluster. By default, the value follows the same rules as
-  [`-bind` command-line flag](#_bind), and if this is not specified, the `-bind` option is used. This is available in Consul 0.7.1 and later.
+* <a name="_serf_lan_bind"></a><a href="#_serf_lan_bind">`-serf-lan-bind`</a> -
+  The address that should be bound to for Serf LAN gossip communications. This
+  is an IP address that should be reachable by all other LAN nodes in the
+  cluster. By default, the value follows the same rules as [`-bind` command-line
+  flag](#_bind), and if this is not specified, the `-bind` option is used. This
+  is available in Consul 0.7.1 and later. In Consul 1.0 and later this can be
+  set to a
+  [go-sockaddr](https://godoc.org/github.com/hashicorp/go-sockaddr/template)
+  template
 
 * <a name="_client"></a><a href="#_client">`-client`</a> - The address to which
-  Consul will bind client interfaces, including the HTTP and DNS servers. By default,
-  this is "127.0.0.1", allowing only loopback connections.
+  Consul will bind client interfaces, including the HTTP and DNS servers. By
+  default, this is "127.0.0.1", allowing only loopback connections. In Consul
+  1.0 and later this can be set to a space-separated list of addresses to bind
+  to, or a
+  [go-sockaddr](https://godoc.org/github.com/hashicorp/go-sockaddr/template)
+  template that can potentially resolve to multiple addresses.
 
 * <a name="_config_file"></a><a href="#_config_file">`-config-file`</a> - A configuration file
   to load. For more information on
@@ -118,13 +146,25 @@ will exit with an error at startup.
   For more information on the format of the configuration files, see the
   [Configuration Files](#configuration_files) section.
 
-* <a name="_data_dir"></a><a href="#_data_dir">`-data-dir`</a> - This flag provides
-  a data directory for the agent to store state.
-  This is required for all agents. The directory should be durable across reboots.
-  This is especially critical for agents that are running in server mode as they
-  must be able to persist cluster state. Additionally, the directory must support
-  the use of filesystem locking, meaning some types of mounted folders (e.g. VirtualBox
-  shared folders) may not be suitable.
+* <a name="_config_format"></a><a href="#_config_format">`-config-format`</a> - The format
+  of the configuration files to load. Normally, Consul detects the format of the
+  config files from the ".json" or ".hcl" extension. Setting this option to
+  either "json" or "hcl" forces Consul to interpret any file with or without
+  extension to be interpreted in that format.
+
+* <a name="_data_dir"></a><a href="#_data_dir">`-data-dir`</a> - This flag
+  provides a data directory for the agent to store state. This is required for
+  all agents. The directory should be durable across reboots. This is especially
+  critical for agents that are running in server mode as they must be able to
+  persist cluster state. Additionally, the directory must support the use of
+  filesystem locking, meaning some types of mounted folders (e.g. VirtualBox
+  shared folders) may not be suitable. **Note:** both server and non-server
+  agents may store ACL tokens in the state in this directory so read access may
+  grant access to any tokens on servers and to any tokens used during service
+  registration on non-servers. On Unix-based platforms the files are written
+  with 0600 permissions so you should ensure only trusted processes can execute
+  as the same user as Consul. On Windows, you should ensure the directory has
+  suitable permissions configured as these will be inherited.
 
 * <a name="_datacenter"></a><a href="#_datacenter">`-datacenter`</a> - This flag controls the datacenter in
   which the agent is running. If not provided,
@@ -177,6 +217,11 @@ will exit with an error at startup.
   initialized with an encryption key, then the provided key is ignored and
   a warning will be displayed.
 
+* <a name="_hcl"></a><a href="#_hcl">`-hcl`</a> - A HCL configuration fragment.
+  This HCL configuration fragment is appended to the configuration and allows
+  to specify the full range of options of a config file on the command line.
+  This option can be specified multiple times. This was added in Consul 1.0.
+
 * <a name="_http_port"></a><a href="#_http_port">`-http-port`</a> - the HTTP API port to listen on.
   This overrides the default port 8500. This option is very useful when deploying Consul
   to an environment which communicates the HTTP port through the environment e.g. PaaS like CloudFoundry, allowing
@@ -190,17 +235,23 @@ will exit with an error at startup.
   Note that using
   <a href="#retry_join">`retry_join`</a> could be more appropriate to help
   mitigate node startup race conditions when automating a Consul cluster
-  deployment.\
+  deployment.
+
+    In Consul 1.1.0 and later this can be set to a
+    [go-sockaddr](https://godoc.org/github.com/hashicorp/go-sockaddr/template)
+    template
 
 <a name="_retry_join"></a>
 
 * `-retry-join` - Similar to [`-join`](#_join) but allows retrying a join if the
   first attempt fails. This is useful for cases where you know the address will
-  eventually be available. The list can contain IPv4, IPv6, or DNS addresses. If
-  Consul is running on the non-default Serf LAN port, this must be specified as
-  well. IPv6 must use the "bracketed" syntax. If multiple values are given, they
-  are tried and retried in the order listed until the first succeeds. Here are
-  some examples:
+  eventually be available. The list can contain IPv4, IPv6, or DNS addresses. In
+  Consul 1.1.0 and later this can be set to a
+  [go-sockaddr](https://godoc.org/github.com/hashicorp/go-sockaddr/template)
+  template. If Consul is running on the non-default Serf LAN port, this must be
+  specified as well. IPv6 must use the "bracketed" syntax. If multiple values
+  are given, they are tried and retried in the order listed until the first
+  succeeds. Here are some examples:
 
     ```sh
     # Using a DNS entry
@@ -217,174 +268,17 @@ will exit with an error at startup.
     $ consul agent -retry-join "[::1]:8301"
     ```
 
-    ```sh
-    # Using Cloud Auto-Joining
-    $ consul agent -retry-join "provider=aws tag_key=..."
-    ```
-
     ### Cloud Auto-Joining
 
     As of Consul 0.9.1, `retry-join` accepts a unified interface using the
     [go-discover](https://github.com/hashicorp/go-discover) library for doing
-    automatic cluster joining using cloud metadata. To use retry-join with a
-    supported cloud provider, specify the configuration on the command line or
-    configuration file as a `key=value key=value ...` string. The values need to
-	be URL encoded but for most practical purposes you need to replace spaces
-	with `+` signs.
+    automatic cluster joining using cloud metadata. For more information, see
+    the [Cloud Auto-join page](/docs/agent/cloud-auto-join.html).
 
     ```sh
-    $ consul agent -retry-join "provider=my-cloud config=val ..."
+    # Using Cloud Auto-Joining
+    $ consul agent -retry-join "provider=aws tag_key=..."
     ```
-
-    or via a configuration file:
-
-    ```json
-    {
-      "retry_join": ["provider=my-cloud config=val ..."]
-    }
-    ```
-
-    The cloud provider-specific configurations are detailed below. This can be
-    combined with static IP or DNS addresses or even multiple configurations
-    for different providers.
-
-    ~> This replaces the previous `-retry-join-ec2-*`, `-retry-join-azure-*`,
-    and `-retry-join-gce-*` configuration options.
-
-    Here are the supported cloud provider specific auto joining options:
-
-    ### Amazon EC2
-
-    This returns the first private IP address of all servers in the given
-    region which have the given `tag_key` and `tag_value`.
-
-    ```sh
-    $ consul agent -retry-join "provider=aws tag_key=xxx tag_value=xxx"
-    ```
-
-    ```json
-    {
-      "retry_join": ["provider=aws tag_key=xxx tag_value=xxx"]
-    }
-    ```
-
-    - `provider` (required) - the name of the provider ("aws" in this case).
-    - `tag_key` (required) - the key of the tag to auto-join on.
-    - `tag_value` (required) - the value of the tag to auto-join on.
-    - `region` (optional) - the AWS region to authenticate in.
-    - `access_key_id` (optional) - the AWS access key for authentication (see below for more information about authenticating).
-    - `secret_access_key` (optional) - the AWS secret access key for authentication (see below for more information about authenticating).
-
-    #### Authentication &amp; Precedence
-
-    - Static credentials `acesss_key_id=xxx secret_access_key=xxx`
-    - Environment variables (`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`)
-    - Shared credentials file (`~/.aws/credentials` or the path specified by `AWS_SHARED_CREDENTIALS_FILE`)
-    - ECS task role metadata (container-specific).
-    - EC2 instance role metadata.
-
-    The only required IAM permission is `ec2:DescribeInstances`, and it is
-    recommended that you make a dedicated key used only for auto-joining. If the
-    region is omitted it will be discovered through the local instance's [EC2
-    metadata
-    endpoint](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html).
-
-    ### Microsoft Azure
-
-    This returns the first private IP address of all servers in the given region
-    which have the given `tag_key` and `tag_value` in the tenant and
-    subscription.
-
-    ```sh
-    $ consul agent -retry-join "provider=azure tag_name=xxx tag_value=xxx tenant_id=xxx client_id=xxx subscription_id=xxx secret_access_key=xxx"
-    ```
-
-    ```json
-    {
-      "retry_join": ["provider=azure tag_name=xxx tag_value=xxx tenant_id=xxx client_id=xxx subscription_id=xxx secret_access_key=xxx"]
-    }
-    ```
-
-    - `provider` (required) - the name of the provider ("azure" in this case).
-    - `tag_key` (required) - the key of the tag to auto-join on.
-    - `tag_value` (required) - the value of the tag to auto-join on.
-    - `tenant_id` (required) - the tenant to join machines in.
-    - `client_id` (required) - the client to authenticate with.
-    - `secret_access_key` (required) - the secret client key.
-
-    ### Google Compute Engine
-
-    This returns the first private IP address of all servers in the given
-    project which have the given `tag_value`.
-
-    ```sh
-    $ consul agent -retry-join "provider=gce project_name=xxx tag_value=xxx"
-    ```
-
-    ```json
-    {
-      "retry_join": ["provider=gce project_name=xxx tag_value=xxx"]
-    }
-    ```
-
-    - `provider` (required) - the name of the provider ("gce" in this case).
-    - `project_name` (required) - the name of the project to auto-join on.
-    - `tag_value` (required) - the value of the tag to auto-join on.
-    - `zone_pattern` (optional) - the list of zones can be restricted through an RE2 compatible regular expression. If omitted, servers in all zones are returned.
-    - `credentials_file` (optional) - the credentials file for authentication. See below for more information.
-
-    #### Authentication &amp; Precedence
-
-    - Use credentials from `credentials_file`, if provided.
-    - Use JSON file from `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
-    - Use JSON file in a location known to the gcloud command-line tool.
-      - On Windows, this is `%APPDATA%/gcloud/application_default_credentials.json`.
-      - On other systems, `$HOME/.config/gcloud/application_default_credentials.json`.
-    - On Google Compute Engine, use credentials from the metadata
-      server. In this final case any provided scopes are ignored.
-
-    Discovery requires a [GCE Service
-    Account](https://cloud.google.com/compute/docs/access/service-accounts).
-    Credentials are searched using the following paths, in order of precedence.
-
-    ### IBM SoftLayer
-
-    This returns the first private IP address of all servers for the given
-    datacenter with the given `tag_value`.
-
-    ```sh
-    $ consul agent -retry-join "provider=softlayer datacenter=xxx tag_value=xxx username=xxx api_key=xxx"
-    ```
-
-    ```json
-    {
-      "retry_join": ["provider=softlayer datacenter=xxx tag_value=xxx username=xxx api_key=xxx"]
-    }
-    ```
-
-    - `provider` (required) - the name of the provider ("softlayer" in this case).
-    - `datacenter` (required) - the name of the datacenter to auto-join in.
-    - `tag_value` (required) - the value of the tag to auto-join on.
-    - `username` (required) - the username to use for auth.
-    - `api_key` (required) - the api key to use for auth.
-
-* `-retry-join-ec2-tag-key` - This parameter has been deprecated as of Consul 0.9.1. See [-retry-join](#retry-join) for details.
-
-* `-retry-join-ec2-tag-value` - This parameter has been deprecated as of Consul 0.9.1. See [-retry-join](#retry-join) for details.
-
-* `-retry-join-ec2-region` - This parameter has been deprecated as of Consul 0.9.1. See [-retry-join](#retry-join) for details.
-
-* `-retry-join-gce-tag-value` - This parameter has been deprecated as of Consul 0.9.1. See [-retry-join](#retry-join) for details.
-
-* `-retry-join-gce-project-name` - This parameter has been deprecated as of Consul 0.9.1. See [-retry-join](#retry-join) for details.
-
-* `-retry-join-gce-zone-pattern` - This parameter has been deprecated as of Consul 0.9.1. See [-retry-join](#retry-join) for details.
-
-* `-retry-join-gce-credentials-file` - This parameter has been deprecated as of Consul 0.9.1. See [-retry-join](#retry-join) for details.
-
-* `-retry-join-azure-tag-name` - This parameter has been deprecated as of Consul 0.9.1. See [-retry-join](#retry-join) for details.
-
-* `-retry-join-azure-tag-value`- This parameter has been deprecated as of Consul 0.9.1. See [-retry-join](#retry-join) for details.
 
 * <a name="_retry_interval"></a><a href="#_retry_interval">`-retry-interval`</a> - Time
   to wait between join attempts. Defaults to 30s.
@@ -394,16 +288,24 @@ will exit with an error at startup.
   with return code 1. By default, this is set to 0 which is interpreted as infinite
   retries.
 
-* <a name="_join_wan"></a><a href="#_join_wan">`-join-wan`</a> - Address of another
-  wan agent to join upon starting up. This can be
-  specified multiple times to specify multiple WAN agents to join. If Consul is
-  unable to join with any of the specified addresses, agent startup will
-  fail. By default, the agent won't [`-join-wan`](#_join_wan) any nodes when it starts up.
+* <a name="_join_wan"></a><a href="#_join_wan">`-join-wan`</a> - Address of
+  another wan agent to join upon starting up. This can be specified multiple
+  times to specify multiple WAN agents to join. If Consul is unable to join with
+  any of the specified addresses, agent startup will fail. By default, the agent
+  won't [`-join-wan`](#_join_wan) any nodes when it starts up.
+
+    In Consul 1.1.0 and later this can be set to a
+    [go-sockaddr](https://godoc.org/github.com/hashicorp/go-sockaddr/template)
+    template.
 
 * <a name="_retry_join_wan"></a><a href="#_retry_join_wan">`-retry-join-wan`</a> - Similar
   to [`retry-join`](#_retry_join) but allows retrying a wan join if the first attempt fails.
-  This is useful for cases where we know the address will become available eventually. 
+  This is useful for cases where we know the address will become available eventually.
   As of Consul 0.9.3 [Cloud Auto-Joining](#cloud-auto-joining) is supported as well.
+
+    In Consul 1.1.0 and later this can be set to a
+    [go-sockaddr](https://godoc.org/github.com/hashicorp/go-sockaddr/template)
+    template
 
 * <a name="_retry_interval_wan"></a><a href="#_retry_interval_wan">`-retry-interval-wan`</a> - Time
   to wait between [`-join-wan`](#_join_wan) attempts.
@@ -439,6 +341,8 @@ will exit with an error at startup.
   - Metadata keys must contain only alphanumeric, `-`, and `_` characters.
   - Metadata keys must not begin with the `consul-` prefix; that is reserved for internal use by Consul.
   - Metadata values must be between 0 and 512 (inclusive) characters in length.
+  - Metadata values for keys beginning with `rfc1035-` are encoded verbatim in DNS TXT requests, otherwise
+    the metadata kv-pair is encoded according [RFC1464](https://www.ietf.org/rfc/rfc1464.txt).
 
 * <a name="_pid_file"></a><a href="#_pid_file">`-pid-file`</a> - This flag provides the file
   path for the agent to store its PID. This is useful for sending signals (for example, `SIGINT`
@@ -449,9 +353,26 @@ will exit with an error at startup.
   You can view the protocol versions supported by Consul by running `consul -v`.
 
 * <a name="_raft_protocol"></a><a href="#_raft_protocol">`-raft-protocol`</a> - This controls the internal
-  version of the Raft consensus protocol used for server communications. This defaults to 2 but must
-  be set to 3 in order to gain access to Autopilot features, with the exception of
-  [`cleanup_dead_servers`](#cleanup_dead_servers).
+  version of the Raft consensus protocol used for server communications. This must be set to 3 in order to
+  gain access to Autopilot features, with the exception of [`cleanup_dead_servers`](#cleanup_dead_servers).
+  Defaults to 3 in Consul 1.0.0 and later (defaulted to 2 previously). See
+  [Raft Protocol Version Compatibility](/docs/upgrade-specific.html#raft-protocol-version-compatibility)
+  for more details.
+
+* <a name="_raft_snapshot_threshold"></a><a href="#_raft_snapshot_threshold">`-raft-snapshot-threshold`</a> - This controls the
+  minimum number of raft commit entries between snapshots that are saved to disk. This is a low-level parameter that should
+  rarely need to be changed. Very busy clusters experiencing excessive disk IO may increase this value to reduce disk IO, and minimize
+  the chances of all servers taking snapshots at the same time. Increasing this trades off disk IO for disk space since the log will
+  grow much larger and the space in the raft.db file can't be reclaimed till the next snapshot. Servers may take longer to recover from
+  crashes or failover if this is increased significantly as more logs will need to be replayed. In Consul 1.1.0 and later this
+  defaults to 16384, and in prior versions it was set to 8192.
+
+* <a name="_raft_snapshot_interval"></a><a href="#_raft_snapshot_interval">`-raft-snapshot-interval`</a> - This controls how often servers
+  check if they need to save a snapshot to disk. his is a low-level parameter that should rarely need to be changed. Very busy clusters
+  experiencing excessive disk IO may increase this value to reduce disk IO, and minimize the chances of all servers taking snapshots at the same time.
+  Increasing this trades off disk IO for disk space since the log will grow much larger and the space in the raft.db file can't be reclaimed
+  till the next snapshot. Servers may take longer to recover from crashes or failover if this is increased significantly as more logs
+  will need to be replayed. In Consul 1.1.0 and later this defaults to `30s`, and in prior versions it was set to `5s`.
 
 * <a name="_recursor"></a><a href="#_recursor">`-recursor`</a> - Specifies the address of an upstream DNS
   server. This option may be provided multiple times, and is functionally
@@ -645,7 +566,9 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
   are not actively invalidated, ACL policy may be stale up to the TTL value.
 
 *   <a name="addresses"></a><a href="#addresses">`addresses`</a> - This is a nested object that allows
-    setting bind addresses.
+    setting bind addresses. In Consul 1.0 and later these can be set to a space-separated list of
+    addresses to bind to, or a [go-sockaddr](https://godoc.org/github.com/hashicorp/go-sockaddr/template)
+    template that can potentially resolve to multiple addresses.
 
     `http` supports binding to a Unix domain socket. A socket can be
     specified in the form `unix:///path/to/socket`. A new domain socket will be
@@ -669,22 +592,11 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 * <a name="advertise_addr"></a><a href="#advertise_addr">`advertise_addr`</a> Equivalent to
   the [`-advertise` command-line flag](#_advertise).
 
-* <a name="serf_wan_bind"></a><a href="#serf_wan_bind">`serf_wan_bind`</a> Equivalent to
+* <a name="serf_wan"></a><a href="#serf_wan_bind">`serf_wan`</a> Equivalent to
   the [`-serf-wan-bind` command-line flag](#_serf_wan_bind).
 
-* <a name="serf_lan_bind"></a><a href="#serf_lan_bind">`serf_lan_bind`</a> Equivalent to
+* <a name="serf_lan"></a><a href="#serf_lan_bind">`serf_lan`</a> Equivalent to
   the [`-serf-lan-bind` command-line flag](#_serf_lan_bind).
-
-*   <a name="advertise_addrs"></a><a href="#advertise_addrs">`advertise_addrs`</a> Allows to set
-    the advertised addresses for SerfLan, SerfWan and RPC together with the port. This gives
-    you more control than <a href="#_advertise">`-advertise`</a> or <a href="#_advertise-wan">`-advertise-wan`</a>
-    while it serves the same purpose. These settings might override <a href="#_advertise">`-advertise`</a> or
-    <a href="#_advertise-wan">`-advertise-wan`</a>
-
-    This is a nested setting that allows the following keys:
-    - `serf_lan` - The SerfLan address. Accepts values in the form of "host:port" like "10.23.31.101:8301".
-    - `serf_wan` - The SerfWan address. Accepts values in the form of "host:port" like "10.23.31.101:8302".
-    - `rpc` - The server RPC address. Accepts values in the form of "host:port" like "10.23.31.101:8300".
 
 * <a name="advertise_addr_wan"></a><a href="#advertise_addr_wan">`advertise_addr_wan`</a> Equivalent to
   the [`-advertise-wan` command-line flag](#_advertise-wan).
@@ -757,6 +669,62 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 * <a name="client_addr"></a><a href="#client_addr">`client_addr`</a> Equivalent to the
   [`-client` command-line flag](#_client).
 
+* <a name="connect"></a><a href="#connect">`connect`</a>
+    This object allows setting options for the Connect feature.
+
+    The following sub-keys are available:
+
+    * <a name="connect_enabled"></a><a href="#connect_enabled">`enabled`</a> Controls whether
+      Connect features are enabled on this agent. Should be enabled on all clients and
+      servers in the cluster in order for Connect to function properly. Defaults to false.
+
+    * <a name="connect_ca_provider"></a><a href="#connect_ca_provider">`ca_provider`</a> Controls
+      which CA provider to use for Connect's CA. Currently only the `consul` and `vault` providers
+      are supported. This is only used when initially bootstrapping the cluster. For an existing 
+      cluster, use the [Update CA Configuration Endpoint](/api/connect/ca.html#update-ca-configuration).
+
+    * <a name="connect_ca_config"></a><a href="#connect_ca_config">`ca_config`</a> An object which
+      allows setting different config options based on the CA provider chosen. This is only
+      used when initially bootstrapping the cluster. For an existing cluster, use the [Update CA
+      Configuration Endpoint](/api/connect/ca.html#update-ca-configuration).
+
+        The following providers are supported:
+
+        #### Consul CA Provider (`ca_provider = "consul"`)
+
+        * <a name="consul_ca_private_key"></a><a href="#consul_ca_private_key">`private_key`</a> The
+        PEM contents of the private key to use for the CA.
+
+        * <a name="consul_ca_root_cert"></a><a href="#consul_ca_root_cert">`root_cert`</a> The
+        PEM contents of the root certificate to use for the CA.
+
+        #### Vault CA Provider (`ca_provider = "vault"`)
+
+        * <a name="vault_ca_address"></a><a href="#vault_ca_address">`address`</a> The address of the Vault 
+        server to connect to.
+
+        * <a name="vault_ca_token"></a><a href="#vault_ca_token">`token`</a> The Vault token to use.
+
+        * <a name="vault_ca_root_pki"></a><a href="#vault_ca_root_pki">`root_pki_path`</a> The
+        path to use for the root CA pki backend in Vault. This can be an existing backend with a CA already
+        configured, or a blank/unmounted backend in which case Connect will automatically mount/generate the CA.
+        The Vault token given above must have `sudo` access to this backend, as well as permission to mount
+        the backend at this path if it is not already mounted.
+
+        * <a name="vault_ca_intermediate_pki"></a><a href="#vault_ca_intermediate_pki">`intermediate_pki_path`</a> 
+        The path to use for the temporary intermediate CA pki backend in Vault. *Connect will overwrite any data
+        at this path in order to generate a temporary intermediate CA*. The Vault token given above must have 
+        `write` access to this backend, as well as permission to mount the backend at this path if it is not 
+        already mounted.
+
+    * <a name="connect_proxy"></a><a href="#connect_proxy">`proxy`</a> This object allows setting options for the Connect proxies. The following sub-keys are available:
+
+        * <a name="connect_proxy_allow_managed_registration"></a><a href="#connect_proxy_allow_managed_registration">`allow_managed_api_registration`</a> Allows managed proxies to be configured with services that are registered via the Agent HTTP API. Enabling this would allow anyone with permission to register a service to define a command to execute for the proxy. By default, this is false to protect against arbitrary process execution.
+
+        * <a name="connect_proxy_allow_managed_root"></a><a href="#connect_proxy_allow_managed_root">`allow_managed_root`</a> Allows Consul to start managed proxies if Consul is running as root (EUID of the process is zero). We recommend running Consul as a non-root user. By default, this is false to protect inadvertently running external processes as root.
+
+    * <a name="connect_proxy_defaults"></a><a href="#connect_proxy_defaults">`proxy_defaults`</a> This object configures the default proxy settings for [service definitions with managed proxies](/docs/agent/services.html). It accepts the fields `exec_mode`, `daemon_command`, and `config`. These are used as default values for the respective fields in the service definition.
+
 * <a name="datacenter"></a><a href="#datacenter">`datacenter`</a> Equivalent to the
   [`-datacenter` command-line flag](#_datacenter).
 
@@ -776,7 +744,23 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
   0.8 the default was changed to true, to make remote exec opt-in instead of opt-out.
 
 * <a name="disable_update_check"></a><a href="#disable_update_check">`disable_update_check`</a>
-  Disables automatic checking for security bulletins and new version releases.
+  Disables automatic checking for security bulletins and new version releases. This is disabled in
+  Consul Enterprise.
+
+* <a name="discard_check_output"></a><a href="#discard_check_output">`discard_check_output`</a>
+  Discards the output of health checks before storing them. This reduces the number of writes
+  to the Consul raft log in environments where health checks have volatile output like
+  timestamps, process ids, ...
+
+  * <a name="discovery_max_stale"></a><a href="#discovery_max_stale">`discovery_max_stale`</a> - Enables
+  stale requests for all service discovery HTTP endpoints. This is equivalent to the
+  [`max_stale`](#max_stale) configuration for DNS requests. If this value is zero (default), all service
+  discovery HTTP endpoints are forwarded to the leader. If this value is greater than zero, any Consul server
+  can handle the service discovery request.  If a Consul server is behind the leader by more than `discovery_max_stale`,
+  the query will be re-evaluated on the leader to get more up-to-date results. Consul agents also add a new
+  `X-Consul-Effective-Consistency` response header which indicates if the agent did a stale read. `discover-max-stale`
+  was introduced in Consul 1.0.7 as a way for Consul operators to force stale requests from clients at the agent level,
+  and defaults to zero which matches default consistency behavior in earlier Consul versions.
 
 *   <a name="dns_config"></a><a href="#dns_config">`dns_config`</a> This object allows a number
     of sub-keys to be set which can tune how DNS queries are serviced. See this guide on
@@ -832,10 +816,16 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 
     * <a name="udp_answer_limit"></a><a href="#udp_answer_limit">`udp_answer_limit`</a> - Limit the number of
       resource records contained in the answer section of a UDP-based DNS
-      response. When answering a question, Consul will use the complete list of
+      response. This parameter applies only to UDP DNS queries that are less than 512 bytes. This setting is deprecated
+      and replaced in Consul 1.0.7 by <a href="#a_record_limit">`a_record_limit`</a>.
+
+    * <a name="a_record_limit"></a><a href="#a_record_limit">`a_record_limit`</a> - Limit the number of
+      resource records contained in the answer section of a A, AAAA or ANY DNS response (both TCP and UDP).
+      When answering a question, Consul will use the complete list of
       matching hosts, shuffle the list randomly, and then limit the number of
-      answers to `udp_answer_limit` (default `3`). In environments where
-      [RFC 3484 Section 6](https://tools.ietf.org/html/rfc3484#section-6) Rule 9
+      answers to `a_record_limit` (default: no limit). This limit does not apply to SRV records.
+
+      In environments where [RFC 3484 Section 6](https://tools.ietf.org/html/rfc3484#section-6) Rule 9
       is implemented and enforced (i.e. DNS answers are always sorted and
       therefore never random), clients may need to set this value to `1` to
       preserve the expected randomized distribution behavior (note:
@@ -843,6 +833,12 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
       [RFC 6724](https://tools.ietf.org/html/rfc6724) and as a result it should
       be increasingly uncommon to need to change this value with modern
       resolvers).
+      
+    * <a name="enable_additional_node_meta_txt"></a><a href="#enable_additional_node_meta_txt">`enable_additional_node_meta_txt`</a> - 
+      When set to true, Consul will add TXT records for Node metadata into the Additional section of the DNS responses for several
+      query types such as SRV queries. When set to false those records are emitted. This does not impact the behavior of those
+      same TXT records when they would be added to the Answer section of the response like when querying with type TXT or ANY. This
+      defaults to true.
 
 * <a name="domain"></a><a href="#domain">`domain`</a> Equivalent to the
   [`-domain` command-line flag](#_domain).
@@ -852,6 +848,11 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
   the replication token via [`acl_replication_token`](#acl_replication_token). Instead, enable ACL replication
   and then introduce the token using the [agent token API](/api/agent.html#update-acl-tokens) on each server.
   See [`acl_replication_token`](#acl_replication_token) for more details.
+
+* <a name="enable_agent_tls_for_checks"></a><a href="#enable_agent_tls_for_checks">`enable_agent_tls_for_checks`</a>
+  When set, uses a subset of the agent's TLS configuration (`key_file`, `cert_file`, `ca_file`, `ca_path`, and
+  `server_name`) to set up the HTTP client for HTTP health checks. This allows services requiring 2-way TLS to
+  be checked using the agent's credentials. This was added in Consul 1.0.1 and defaults to false.
 
 * <a name="enable_debug"></a><a href="#enable_debug">`enable_debug`</a> When set, enables some
   additional debugging features. Currently, this is only used to set the runtime profiling HTTP endpoints.
@@ -883,23 +884,6 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 * <a name="key_file"></a><a href="#key_file">`key_file`</a> This provides a the file path to a
   PEM-encoded private key. The key is used with the certificate to verify the agent's authenticity.
   This must be provided along with [`cert_file`](#cert_file).
-
-*   <a name="http_api_response_headers"></a><a href="#http_api_response_headers">`http_api_response_headers`</a>
-    This object allows adding headers to the HTTP API
-    responses. For example, the following config can be used to enable
-    [CORS](https://en.wikipedia.org/wiki/Cross-origin_resource_sharing) on
-    the HTTP API endpoints:
-
-    ```javascript
-      {
-        "http_api_response_headers": {
-            "Access-Control-Allow-Origin": "*"
-        }
-      }
-    ```
-
-    This has been deprecated in Consul 0.8.5. Setting this value will set `http_config.response_headers`
-    instead for backwards compatibility.
 
 *   <a name="http_config"></a><a href="#http_config">`http_config`</a>
     This object allows setting options for the HTTP API.
@@ -982,6 +966,12 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
     Consul. See the [Server Performance](/docs/guides/performance.html) guide for more details. The
     following parameters are available:
 
+    *   <a name="leave_drain_time"></a><a href="#leave_drain_time">`leave_drain_time`</a> - A duration
+        that a server will dwell during a graceful leave in order to allow requests to be retried against
+        other Consul servers. Under normal circumstances, this can prevent clients from experiencing
+        "no leader" errors when performing a rolling update of the Consul servers. This was added in
+        Consul 1.0. Must be a duration value such as 10s. Defaults to 5s.
+
     *   <a name="raft_multiplier"></a><a href="#raft_multiplier">`raft_multiplier`</a> - An integer
         multiplier used by Consul servers to scale key Raft timing parameters. Omitting this value
         or setting it to 0 uses default timing described below. Lower values are used to tighten
@@ -991,7 +981,7 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
         performance.
 
         By default, Consul will use a lower-performance timing that's suitable
-        for [minimal Consul servers](/docs/guides/performance.html#minumum), currently equivalent
+        for [minimal Consul servers](/docs/guides/performance.html#minimum), currently equivalent
         to setting this to a value of 5 (this default may be changed in future versions of Consul,
         depending if the target minimum server profile changes). Setting this to a value of 1 will
         configure Raft to its highest-performance mode, equivalent to the default timing of Consul
@@ -999,22 +989,35 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
         See the note on [last contact](/docs/guides/performance.html#last-contact) timing for more
         details on tuning this parameter. The maximum allowed value is 10.
 
+    *   <a name="rpc_hold_timeout"></a><a href="#rpc_hold_timeout">`rpc_hold_timeout`</a> - A duration
+        that a client or server will retry internal RPC requests during leader elections. Under normal
+        circumstances, this can prevent clients from experiencing "no leader" errors. This was added in
+        Consul 1.0. Must be a duration value such as 10s. Defaults to 7s.
+
 * <a name="ports"></a><a href="#ports">`ports`</a> This is a nested object that allows setting
   the bind ports for the following keys:
     * <a name="dns_port"></a><a href="#dns_port">`dns`</a> - The DNS server, -1 to disable. Default 8600.
     * <a name="http_port"></a><a href="#http_port">`http`</a> - The HTTP API, -1 to disable. Default 8500.
     * <a name="https_port"></a><a href="#https_port">`https`</a> - The HTTPS API, -1 to disable. Default -1 (disabled).
-    * <a name="rpc_port"></a><a href="#rpc_port">`rpc`</a> - The CLI RPC endpoint. Default 8400. This is deprecated
-      in Consul 0.8 and later.
     * <a name="serf_lan_port"></a><a href="#serf_lan_port">`serf_lan`</a> - The Serf LAN port. Default 8301.
-    * <a name="serf_wan_port"></a><a href="#serf_wan_port">`serf_wan`</a> - The Serf WAN port. Default 8302.
+    * <a name="serf_wan_port"></a><a href="#serf_wan_port">`serf_wan`</a> - The Serf WAN port. Default 8302. Set to -1
+      to disable. **Note**: this will disable WAN federation which is not recommended. Various catalog and WAN related
+      endpoints will return errors or empty results.
     * <a name="server_rpc_port"></a><a href="#server_rpc_port">`server`</a> - Server RPC address. Default 8300.
+    * <a name="proxy_min_port"></a><a href="#proxy_min_port">`proxy_min_port`</a> - Minimum port number to use for automatically assigned [managed Connect proxies](/docs/connect/proxies.html). If Connect is disabled, managed proxies are unused, or ports are always specified, then this value is unused. Defaults to 20000.
+    * <a name="proxy_max_port"></a><a href="#proxy_max_port">`proxy_max_port`</a> - Maximum port number to use for automatically assigned [managed Connect proxies](/docs/connect/proxies.html). See [`proxy_min_port`](#proxy_min_port) for more information. Defaults to 20255.
 
 * <a name="protocol"></a><a href="#protocol">`protocol`</a> Equivalent to the
   [`-protocol` command-line flag](#_protocol).
 
 * <a name="raft_protocol"></a><a href="#raft_protocol">`raft_protocol`</a> Equivalent to the
   [`-raft-protocol` command-line flag](#_raft_protocol).
+
+* <a name="raft_snapshot_threshold"></a><a href="#raft_snapshot_threshold">`raft_snapshot_threshold`</a> Equivalent to the
+  [`-raft-snapshot-threshold` command-line flag](#_raft_snapshot_threshold).
+
+* <a name="raft_snapshot_interval"></a><a href="#raft_snapshot_interval">`raft_snapshot_interval`</a> Equivalent to the
+  [`-raft-snapshot-interval` command-line flag](#_raft_snapshot_interval).
 
 * <a name="reap"></a><a href="#reap">`reap`</a> This controls Consul's automatic reaping of child processes,
   which is useful if Consul is running as PID 1 in a Docker container. If this isn't specified, then Consul will
@@ -1039,25 +1042,17 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
   controls how long it takes for a failed server to be completely removed from the WAN pool. This also
   defaults to 72 hours, and must be >= 8 hours.
 
-* <a name="recursor"></a><a href="#recursor">`recursor`</a> Provides a single recursor address.
-  This has been deprecated, and the value is appended to the [`recursors`](#recursors) list for
-  backwards compatibility.
-
 * <a name="recursors"></a><a href="#recursors">`recursors`</a> This flag provides addresses of
   upstream DNS servers that are used to recursively resolve queries if they are not inside the service
   domain for Consul. For example, a node can use Consul directly as a DNS server, and if the record is
-  outside of the "consul." domain, the query will be resolved upstream.
+  outside of the "consul." domain, the query will be resolved upstream. As of Consul 1.0.1 recursors
+  can be provided as IP addresses or as go-sockaddr templates. IP addresses are resolved in order,
+  and duplicates are ignored.
 
 * <a name="rejoin_after_leave"></a><a href="#rejoin_after_leave">`rejoin_after_leave`</a> Equivalent
   to the [`-rejoin` command-line flag](#_rejoin).
 
 * `retry_join` - Equivalent to the [`-retry-join`](#retry-join) command-line flag.
-
-* `retry_join_ec2`- This parameter has been deprecated as of Consul 0.9.1. See [-retry-join](#retry-join) for details.
-
-* `retry_join_gce` - This parameter has been deprecated as of Consul 0.9.1. See [-retry-join](#retry-join) for details.
-
-* `retry_join_azure` - This parameter has been deprecated as of Consul 0.9.1. See [-retry-join](#retry-join) for details.
 
 * <a name="retry_interval"></a><a href="#retry_interval">`retry_interval`</a> Equivalent to the
   [`-retry-interval` command-line flag](#_retry_interval).
@@ -1080,7 +1075,7 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
     1 and 64 characters in length.
     * <a name="segment_bind"></a><a href="#segment_bind">`bind`</a> - The bind address to use for the segment's gossip layer.
     Defaults to the [`-bind`](#_bind) value if not provided.
-    * <a name="segment_port"></a><a href="#segment_port">`port`</a> - The port to use for the segment's gossip layer.
+    * <a name="segment_port"></a><a href="#segment_port">`port`</a> - The port to use for the segment's gossip layer (required).
     * <a name="segment_advertise"></a><a href="#segment_advertise">`advertise`</a> - The advertise address to use for the
     segment's gossip layer. Defaults to the [`-advertise`](#_advertise) value if not provided.
     * <a name="segment_rpc_listener"></a><a href="#segment_rpc_listener">`rpc_listener`</a> - If true, a separate RPC listener will
@@ -1128,50 +1123,6 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 *   <a name="telemetry"></a><a href="#telemetry">`telemetry`</a> This is a nested object that configures where Consul
     sends its runtime telemetry, and contains the following keys:
 
-    * <a name="telemetry-statsd_address"></a><a href="#telemetry-statsd_address">`statsd_address`</a> This provides the
-      address of a statsd instance in the format `host:port`. If provided, Consul will send various telemetry information to that instance for
-      aggregation. This can be used to capture runtime information. This sends UDP packets only and can be used with
-      statsd or statsite.
-
-    * <a name="telemetry-statsite_address"></a><a href="#telemetry-statsite_address">`statsite_address`</a> This provides
-      the address of a statsite instance in the format `host:port`. If provided, Consul will stream various telemetry information to that instance
-      for aggregation. This can be used to capture runtime information. This streams via TCP and can only be used with
-      statsite.
-
-    * <a name="telemetry-statsite_prefix"></a><a href="#telemetry-statsite_prefix">`statsite_prefix`</a>
-      The prefix used while writing all telemetry data to statsite. By default, this is set to "consul".
-
-    * <a name="telemetry-dogstatsd_addr"></a><a href="#telemetry-dogstatsd_addr">`dogstatsd_addr`</a> This provides the
-      address of a DogStatsD instance in the format `host:port`. DogStatsD is a protocol-compatible flavor of
-      statsd, with the added ability to decorate metrics with tags and event information. If provided, Consul will
-      send various telemetry information to that instance for aggregation. This can be used to capture runtime
-      information.
-
-    * <a name="telemetry-dogstatsd_tags"></a><a href="#telemetry-dogstatsd_tags">`dogstatsd_tags`</a> This provides a list of global tags
-      that will be added to all telemetry packets sent to DogStatsD. It is a list of strings, where each string
-      looks like "my_tag_name:my_tag_value".
-
-    * <a name="telemetry-disable_hostname"></a><a href="#telemetry-disable_hostname">`disable_hostname`</a>
-      This controls whether or not to prepend runtime telemetry with the machine's hostname, defaults to false.
-
-    * <a name="telemetry-prefix_filter"></a><a href="#telemetry-prefix_filter">`prefix_filter`</a>
-      This is a list of filter rules to apply for allowing/blocking metrics by prefix in the following format:
-
-        ```javascript
-        [
-          "+consul.raft.apply",
-          "-consul.http",
-          "+consul.http.GET"
-        ]
-        ```
-      A leading "<b>+</b>" will enable any metrics with the given prefix, and a leading "<b>-</b>" will block them. If there
-      is overlap between two rules, the more specific rule will take precedence. Blocking will take priority if the same
-      prefix is listed multiple times.
-
-    * <a name="telemetry-filter_default"></a><a href="#telemetry-filter_default">`filter_default`</a>
-     This controls whether to allow metrics that have not been specified by the filter. Defaults to `true`, which will
-     allow all metrics when no filters are provided. When set to `false` with no filters, no metrics will be sent.
-
     * <a name="telemetry-circonus_api_token"></a><a href="#telemetry-circonus_api_token">`circonus_api_token`</a>
       A valid API Token used to create/manage check. If provided, metric management is enabled.
 
@@ -1191,7 +1142,7 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
       The Check ID (not **check bundle**) from a previously created HTTPTRAP check. The numeric portion of the `check._cid` field in the Check API object.
 
     * <a name="telemetry-circonus_check_force_metric_activation"></a><a href="#telemetry-circonus_check_force_metric_activation">`circonus_check_force_metric_activation`</a>
-      Force activation of metrics which already exist and are not currently active. If check management is enabled, the default behavior is to add new metrics as they are encoutered. If the metric already exists in the check, it will **not** be activated. This setting overrides that behavior. By default, this is set to false.
+      Force activation of metrics which already exist and are not currently active. If check management is enabled, the default behavior is to add new metrics as they are encountered. If the metric already exists in the check, it will **not** be activated. This setting overrides that behavior. By default, this is set to false.
 
     * <a name="telemetry-circonus_check_instance_id"></a><a href="#telemetry-circonus_check_instance_id">`circonus_check_instance_id`</a>
       Uniquely identifies the metrics coming from this *instance*. It can be used to maintain metric continuity with transient or ephemeral instances as they move around within an infrastructure. By default, this is set to hostname:application name (e.g. "host123:consul").
@@ -1211,20 +1162,63 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
     * <a name="telemetry-circonus_broker_select_tag"></a><a href="#telemetry-circonus_broker_select_tag">`circonus_broker_select_tag`</a>
       A special tag which will be used to select a Circonus Broker when a Broker ID is not provided. The best use of this is to as a hint for which broker should be used based on *where* this particular instance is running (e.g. a specific geo location or datacenter, dc:sfo). By default, this is left blank and not used.
 
-* <a name="statsd_addr"></a><a href="#statsd_addr">`statsd_addr`</a> Deprecated, see
-  the <a href="#telemetry">telemetry</a> structure
+    * <a name="telemetry-disable_hostname"></a><a href="#telemetry-disable_hostname">`disable_hostname`</a>
+      This controls whether or not to prepend runtime telemetry with the machine's hostname, defaults to false.
 
-* <a name="statsite_addr"></a><a href="#statsite_addr">`statsite_addr`</a> Deprecated, see
-  the <a href="#telemetry">telemetry</a> structure
+    * <a name="telemetry-dogstatsd_addr"></a><a href="#telemetry-dogstatsd_addr">`dogstatsd_addr`</a> This provides the
+      address of a DogStatsD instance in the format `host:port`. DogStatsD is a protocol-compatible flavor of
+      statsd, with the added ability to decorate metrics with tags and event information. If provided, Consul will
+      send various telemetry information to that instance for aggregation. This can be used to capture runtime
+      information.
 
-* <a name="statsite_prefix"></a><a href="#statsite_prefix">`statsite_prefix`</a> Deprecated, see
-  the <a href="#telemetry">telemetry</a> structure
+    * <a name="telemetry-dogstatsd_tags"></a><a href="#telemetry-dogstatsd_tags">`dogstatsd_tags`</a> This provides a list of global tags
+      that will be added to all telemetry packets sent to DogStatsD. It is a list of strings, where each string
+      looks like "my_tag_name:my_tag_value".
 
-* <a name="dogstatsd_addr"></a><a href="#dogstatsd_addr">`dogstatsd_addr`</a> Deprecated, see
-  the <a href="#telemetry">telemetry</a> structure
+    * <a name="telemetry-filter_default"></a><a href="#telemetry-filter_default">`filter_default`</a>
+     This controls whether to allow metrics that have not been specified by the filter. Defaults to `true`, which will
+     allow all metrics when no filters are provided. When set to `false` with no filters, no metrics will be sent.
 
-* <a name="dogstatsd_tags"></a><a href="#dogstatsd_tags">`dogstatsd_tags`</a> Deprecated, see
-  the <a href="#telemetry">telemetry</a> structure
+    * <a name="telemetry-metrics_prefix"></a><a href="#telemetry-metrics_prefix">`metrics_prefix`</a>
+      The prefix used while writing all telemetry data. By default, this is set to "consul". This was added
+      in Consul 1.0. For previous versions of Consul, use the config option `statsite_prefix` in this
+      same structure. This was renamed in Consul 1.0 since this prefix applied to all telemetry providers,
+      not just statsite.
+
+    * <a name="telemetry-prefix_filter"></a><a href="#telemetry-prefix_filter">`prefix_filter`</a>
+      This is a list of filter rules to apply for allowing/blocking metrics by prefix in the following format:
+
+        ```javascript
+        [
+          "+consul.raft.apply",
+          "-consul.http",
+          "+consul.http.GET"
+        ]
+        ```
+      A leading "<b>+</b>" will enable any metrics with the given prefix, and a leading "<b>-</b>" will block them. If there
+      is overlap between two rules, the more specific rule will take precedence. Blocking will take priority if the same
+      prefix is listed multiple times.
+
+    * <a name="telemetry-prometheus_retention_time"></a><a href="#telemetry-prometheus_retention_time">prometheus_retention_time</a>
+      If the value is greater than `0s` (the default), this enables [Prometheus](https://prometheus.io/) export of metrics.
+      The duration can be expressed using the duration semantics and will aggregates all counters for the duration specified
+      (it might have an impact on Consul's memory usage). A good value for this parameter is at least 2 times the interval of scrape
+      of Prometheus, but you might also put a very high retention time such as a few days (for instance 744h to enable retention
+      to 31 days).
+      Fetching the metrics using prometheus can then be performed using the `/v1/agent/metrics?format=prometheus` URL or by sending
+      the Accept header with value `text/plain; version=0.0.4; charset=utf-8`  to the `/v1/agent/metrics` (as done by Prometheus).
+      The format is compatible natively with prometheus. When running in this mode, it is recommended to also enable the option
+      <a href="#telemetry-disable_hostname">`disable_hostname`</a> to avoid having prefixed metrics with hostname.
+
+    * <a name="telemetry-statsd_address"></a><a href="#telemetry-statsd_address">`statsd_address`</a> This provides the
+      address of a statsd instance in the format `host:port`. If provided, Consul will send various telemetry information to that instance for
+      aggregation. This can be used to capture runtime information. This sends UDP packets only and can be used with
+      statsd or statsite.
+
+    * <a name="telemetry-statsite_address"></a><a href="#telemetry-statsite_address">`statsite_address`</a> This provides
+      the address of a statsite instance in the format `host:port`. If provided, Consul will stream various telemetry information to that instance
+      for aggregation. This can be used to capture runtime information. This streams via TCP and can only be used with
+      statsite.
 
 * <a name="syslog_facility"></a><a href="#syslog_facility">`syslog_facility`</a> When
   [`enable_syslog`](#enable_syslog) is provided, this controls to which
@@ -1237,7 +1231,7 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
 
 * <a name="tls_cipher_suites"></a><a href="#tls_cipher_suites">`tls_cipher_suites`</a> Added in Consul
   0.8.2, this specifies the list of supported ciphersuites as a comma-separated-list. The list of all
-  available ciphersuites is available in the [Golang TLS documentation](https://golang.org/src/crypto/tls/cipher_suites.go).
+  supported ciphersuites is available in the [source code](https://github.com/hashicorp/consul/blob/master/tlsutil/config.go#L363).
 
 * <a name="tls_prefer_server_cipher_suites"></a><a href="#tls_prefer_server_cipher_suites">
   `tls_prefer_server_cipher_suites`</a> Added in Consul 0.8.2, this will cause Consul to prefer the
@@ -1330,7 +1324,7 @@ Consul will not enable TLS for the HTTP API unless the `https` port has been ass
    [watch documentation](/docs/agent/watches.html) for more detail. Watches can be
    modified when the configuration is reloaded.
 
-## <a id="ports"></a>Ports Used
+## <a id="ports-used"></a>Ports Used
 
 Consul requires up to 6 different ports to work properly, some on
 TCP, UDP, or both protocols. Below we document the requirements for each
@@ -1347,11 +1341,6 @@ port.
   enable connection between servers through port 8302 for both TCP and UDP on
   the LAN interface as well for the WAN Join Flooding feature. See also:
   [Consul 0.8.0 CHANGELOG](https://github.com/hashicorp/consul/blob/master/CHANGELOG.md#080-april-5-2017) and [GH-3058](https://github.com/hashicorp/consul/issues/3058)
-
-* CLI RPC (Default 8400). This is used by all agents to handle RPC
-  from the CLI, but is deprecated in Consul 0.8 and later. TCP only.
-  In Consul 0.8 all CLI commands were changed to use the HTTP API and
-  the RPC interface was completely removed.
 
 * HTTP API (Default 8500). This is used by clients to talk to the HTTP
   API. TCP only.
@@ -1370,3 +1359,5 @@ items which are reloaded include:
 * HTTP Client Address
 * <a href="#node_meta">Node Metadata</a>
 * <a href="#telemetry-prefix_filter">Metric Prefix Filter</a>
+* <a href="#discard_check_output">Discard Check Output</a>
+* <a href="#limits">RPC rate limiting</a>

@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/consul/testutil"
 	"github.com/hashicorp/consul/testutil/retry"
 	"github.com/pascaldekloe/goe/verify"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAPI_HealthNode(t *testing.T) {
@@ -256,6 +257,7 @@ func TestAPI_HealthChecks_NodeMetaFilter(t *testing.T) {
 }
 
 func TestAPI_HealthService(t *testing.T) {
+	t.Parallel()
 	c, s := makeClient(t)
 	defer s.Stop()
 
@@ -281,7 +283,58 @@ func TestAPI_HealthService(t *testing.T) {
 	})
 }
 
+func TestAPI_HealthConnect(t *testing.T) {
+	t.Parallel()
+	c, s := makeClient(t)
+	defer s.Stop()
+
+	agent := c.Agent()
+	health := c.Health()
+
+	// Make a service with a proxy
+	reg := &AgentServiceRegistration{
+		Name: "foo",
+		Port: 8000,
+	}
+	err := agent.ServiceRegister(reg)
+	require.NoError(t, err)
+	defer agent.ServiceDeregister("foo")
+
+	// Register the proxy
+	proxyReg := &AgentServiceRegistration{
+		Name:             "foo-proxy",
+		Port:             8001,
+		Kind:             ServiceKindConnectProxy,
+		ProxyDestination: "foo",
+	}
+	err = agent.ServiceRegister(proxyReg)
+	require.NoError(t, err)
+	defer agent.ServiceDeregister("foo-proxy")
+
+	retry.Run(t, func(r *retry.R) {
+		services, meta, err := health.Connect("foo", "", true, nil)
+		if err != nil {
+			r.Fatal(err)
+		}
+		if meta.LastIndex == 0 {
+			r.Fatalf("bad: %v", meta)
+		}
+		// Should be exactly 1 service - the original shouldn't show up as a connect
+		// endpoint, only it's proxy.
+		if len(services) != 1 {
+			r.Fatalf("Bad: %v", services)
+		}
+		if services[0].Node.Datacenter != "dc1" {
+			r.Fatalf("Bad datacenter: %v", services[0].Node)
+		}
+		if services[0].Service.Port != proxyReg.Port {
+			r.Fatalf("Bad port: %v", services[0])
+		}
+	})
+}
+
 func TestAPI_HealthService_NodeMetaFilter(t *testing.T) {
+	t.Parallel()
 	meta := map[string]string{"somekey": "somevalue"}
 	c, s := makeClientWithConfig(t, nil, func(conf *testutil.TestServerConfig) {
 		conf.NodeMeta = meta

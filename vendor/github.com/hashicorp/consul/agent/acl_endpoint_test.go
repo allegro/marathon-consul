@@ -3,13 +3,52 @@ package agent
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/consul/acl"
 	"github.com/hashicorp/consul/agent/structs"
 )
+
+func TestACL_Disabled_Response(t *testing.T) {
+	t.Parallel()
+	a := NewTestAgent(t.Name(), "")
+	defer a.Shutdown()
+
+	tests := []func(resp http.ResponseWriter, req *http.Request) (interface{}, error){
+		a.srv.ACLBootstrap,
+		a.srv.ACLDestroy,
+		a.srv.ACLCreate,
+		a.srv.ACLUpdate,
+		a.srv.ACLClone,
+		a.srv.ACLGet,
+		a.srv.ACLList,
+		a.srv.ACLReplicationStatus,
+		a.srv.AgentToken, // See TestAgent_Token.
+	}
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			req, _ := http.NewRequest("PUT", "/should/not/care", nil)
+			resp := httptest.NewRecorder()
+			obj, err := tt(resp, req)
+			if err != nil {
+				t.Fatalf("err: %v", err)
+			}
+			if obj != nil {
+				t.Fatalf("bad: %#v", obj)
+			}
+			if got, want := resp.Code, http.StatusUnauthorized; got != want {
+				t.Fatalf("got %d want %d", got, want)
+			}
+			if !strings.Contains(resp.Body.String(), "ACL support disabled") {
+				t.Fatalf("bad: %#v", resp)
+			}
+		})
+	}
+}
 
 func makeTestACL(t *testing.T, srv *HTTPServer) string {
 	body := bytes.NewBuffer(nil)
@@ -33,9 +72,9 @@ func makeTestACL(t *testing.T, srv *HTTPServer) string {
 
 func TestACL_Bootstrap(t *testing.T) {
 	t.Parallel()
-	cfg := TestACLConfig()
-	cfg.ACLMasterToken = ""
-	a := NewTestAgent(t.Name(), cfg)
+	a := NewTestAgent(t.Name(), TestACLConfig()+`
+		acl_master_token = ""
+	`)
 	defer a.Shutdown()
 
 	tests := []struct {
@@ -44,7 +83,6 @@ func TestACL_Bootstrap(t *testing.T) {
 		code   int
 		token  bool
 	}{
-		{"bad method", "GET", http.StatusMethodNotAllowed, false},
 		{"bootstrap", "PUT", http.StatusOK, true},
 		{"not again", "PUT", http.StatusForbidden, false},
 	}
@@ -278,7 +316,7 @@ func TestACL_List(t *testing.T) {
 
 func TestACLReplicationStatus(t *testing.T) {
 	t.Parallel()
-	a := NewTestAgent(t.Name(), nil)
+	a := NewTestAgent(t.Name(), TestACLConfig())
 	defer a.Shutdown()
 
 	req, _ := http.NewRequest("GET", "/v1/acl/replication", nil)

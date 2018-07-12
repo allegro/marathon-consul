@@ -14,18 +14,22 @@ type aclCreateResponse struct {
 	ID string
 }
 
-// ACLDisabled handles if ACL datacenter is not configured
-func ACLDisabled(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+// checkACLDisabled will return a standard response if ACLs are disabled. This
+// returns true if they are disabled and we should not continue.
+func (s *HTTPServer) checkACLDisabled(resp http.ResponseWriter, req *http.Request) bool {
+	if s.agent.config.ACLDatacenter != "" {
+		return false
+	}
+
 	resp.WriteHeader(http.StatusUnauthorized)
 	fmt.Fprint(resp, "ACL support disabled")
-	return nil, nil
+	return true
 }
 
 // ACLBootstrap is used to perform a one-time ACL bootstrap operation on
 // a cluster to get the first management token.
 func (s *HTTPServer) ACLBootstrap(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
-	if req.Method != "PUT" {
-		resp.WriteHeader(http.StatusMethodNotAllowed)
+	if s.checkACLDisabled(resp, req) {
 		return nil, nil
 	}
 
@@ -49,9 +53,7 @@ func (s *HTTPServer) ACLBootstrap(resp http.ResponseWriter, req *http.Request) (
 }
 
 func (s *HTTPServer) ACLDestroy(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
-	// Mandate a PUT request
-	if req.Method != "PUT" {
-		resp.WriteHeader(http.StatusMethodNotAllowed)
+	if s.checkACLDisabled(resp, req) {
 		return nil, nil
 	}
 
@@ -77,20 +79,20 @@ func (s *HTTPServer) ACLDestroy(resp http.ResponseWriter, req *http.Request) (in
 }
 
 func (s *HTTPServer) ACLCreate(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	if s.checkACLDisabled(resp, req) {
+		return nil, nil
+	}
 	return s.aclSet(resp, req, false)
 }
 
 func (s *HTTPServer) ACLUpdate(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	if s.checkACLDisabled(resp, req) {
+		return nil, nil
+	}
 	return s.aclSet(resp, req, true)
 }
 
 func (s *HTTPServer) aclSet(resp http.ResponseWriter, req *http.Request, update bool) (interface{}, error) {
-	// Mandate a PUT request
-	if req.Method != "PUT" {
-		resp.WriteHeader(http.StatusMethodNotAllowed)
-		return nil, nil
-	}
-
 	args := structs.ACLRequest{
 		Datacenter: s.agent.config.ACLDatacenter,
 		Op:         structs.ACLSet,
@@ -128,9 +130,7 @@ func (s *HTTPServer) aclSet(resp http.ResponseWriter, req *http.Request, update 
 }
 
 func (s *HTTPServer) ACLClone(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
-	// Mandate a PUT request
-	if req.Method != "PUT" {
-		resp.WriteHeader(http.StatusMethodNotAllowed)
+	if s.checkACLDisabled(resp, req) {
 		return nil, nil
 	}
 
@@ -182,6 +182,10 @@ func (s *HTTPServer) ACLClone(resp http.ResponseWriter, req *http.Request) (inte
 }
 
 func (s *HTTPServer) ACLGet(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	if s.checkACLDisabled(resp, req) {
+		return nil, nil
+	}
+
 	args := structs.ACLSpecificRequest{
 		Datacenter: s.agent.config.ACLDatacenter,
 	}
@@ -212,6 +216,10 @@ func (s *HTTPServer) ACLGet(resp http.ResponseWriter, req *http.Request) (interf
 }
 
 func (s *HTTPServer) ACLList(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	if s.checkACLDisabled(resp, req) {
+		return nil, nil
+	}
+
 	args := structs.DCSpecificRequest{
 		Datacenter: s.agent.config.ACLDatacenter,
 	}
@@ -234,6 +242,10 @@ func (s *HTTPServer) ACLList(resp http.ResponseWriter, req *http.Request) (inter
 }
 
 func (s *HTTPServer) ACLReplicationStatus(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	if s.checkACLDisabled(resp, req) {
+		return nil, nil
+	}
+
 	// Note that we do not forward to the ACL DC here. This is a query for
 	// any DC that's doing replication.
 	args := structs.DCSpecificRequest{}

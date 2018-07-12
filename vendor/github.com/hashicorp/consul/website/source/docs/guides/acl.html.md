@@ -482,6 +482,28 @@ default.
 If using [`acl_token`](/docs/agent/options.html#acl_token), then it's likely the anonymous
 token will have a more restrictive policy than shown in the examples here.
 
+#### Create Tokens for UI Use (Optional)
+
+If you utilize the Consul UI with a restrictive ACL policy, as above, the UI will
+not function fully using the anonymous ACL token. It is recommended
+that a UI-specific ACL token is used, which can be set in the UI during the
+web browser session to authenticate the interface.
+
+```text
+$ curl \
+    --request PUT \
+    --header "X-Consul-Token: b1gs33cr3t" \
+    --data \
+'{
+  "Name": "UI Token",
+  "Type": "client",
+  "Rules": "key \"\" { policy = \"write\" } node \"\" { policy = \"read\" } service \"\" { policy = \"read\" }"
+}' http://127.0.0.1:8500/v1/acl/create
+{"ID":"d0a9f330-2f9d-0a8c-d2af-1e9ceda354e6"}
+```
+
+The token can then be set on the "settings" page of the UI.
+
 #### Next Steps
 
 The examples above configure a basic ACL environment with the ability to see all nodes
@@ -670,6 +692,49 @@ Key rules are keyed by the key name prefix they apply to, using the longest pref
 the example above, the rules allow read-only access to any key name with the empty prefix, allow
 read-write access to any key name that starts with "foo", and deny all access to any key name that
 starts with "bar".
+
+#### List Policy for Keys
+
+Consul 1.0 introduces a new `list` policy for keys that is only enforced when opted in via the boolean config param "acl_enable_key_list_policy".
+`list` controls access to recursively list entries and keys, and enables more fine grained policies. With "acl_enable_key_list_policy",
+recursive reads via [the KV API](/api/kv.html#recurse) with an invalid token result in a 403. Example:
+
+```text
+key "" {
+ policy = "deny"
+}
+
+key "bar" {
+ policy = "list"
+}
+
+key "baz" {
+ policy = "read"
+}
+```
+
+In the example above, the rules allow reading the key "baz", and only allow recursive reads on the prefix "bar".
+
+A token with `write` access on a prefix also has `list` access. A token with `list` access on a prefix also has `read` access on all its suffixes.
+
+#### Sentinel Integration
+
+Consul Enterprise supports additional optional fields for key write policies for
+[Sentinel](https://docs.hashicorp.com/sentinel/app/consul/) integration. An example key rule with a
+Sentinel code policy looks like this:
+
+```text
+key "foo" {
+  policy = "write"
+  sentinel {
+      code = " import \"strings\"
+               main = rule { strings.has_suffix(value, \"bar\") } "
+      enforcementlevel = "hard-mandatory"
+  }
+}
+```
+
+For more detailed documentation, see the [Consul Sentinel Guide](/docs/guides/sentinel.html).
 
 #### Keyring Rules
 
@@ -918,16 +983,21 @@ to use for registration events:
 1. Using the [acl_token](/docs/agent/options.html#acl_token) configuration
    directive. This allows a single token to be configured globally and used
    during all service and check registration operations.
-2. Providing an ACL token with service and check definitions at
-   registration time. This allows for greater flexibility and enables the use
-   of multiple tokens on the same agent. Examples of what this looks like are
-   available for both [services](/docs/agent/services.html) and
-   [checks](/docs/agent/checks.html). Tokens may also be passed to the
-   [HTTP API](/api/index.html) for operations that require them.
+2. Providing an ACL token with service and check definitions at registration
+   time. This allows for greater flexibility and enables the use of multiple
+   tokens on the same agent. Examples of what this looks like are available for
+   both [services](/docs/agent/services.html) and
+   [checks](/docs/agent/checks.html). Tokens may also be passed to the [HTTP
+   API](/api/index.html) for operations that require them. **Note:** all tokens
+   passed to an agent are persisted on local disk to allow recovery from
+   restarts. See [`-data-dir` flag
+   documentation](/docs/agent/options.html#acl_token) for notes on securing
+   access.
 
 In addition to ACLs, in Consul 0.9.0 and later, the agent must be configured with
 [`enable_script_checks`](/docs/agent/options.html#_enable_script_checks) set to `true` in order to enable
 script checks.
+
 
 #### Session Rules
 

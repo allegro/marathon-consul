@@ -7,7 +7,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/hashicorp/consul/agent/consul/autopilot"
 	"github.com/hashicorp/consul/agent/structs"
+	"github.com/hashicorp/consul/lib"
 	"github.com/hashicorp/consul/tlsutil"
 	"github.com/hashicorp/consul/types"
 	"github.com/hashicorp/consul/version"
@@ -257,6 +259,11 @@ type Config struct {
 	// are opt-in prior to Consul 0.8 and opt-out in Consul 0.8 and later.
 	ACLEnforceVersion8 bool
 
+	// ACLEnableKeyListPolicy is used to gate enforcement of the new "list" policy that
+	// protects listing keys by prefix. This behavior is opt-in
+	// by default in Consul 1.0 and later.
+	ACLEnableKeyListPolicy bool
+
 	// TombstoneTTL is used to control how long KV tombstones are retained.
 	// This provides a window of time where the X-Consul-Index is monotonic.
 	// Outside this window, the index may not be monotonic. This is a result
@@ -324,9 +331,13 @@ type Config struct {
 	RPCRate     rate.Limit
 	RPCMaxBurst int
 
+	// LeaveDrainTime is used to wait after a server has left the LAN Serf
+	// pool for RPCs to drain and new requests to be sent to other servers.
+	LeaveDrainTime time.Duration
+
 	// AutopilotConfig is used to apply the initial autopilot config when
 	// bootstrapping.
-	AutopilotConfig *structs.AutopilotConfig
+	AutopilotConfig *autopilot.Config
 
 	// ServerHealthInterval is the frequency with which the health of the
 	// servers in the cluster will be updated.
@@ -336,6 +347,13 @@ type Config struct {
 	// autopilot tasks, such as promoting eligible non-voters and removing
 	// dead servers.
 	AutopilotInterval time.Duration
+
+	// ConnectEnabled is whether to enable Connect features such as the CA.
+	ConnectEnabled bool
+
+	// CAConfig is used to apply the initial Connect CA configuration when
+	// bootstrapping.
+	CAConfig *structs.CAConfiguration
 }
 
 // CheckProtocolVersion validates the protocol version.
@@ -380,8 +398,8 @@ func DefaultConfig() *Config {
 		NodeName:                 hostname,
 		RPCAddr:                  DefaultRPCAddr,
 		RaftConfig:               raft.DefaultConfig(),
-		SerfLANConfig:            serf.DefaultConfig(),
-		SerfWANConfig:            serf.DefaultConfig(),
+		SerfLANConfig:            lib.SerfDefaultConfig(),
+		SerfWANConfig:            lib.SerfDefaultConfig(),
 		SerfFloodInterval:        60 * time.Second,
 		ReconcileInterval:        60 * time.Second,
 		ProtocolVersion:          ProtocolVersion2Compatible,
@@ -401,23 +419,27 @@ func DefaultConfig() *Config {
 		CoordinateUpdateBatchSize:  128,
 		CoordinateUpdateMaxBatches: 5,
 
-		// This holds RPCs during leader elections. For the default Raft
-		// config the election timeout is 5 seconds, so we set this a
-		// bit longer to try to cover that period. This should be more
-		// than enough when running in the high performance mode.
-		RPCHoldTimeout: 7 * time.Second,
-
 		RPCRate:     rate.Inf,
 		RPCMaxBurst: 1000,
 
 		TLSMinVersion: "tls10",
 
-		AutopilotConfig: &structs.AutopilotConfig{
+		// TODO (slackpad) - Until #3744 is done, we need to keep these
+		// in sync with agent/config/default.go.
+		AutopilotConfig: &autopilot.Config{
 			CleanupDeadServers:      true,
 			LastContactThreshold:    200 * time.Millisecond,
 			MaxTrailingLogs:         250,
 			ServerStabilizationTime: 10 * time.Second,
 		},
+
+		CAConfig: &structs.CAConfiguration{
+			Provider: "consul",
+			Config: map[string]interface{}{
+				"RotationPeriod": "2160h",
+			},
+		},
+
 		ServerHealthInterval: 2 * time.Second,
 		AutopilotInterval:    10 * time.Second,
 	}
@@ -434,32 +456,20 @@ func DefaultConfig() *Config {
 	conf.SerfLANConfig.MemberlistConfig.BindPort = DefaultLANSerfPort
 	conf.SerfWANConfig.MemberlistConfig.BindPort = DefaultWANSerfPort
 
-	// TODO: default to 3 in Consul 0.9
-	// Use a transitional version of the raft protocol to interoperate with
-	// versions 1 and 3
-	conf.RaftConfig.ProtocolVersion = 2
-	conf.ScaleRaft(DefaultRaftMultiplier)
+	// Raft protocol version 3 only works with other Consul servers running
+	// 0.8.0 or later.
+	conf.RaftConfig.ProtocolVersion = 3
 
 	// Disable shutdown on removal
 	conf.RaftConfig.ShutdownOnRemove = false
 
-	// Check every 5 seconds to see if there are enough new entries for a snapshot
-	conf.RaftConfig.SnapshotInterval = 5 * time.Second
+	// Check every 5 seconds to see if there are enough new entries for a snapshot, can be overridden
+	conf.RaftConfig.SnapshotInterval = 30 * time.Second
+
+	// Snapshots are created every 16384 entries by default, can be overridden
+	conf.RaftConfig.SnapshotThreshold = 16384
 
 	return conf
-}
-
-// ScaleRaft sets the config to have Raft timing parameters scaled by the given
-// performance multiplier. This is done in an idempotent way so it's not tricky
-// to call this when composing configurations and potentially calling this
-// multiple times on the same structure.
-func (c *Config) ScaleRaft(raftMultRaw uint) {
-	raftMult := time.Duration(raftMultRaw)
-
-	def := raft.DefaultConfig()
-	c.RaftConfig.HeartbeatTimeout = raftMult * def.HeartbeatTimeout
-	c.RaftConfig.ElectionTimeout = raftMult * def.ElectionTimeout
-	c.RaftConfig.LeaderLeaseTimeout = raftMult * def.LeaderLeaseTimeout
 }
 
 // tlsConfig maps this config into a tlsutil config.

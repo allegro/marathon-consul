@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/armon/go-metrics"
@@ -56,7 +57,7 @@ type Client struct {
 
 	// rpcLimiter is used to rate limit the total number of RPCs initiated
 	// from an agent.
-	rpcLimiter *rate.Limiter
+	rpcLimiter atomic.Value
 
 	// eventCh is used to receive events from the
 	// serf cluster in the datacenter
@@ -72,6 +73,9 @@ type Client struct {
 	shutdown     bool
 	shutdownCh   chan struct{}
 	shutdownLock sync.Mutex
+
+	// embedded struct to hold all the enterprise specific data
+	EnterpriseClient
 }
 
 // NewClient is used to construct a new Consul client from the
@@ -125,16 +129,19 @@ func NewClientLogger(config *Config, logger *log.Logger) (*Client, error) {
 	c := &Client{
 		config:     config,
 		connPool:   connPool,
-		rpcLimiter: rate.NewLimiter(config.RPCRate, config.RPCMaxBurst),
 		eventCh:    make(chan serf.Event, serfEventBacklog),
 		logger:     logger,
 		shutdownCh: make(chan struct{}),
 	}
 
-	// Start lan event handlers before lan Serf setup to prevent deadlock
-	go c.lanEventHandler()
+    c.rpcLimiter.Store(rate.NewLimiter(config.RPCRate, config.RPCMaxBurst))
 
-	// Initialize the lan Serf
+	if err := c.initEnterprise(); err != nil {
+		c.Shutdown()
+		return nil, err
+	}
+
+	// Initialize the LAN Serf
 	c.serf, err = c.setupSerf(config.SerfLANConfig,
 		c.eventCh, serfLANSnapshot)
 	if err != nil {
@@ -145,6 +152,15 @@ func NewClientLogger(config *Config, logger *log.Logger) (*Client, error) {
 	// Start maintenance task for servers
 	c.routers = router.New(c.logger, c.shutdownCh, c.serf, c.connPool)
 	go c.routers.Start()
+
+	// Start LAN event handlers after the router is complete since the event
+	// handlers depend on the router and the router depends on Serf.
+	go c.lanEventHandler()
+
+	if err := c.startEnterprise(); err != nil {
+		c.Shutdown()
+		return nil, err
+	}
 
 	return c, nil
 }
@@ -233,26 +249,51 @@ func (c *Client) Encrypted() bool {
 
 // RPC is used to forward an RPC call to a consul server, or fail if no servers
 func (c *Client) RPC(method string, args interface{}, reply interface{}) error {
+	// This is subtle but we start measuring the time on the client side
+	// right at the time of the first request, vs. on the first retry as
+	// is done on the server side inside forward(). This is because the
+	// servers may already be applying the RPCHoldTimeout up there, so by
+	// starting the timer here we won't potentially double up the delay.
+	// TODO (slackpad) Plumb a deadline here with a context.
+	firstCheck := time.Now()
+
+TRY:
 	server := c.routers.FindServer()
 	if server == nil {
 		return structs.ErrNoServers
 	}
 
 	// Enforce the RPC limit.
-	metrics.IncrCounter([]string{"consul", "client", "rpc"}, 1)
-	if !c.rpcLimiter.Allow() {
-		metrics.IncrCounter([]string{"consul", "client", "rpc", "exceeded"}, 1)
+	metrics.IncrCounter([]string{"client", "rpc"}, 1)
+	if !c.rpcLimiter.Load().(*rate.Limiter).Allow() {
+		metrics.IncrCounter([]string{"client", "rpc", "exceeded"}, 1)
 		return structs.ErrRPCRateExceeded
 	}
 
 	// Make the request.
-	if err := c.connPool.RPC(c.config.Datacenter, server.Addr, server.Version, method, server.UseTLS, args, reply); err != nil {
-		c.routers.NotifyFailedServer(server)
-		c.logger.Printf("[ERR] consul: RPC failed to server %s: %v", server.Addr, err)
-		return err
+	rpcErr := c.connPool.RPC(c.config.Datacenter, server.Addr, server.Version, method, server.UseTLS, args, reply)
+	if rpcErr == nil {
+		return nil
 	}
 
-	return nil
+	// Move off to another server, and see if we can retry.
+	c.logger.Printf("[ERR] consul: %q RPC failed to server %s: %v", method, server.Addr, rpcErr)
+	metrics.IncrCounterWithLabels([]string{"client", "rpc", "failed"}, 1, []metrics.Label{{Name: "server", Value: server.Name}})
+	c.routers.NotifyFailedServer(server)
+	if retry := canRetry(args, rpcErr); !retry {
+		return rpcErr
+	}
+
+	// We can wait a bit and retry!
+	if time.Since(firstCheck) < c.config.RPCHoldTimeout {
+		jitter := lib.RandomStagger(c.config.RPCHoldTimeout / jitterFraction)
+		select {
+		case <-time.After(jitter):
+			goto TRY
+		case <-c.shutdownCh:
+		}
+	}
+	return rpcErr
 }
 
 // SnapshotRPC sends the snapshot request to one of the servers, reading from
@@ -266,9 +307,9 @@ func (c *Client) SnapshotRPC(args *structs.SnapshotRequest, in io.Reader, out io
 	}
 
 	// Enforce the RPC limit.
-	metrics.IncrCounter([]string{"consul", "client", "rpc"}, 1)
-	if !c.rpcLimiter.Allow() {
-		metrics.IncrCounter([]string{"consul", "client", "rpc", "exceeded"}, 1)
+	metrics.IncrCounter([]string{"client", "rpc"}, 1)
+	if !c.rpcLimiter.Load().(*rate.Limiter).Allow() {
+		metrics.IncrCounter([]string{"client", "rpc", "exceeded"}, 1)
 		return structs.ErrRPCRateExceeded
 	}
 
@@ -317,6 +358,17 @@ func (c *Client) Stats() map[string]map[string]string {
 		"serf_lan": c.serf.Stats(),
 		"runtime":  runtimeStats(),
 	}
+
+	for outerKey, outerValue := range c.enterpriseStats() {
+		if _, ok := stats[outerKey]; ok {
+			for innerKey, innerValue := range outerValue {
+				stats[outerKey][innerKey] = innerValue
+			}
+		} else {
+			stats[outerKey] = outerValue
+		}
+	}
+
 	return stats
 }
 
@@ -330,4 +382,11 @@ func (c *Client) GetLANCoordinate() (lib.CoordinateSet, error) {
 
 	cs := lib.CoordinateSet{c.config.Segment: lan}
 	return cs, nil
+}
+
+// ReloadConfig is used to have the Client do an online reload of
+// relevant configuration information
+func (c *Client) ReloadConfig(config *Config) error {
+	c.rpcLimiter.Store(rate.NewLimiter(config.RPCRate, config.RPCMaxBurst))
+	return nil
 }

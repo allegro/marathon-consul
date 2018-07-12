@@ -4,15 +4,20 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/armon/go-metrics"
 	"github.com/hashicorp/consul/acl"
+	"github.com/hashicorp/consul/agent/connect"
+	ca "github.com/hashicorp/consul/agent/connect/ca"
+	"github.com/hashicorp/consul/agent/consul/autopilot"
 	"github.com/hashicorp/consul/agent/metadata"
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/types"
+	uuid "github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
@@ -22,6 +27,8 @@ const (
 	newLeaderEvent      = "consul:new-leader"
 	barrierWriteTimeout = 2 * time.Minute
 )
+
+var minAutopilotVersion = version.Must(version.NewVersion("0.8.0"))
 
 // monitorLeadership is used to monitor if we acquire or lose our role
 // as the leader in the Raft cluster. There is some work the leader is
@@ -33,25 +40,39 @@ func (s *Server) monitorLeadership() {
 	// cleanup and to ensure we never run multiple leader loops.
 	raftNotifyCh := s.raftNotifyCh
 
-	var wg sync.WaitGroup
-	var stopCh chan struct{}
+	var weAreLeaderCh chan struct{}
+	var leaderLoop sync.WaitGroup
 	for {
 		select {
 		case isLeader := <-raftNotifyCh:
-			if isLeader {
-				stopCh = make(chan struct{})
-				wg.Add(1)
-				go func() {
-					s.leaderLoop(stopCh)
-					wg.Done()
-				}()
+			switch {
+			case isLeader:
+				if weAreLeaderCh != nil {
+					s.logger.Printf("[ERR] consul: attempted to start the leader loop while running")
+					continue
+				}
+
+				weAreLeaderCh = make(chan struct{})
+				leaderLoop.Add(1)
+				go func(ch chan struct{}) {
+					defer leaderLoop.Done()
+					s.leaderLoop(ch)
+				}(weAreLeaderCh)
 				s.logger.Printf("[INFO] consul: cluster leadership acquired")
-			} else if stopCh != nil {
-				close(stopCh)
-				stopCh = nil
-				wg.Wait()
+
+			default:
+				if weAreLeaderCh == nil {
+					s.logger.Printf("[ERR] consul: attempted to stop the leader loop while not running")
+					continue
+				}
+
+				s.logger.Printf("[DEBUG] consul: shutting down leader loop")
+				close(weAreLeaderCh)
+				leaderLoop.Wait()
+				weAreLeaderCh = nil
 				s.logger.Printf("[INFO] consul: cluster leadership lost")
 			}
+
 		case <-s.shutdownCh:
 			return
 		}
@@ -97,14 +118,19 @@ RECONCILE:
 	barrier := s.raft.Barrier(barrierWriteTimeout)
 	if err := barrier.Error(); err != nil {
 		s.logger.Printf("[ERR] consul: failed to wait for barrier: %v", err)
-		return
+		goto WAIT
 	}
-	metrics.MeasureSince([]string{"consul", "leader", "barrier"}, start)
+	metrics.MeasureSince([]string{"leader", "barrier"}, start)
 
 	// Check if we need to handle initial leadership actions
 	if !establishedLeader {
 		if err := s.establishLeadership(); err != nil {
 			s.logger.Printf("[ERR] consul: failed to establish leadership: %v", err)
+			// Immediately revoke leadership since we didn't successfully
+			// establish leadership.
+			if err := s.revokeLeadership(); err != nil {
+				s.logger.Printf("[ERR] consul: failed to revoke leadership: %v", err)
+			}
 			goto WAIT
 		}
 		establishedLeader = true
@@ -126,6 +152,15 @@ RECONCILE:
 	reconcileCh = s.reconcileCh
 
 WAIT:
+	// Poll the stop channel to give it priority so we don't waste time
+	// trying to perform the other operations if we have been asked to shut
+	// down.
+	select {
+	case <-stopCh:
+		return
+	default:
+	}
+
 	// Periodically reconcile as long as we are the leader,
 	// or when Serf events arrive
 	for {
@@ -178,7 +213,13 @@ func (s *Server) establishLeadership() error {
 	}
 
 	s.getOrCreateAutopilotConfig()
-	s.startAutopilot()
+	s.autopilot.Start()
+
+	// todo(kyhavlov): start a goroutine here for handling periodic CA rotation
+	if err := s.initializeCA(); err != nil {
+		return err
+	}
+
 	s.setConsistentReadReady()
 	return nil
 }
@@ -195,8 +236,10 @@ func (s *Server) revokeLeadership() error {
 		return err
 	}
 
+	s.setCAProvider(nil, nil)
+
 	s.resetConsistentReadReady()
-	s.stopAutopilot()
+	s.autopilot.Stop()
 	return nil
 }
 
@@ -302,36 +345,214 @@ func (s *Server) initializeACL() error {
 }
 
 // getOrCreateAutopilotConfig is used to get the autopilot config, initializing it if necessary
-func (s *Server) getOrCreateAutopilotConfig() (*structs.AutopilotConfig, bool) {
+func (s *Server) getOrCreateAutopilotConfig() *autopilot.Config {
 	state := s.fsm.State()
 	_, config, err := state.AutopilotConfig()
 	if err != nil {
 		s.logger.Printf("[ERR] autopilot: failed to get config: %v", err)
-		return nil, false
+		return nil
 	}
 	if config != nil {
-		return config, true
+		return config
 	}
 
 	if !ServersMeetMinimumVersion(s.LANMembers(), minAutopilotVersion) {
 		s.logger.Printf("[WARN] autopilot: can't initialize until all servers are >= %s", minAutopilotVersion.String())
-		return nil, false
+		return nil
 	}
 
 	config = s.config.AutopilotConfig
 	req := structs.AutopilotSetConfigRequest{Config: *config}
 	if _, err = s.raftApply(structs.AutopilotRequestType, req); err != nil {
 		s.logger.Printf("[ERR] autopilot: failed to initialize config: %v", err)
-		return nil, false
+		return nil
 	}
 
-	return config, true
+	return config
+}
+
+// initializeCAConfig is used to initialize the CA config if necessary
+// when setting up the CA during establishLeadership
+func (s *Server) initializeCAConfig() (*structs.CAConfiguration, error) {
+	state := s.fsm.State()
+	_, config, err := state.CAConfig()
+	if err != nil {
+		return nil, err
+	}
+	if config != nil {
+		return config, nil
+	}
+
+	config = s.config.CAConfig
+	if config.ClusterID == "" {
+		id, err := uuid.GenerateUUID()
+		if err != nil {
+			return nil, err
+		}
+		config.ClusterID = id
+	}
+
+	req := structs.CARequest{
+		Op:     structs.CAOpSetConfig,
+		Config: config,
+	}
+	if _, err = s.raftApply(structs.ConnectCARequestType, req); err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+// initializeCA sets up the CA provider when gaining leadership, bootstrapping
+// the root in the state store if necessary.
+func (s *Server) initializeCA() error {
+	// Bail if connect isn't enabled.
+	if !s.config.ConnectEnabled {
+		return nil
+	}
+
+	conf, err := s.initializeCAConfig()
+	if err != nil {
+		return err
+	}
+
+	// Initialize the right provider based on the config
+	provider, err := s.createCAProvider(conf)
+	if err != nil {
+		return err
+	}
+
+	// Get the active root cert from the CA
+	rootPEM, err := provider.ActiveRoot()
+	if err != nil {
+		return fmt.Errorf("error getting root cert: %v", err)
+	}
+
+	rootCA, err := parseCARoot(rootPEM, conf.Provider)
+	if err != nil {
+		return err
+	}
+
+	// TODO(banks): in the case that we've just gained leadership in an already
+	// configured cluster. We really need to fetch RootCA from state to provide it
+	// in setCAProvider. This matters because if the current active root has
+	// intermediates, parsing the rootCA from only the root cert PEM above will
+	// not include them and so leafs we sign will not bundle the intermediates.
+
+	s.setCAProvider(provider, rootCA)
+
+	// Check if the CA root is already initialized and exit if it is.
+	// Every change to the CA after this initial bootstrapping should
+	// be done through the rotation process.
+	state := s.fsm.State()
+	_, activeRoot, err := state.CARootActive(nil)
+	if err != nil {
+		return err
+	}
+	if activeRoot != nil {
+		if activeRoot.ID != rootCA.ID {
+			// TODO(banks): this seems like a pretty catastrophic state to get into.
+			// Shouldn't we do something stronger than warn and continue signing with
+			// a key that's not the active CA according to the state?
+			s.logger.Printf("[WARN] connect: CA root %q is not the active root (%q)", rootCA.ID, activeRoot.ID)
+		}
+		return nil
+	}
+
+	// Get the highest index
+	idx, _, err := state.CARoots(nil)
+	if err != nil {
+		return err
+	}
+
+	// Store the root cert in raft
+	resp, err := s.raftApply(structs.ConnectCARequestType, &structs.CARequest{
+		Op:    structs.CAOpSetRoots,
+		Index: idx,
+		Roots: []*structs.CARoot{rootCA},
+	})
+	if err != nil {
+		s.logger.Printf("[ERR] connect: Apply failed %v", err)
+		return err
+	}
+	if respErr, ok := resp.(error); ok {
+		return respErr
+	}
+
+	s.logger.Printf("[INFO] connect: initialized CA with provider %q", conf.Provider)
+
+	return nil
+}
+
+// parseCARoot returns a filled-in structs.CARoot from a raw PEM value.
+func parseCARoot(pemValue, provider string) (*structs.CARoot, error) {
+	id, err := connect.CalculateCertFingerprint(pemValue)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing root fingerprint: %v", err)
+	}
+	rootCert, err := connect.ParseCert(pemValue)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing root cert: %v", err)
+	}
+	return &structs.CARoot{
+		ID:           id,
+		Name:         fmt.Sprintf("%s CA Root Cert", strings.Title(provider)),
+		SerialNumber: rootCert.SerialNumber.Uint64(),
+		SigningKeyID: connect.HexString(rootCert.AuthorityKeyId),
+		NotBefore:    rootCert.NotBefore,
+		NotAfter:     rootCert.NotAfter,
+		RootCert:     pemValue,
+		Active:       true,
+	}, nil
+}
+
+// createProvider returns a connect CA provider from the given config.
+func (s *Server) createCAProvider(conf *structs.CAConfiguration) (ca.Provider, error) {
+	switch conf.Provider {
+	case structs.ConsulCAProvider:
+		return ca.NewConsulProvider(conf.Config, &consulCADelegate{s})
+	case structs.VaultCAProvider:
+		return ca.NewVaultProvider(conf.Config, conf.ClusterID)
+	default:
+		return nil, fmt.Errorf("unknown CA provider %q", conf.Provider)
+	}
+}
+
+func (s *Server) getCAProvider() (ca.Provider, *structs.CARoot) {
+	retries := 0
+	var result ca.Provider
+	var resultRoot *structs.CARoot
+	for result == nil {
+		s.caProviderLock.RLock()
+		result = s.caProvider
+		resultRoot = s.caProviderRoot
+		s.caProviderLock.RUnlock()
+
+		// In cases where an agent is started with managed proxies, we may ask
+		// for the provider before establishLeadership completes. If we're the
+		// leader, then wait and get the provider again
+		if result == nil && s.IsLeader() && retries < 10 {
+			retries++
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+
+		break
+	}
+
+	return result, resultRoot
+}
+
+func (s *Server) setCAProvider(newProvider ca.Provider, root *structs.CARoot) {
+	s.caProviderLock.Lock()
+	defer s.caProviderLock.Unlock()
+	s.caProvider = newProvider
+	s.caProviderRoot = root
 }
 
 // reconcileReaped is used to reconcile nodes that have failed and been reaped
-// from Serf but remain in the catalog. This is done by looking for SerfCheckID
-// in a critical state that does not correspond to a known Serf member. We generate
-// a "reap" event to cause the node to be cleaned up.
+// from Serf but remain in the catalog. This is done by looking for unknown nodes with serfHealth checks registered.
+// We generate a "reap" event to cause the node to be cleaned up.
 func (s *Server) reconcileReaped(known map[string]struct{}) error {
 	state := s.fsm.State()
 	_, checks, err := state.ChecksInState(nil, api.HealthAny)
@@ -349,6 +570,35 @@ func (s *Server) reconcileReaped(known map[string]struct{}) error {
 			continue
 		}
 
+		// Get the node services, look for ConsulServiceID
+		_, services, err := state.NodeServices(nil, check.Node)
+		if err != nil {
+			return err
+		}
+		serverPort := 0
+		serverAddr := ""
+		serverID := ""
+
+	CHECKS:
+		for _, service := range services.Services {
+			if service.ID == structs.ConsulServiceID {
+				_, node, err := state.GetNode(check.Node)
+				if err != nil {
+					s.logger.Printf("[ERR] consul: Unable to look up node with name %q: %v", check.Node, err)
+					continue CHECKS
+				}
+
+				serverAddr = node.Address
+				serverPort = service.Port
+				lookupAddr := net.JoinHostPort(serverAddr, strconv.Itoa(serverPort))
+				svr := s.serverLookup.Server(raft.ServerAddress(lookupAddr))
+				if svr != nil {
+					serverID = svr.ID
+				}
+				break
+			}
+		}
+
 		// Create a fake member
 		member := serf.Member{
 			Name: check.Node,
@@ -358,23 +608,12 @@ func (s *Server) reconcileReaped(known map[string]struct{}) error {
 			},
 		}
 
-		// Get the node services, look for ConsulServiceID
-		_, services, err := state.NodeServices(nil, check.Node)
-		if err != nil {
-			return err
-		}
-		serverPort := 0
-		for _, service := range services.Services {
-			if service.ID == structs.ConsulServiceID {
-				serverPort = service.Port
-				break
-			}
-		}
-
 		// Create the appropriate tags if this was a server node
 		if serverPort > 0 {
 			member.Tags["role"] = "consul"
 			member.Tags["port"] = strconv.FormatUint(uint64(serverPort), 10)
+			member.Tags["id"] = serverID
+			member.Addr = net.ParseIP(serverAddr)
 		}
 
 		// Attempt to reap this member
@@ -393,7 +632,7 @@ func (s *Server) reconcileMember(member serf.Member) error {
 		s.logger.Printf("[WARN] consul: skipping reconcile of node %v", member)
 		return nil
 	}
-	defer metrics.MeasureSince([]string{"consul", "leader", "reconcileMember"}, time.Now())
+	defer metrics.MeasureSince([]string{"leader", "reconcileMember"}, time.Now())
 	var err error
 	switch member.Status {
 	case serf.StatusAlive:
@@ -639,7 +878,7 @@ func (s *Server) joinConsulServer(m serf.Member, parts *metadata.Server) error {
 	// log entries. If the address is the same but the ID changed, remove the
 	// old server before adding the new one.
 	addr := (&net.TCPAddr{IP: m.Addr, Port: parts.Port}).String()
-	minRaftProtocol, err := ServerMinRaftProtocol(s.serfLAN.Members())
+	minRaftProtocol, err := s.autopilot.MinRaftProtocol()
 	if err != nil {
 		return err
 	}
@@ -693,10 +932,7 @@ func (s *Server) joinConsulServer(m serf.Member, parts *metadata.Server) error {
 	}
 
 	// Trigger a check to remove dead servers
-	select {
-	case s.autopilotRemoveDeadCh <- struct{}{}:
-	default:
-	}
+	s.autopilot.RemoveDeadServers()
 
 	return nil
 }
@@ -714,7 +950,7 @@ func (s *Server) removeConsulServer(m serf.Member, port int) error {
 		return err
 	}
 
-	minRaftProtocol, err := ServerMinRaftProtocol(s.serfLAN.Members())
+	minRaftProtocol, err := s.autopilot.MinRaftProtocol()
 	if err != nil {
 		return err
 	}
@@ -756,7 +992,7 @@ func (s *Server) removeConsulServer(m serf.Member, port int) error {
 // through Raft to ensure consistency. We do this outside the leader loop
 // to avoid blocking.
 func (s *Server) reapTombstones(index uint64) {
-	defer metrics.MeasureSince([]string{"consul", "leader", "reapTombstones"}, time.Now())
+	defer metrics.MeasureSince([]string{"leader", "reapTombstones"}, time.Now())
 	req := structs.TombstoneRequest{
 		Datacenter: s.config.Datacenter,
 		Op:         structs.TombstoneReap,
