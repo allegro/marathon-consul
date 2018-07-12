@@ -12,7 +12,9 @@ import (
 
 // ServiceSummary is used to summarize a service
 type ServiceSummary struct {
+	Kind           structs.ServiceKind `json:",omitempty"`
 	Name           string
+	Tags           []string
 	Nodes          []string
 	ChecksPassing  int
 	ChecksWarning  int
@@ -147,7 +149,9 @@ func summarizeServices(dump structs.NodeDump) []*ServiceSummary {
 		nodeServices := make([]*ServiceSummary, len(node.Services))
 		for idx, service := range node.Services {
 			sum := getService(service.Service)
+			sum.Tags = service.Tags
 			sum.Nodes = append(sum.Nodes, node.Node)
+			sum.Kind = service.Kind
 			nodeServices[idx] = sum
 		}
 		for _, check := range node.Checks {

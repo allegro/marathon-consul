@@ -20,11 +20,6 @@ const (
 
 // EventFire is used to fire a new event
 func (s *HTTPServer) EventFire(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
-	// Mandate a PUT request
-	if req.Method != "PUT" {
-		resp.WriteHeader(http.StatusMethodNotAllowed)
-		return nil, nil
-	}
 
 	// Get the datacenter
 	var dc string

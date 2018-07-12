@@ -149,7 +149,7 @@ func (s *Server) fetchLocalACLs() (structs.ACLs, error) {
 // datacenter. The lastIndex parameter is a hint about which remote index we
 // have replicated to, so this is expected to block until something changes.
 func (s *Server) fetchRemoteACLs(lastRemoteIndex uint64) (*structs.IndexedACLs, error) {
-	defer metrics.MeasureSince([]string{"consul", "leader", "fetchRemoteACLs"}, time.Now())
+	defer metrics.MeasureSince([]string{"leader", "fetchRemoteACLs"}, time.Now())
 
 	args := structs.DCSpecificRequest{
 		Datacenter: s.config.ACLDatacenter,
@@ -169,7 +169,7 @@ func (s *Server) fetchRemoteACLs(lastRemoteIndex uint64) (*structs.IndexedACLs, 
 // UpdateLocalACLs is given a list of changes to apply in order to bring the
 // local ACLs in-line with the remote ACLs from the ACL datacenter.
 func (s *Server) updateLocalACLs(changes structs.ACLRequests) error {
-	defer metrics.MeasureSince([]string{"consul", "leader", "updateLocalACLs"}, time.Now())
+	defer metrics.MeasureSince([]string{"leader", "updateLocalACLs"}, time.Now())
 
 	minTimePerOp := time.Second / time.Duration(s.config.ACLReplicationApplyLimit)
 	for _, change := range changes {
@@ -190,7 +190,7 @@ func (s *Server) updateLocalACLs(changes structs.ACLRequests) error {
 		// Do a smooth rate limit to wait out the min time allowed for
 		// each op. If this op took longer than the min, then the sleep
 		// time will be negative and we will just move on.
-		elapsed := time.Now().Sub(start)
+		elapsed := time.Since(start)
 		time.Sleep(minTimePerOp - elapsed)
 	}
 	return nil
@@ -216,7 +216,7 @@ func (s *Server) replicateACLs(lastRemoteIndex uint64) (uint64, error) {
 	// Measure everything after the remote query, which can block for long
 	// periods of time. This metric is a good measure of how expensive the
 	// replication process is.
-	defer metrics.MeasureSince([]string{"consul", "leader", "replicateACLs"}, time.Now())
+	defer metrics.MeasureSince([]string{"leader", "replicateACLs"}, time.Now())
 
 	local, err := s.fetchLocalACLs()
 	if err != nil {
@@ -252,7 +252,7 @@ func (s *Server) IsACLReplicationEnabled() bool {
 
 // updateACLReplicationStatus safely updates the ACL replication status.
 func (s *Server) updateACLReplicationStatus(status structs.ACLReplicationStatus) {
-	// Fixup the times to shed some useless precision to ease formattting,
+	// Fixup the times to shed some useless precision to ease formatting,
 	// and always report UTC.
 	status.LastError = status.LastError.Round(time.Second).UTC()
 	status.LastSuccess = status.LastSuccess.Round(time.Second).UTC()

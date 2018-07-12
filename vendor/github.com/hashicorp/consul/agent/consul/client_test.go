@@ -9,11 +9,14 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/agent/structs"
+	"github.com/hashicorp/consul/lib/freeport"
 	"github.com/hashicorp/consul/testrpc"
 	"github.com/hashicorp/consul/testutil"
 	"github.com/hashicorp/consul/testutil/retry"
 	"github.com/hashicorp/net-rpc-msgpackrpc"
 	"github.com/hashicorp/serf/serf"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 )
 
 func testClientConfig(t *testing.T) (string, *Config) {
@@ -24,10 +27,10 @@ func testClientConfig(t *testing.T) (string, *Config) {
 	config.NodeName = uniqueNodeName(t.Name())
 	config.RPCAddr = &net.TCPAddr{
 		IP:   []byte{127, 0, 0, 1},
-		Port: getPort(),
+		Port: freeport.Get(1)[0],
 	}
 	config.SerfLANConfig.MemberlistConfig.BindAddr = "127.0.0.1"
-	config.SerfLANConfig.MemberlistConfig.BindPort = getPort()
+	config.SerfLANConfig.MemberlistConfig.BindPort = freeport.Get(1)[0]
 	config.SerfLANConfig.MemberlistConfig.ProbeTimeout = 200 * time.Millisecond
 	config.SerfLANConfig.MemberlistConfig.ProbeInterval = time.Second
 	config.SerfLANConfig.MemberlistConfig.GossipInterval = 100 * time.Millisecond
@@ -178,6 +181,75 @@ func TestClient_RPC(t *testing.T) {
 			r.Fatal("ping failed", err)
 		}
 	})
+}
+
+type leaderFailer struct {
+	totalCalls int
+	onceCalls  int
+}
+
+func (l *leaderFailer) Always(args struct{}, reply *struct{}) error {
+	l.totalCalls++
+	return structs.ErrNoLeader
+}
+
+func (l *leaderFailer) Once(args struct{}, reply *struct{}) error {
+	l.totalCalls++
+	l.onceCalls++
+
+	switch {
+	case l.onceCalls == 1:
+		return structs.ErrNoLeader
+
+	default:
+		return nil
+	}
+}
+
+func TestClient_RPC_Retry(t *testing.T) {
+	t.Parallel()
+
+	dir1, s1 := testServer(t)
+	defer os.RemoveAll(dir1)
+	defer s1.Shutdown()
+
+	dir2, c1 := testClientWithConfig(t, func(c *Config) {
+		c.Datacenter = "dc1"
+		c.NodeName = uniqueNodeName(t.Name())
+		c.RPCHoldTimeout = 2 * time.Second
+	})
+	defer os.RemoveAll(dir2)
+	defer c1.Shutdown()
+
+	joinLAN(t, c1, s1)
+	retry.Run(t, func(r *retry.R) {
+		var out struct{}
+		if err := c1.RPC("Status.Ping", struct{}{}, &out); err != nil {
+			r.Fatalf("err: %v", err)
+		}
+	})
+
+	failer := &leaderFailer{}
+	if err := s1.RegisterEndpoint("Fail", failer); err != nil {
+		t.Fatalf("err: %v", err)
+	}
+
+	var out struct{}
+	if err := c1.RPC("Fail.Always", struct{}{}, &out); !structs.IsErrNoLeader(err) {
+		t.Fatalf("err: %v", err)
+	}
+	if got, want := failer.totalCalls, 2; got < want {
+		t.Fatalf("got %d want >= %d", got, want)
+	}
+	if err := c1.RPC("Fail.Once", struct{}{}, &out); err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got, want := failer.onceCalls, 2; got < want {
+		t.Fatalf("got %d want >= %d", got, want)
+	}
+	if got, want := failer.totalCalls, 4; got < want {
+		t.Fatalf("got %d want >= %d", got, want)
+	}
 }
 
 func TestClient_RPC_Pool(t *testing.T) {
@@ -594,4 +666,26 @@ func TestClient_Encrypted(t *testing.T) {
 	if !c2.Encrypted() {
 		t.Fatalf("should be encrypted")
 	}
+}
+
+func TestClient_Reload(t *testing.T) {
+	t.Parallel()
+	dir1, c := testClientWithConfig(t, func(c *Config) {
+		c.RPCRate = 500
+		c.RPCMaxBurst = 5000
+	})
+	defer os.RemoveAll(dir1)
+	defer c.Shutdown()
+
+	limiter := c.rpcLimiter.Load().(*rate.Limiter)
+	require.Equal(t, rate.Limit(500), limiter.Limit())
+	require.Equal(t, 5000, limiter.Burst())
+
+	c.config.RPCRate = 1000
+	c.config.RPCMaxBurst = 10000
+
+	require.NoError(t, c.ReloadConfig(c.config))
+	limiter = c.rpcLimiter.Load().(*rate.Limiter)
+	require.Equal(t, rate.Limit(1000), limiter.Limit())
+	require.Equal(t, 10000, limiter.Burst())
 }

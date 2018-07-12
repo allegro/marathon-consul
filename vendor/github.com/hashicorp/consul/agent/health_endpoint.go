@@ -30,17 +30,26 @@ func (s *HTTPServer) HealthChecksInState(resp http.ResponseWriter, req *http.Req
 	// Make the RPC request
 	var out structs.IndexedHealthChecks
 	defer setMeta(resp, &out.QueryMeta)
+RETRY_ONCE:
 	if err := s.agent.RPC("Health.ChecksInState", &args, &out); err != nil {
 		return nil, err
 	}
+	if args.QueryOptions.AllowStale && args.MaxStaleDuration > 0 && args.MaxStaleDuration < out.LastContact {
+		args.AllowStale = false
+		args.MaxStaleDuration = 0
+		goto RETRY_ONCE
+	}
+	out.ConsistencyLevel = args.QueryOptions.ConsistencyLevel()
 
 	// Use empty list instead of nil
 	if out.HealthChecks == nil {
 		out.HealthChecks = make(structs.HealthChecks, 0)
 	}
-	for _, c := range out.HealthChecks {
+	for i, c := range out.HealthChecks {
 		if c.ServiceTags == nil {
-			c.ServiceTags = make([]string, 0)
+			clone := *c
+			clone.ServiceTags = make([]string, 0)
+			out.HealthChecks[i] = &clone
 		}
 	}
 	return out.HealthChecks, nil
@@ -64,17 +73,26 @@ func (s *HTTPServer) HealthNodeChecks(resp http.ResponseWriter, req *http.Reques
 	// Make the RPC request
 	var out structs.IndexedHealthChecks
 	defer setMeta(resp, &out.QueryMeta)
+RETRY_ONCE:
 	if err := s.agent.RPC("Health.NodeChecks", &args, &out); err != nil {
 		return nil, err
 	}
+	if args.QueryOptions.AllowStale && args.MaxStaleDuration > 0 && args.MaxStaleDuration < out.LastContact {
+		args.AllowStale = false
+		args.MaxStaleDuration = 0
+		goto RETRY_ONCE
+	}
+	out.ConsistencyLevel = args.QueryOptions.ConsistencyLevel()
 
 	// Use empty list instead of nil
 	if out.HealthChecks == nil {
 		out.HealthChecks = make(structs.HealthChecks, 0)
 	}
-	for _, c := range out.HealthChecks {
+	for i, c := range out.HealthChecks {
 		if c.ServiceTags == nil {
-			c.ServiceTags = make([]string, 0)
+			clone := *c
+			clone.ServiceTags = make([]string, 0)
+			out.HealthChecks[i] = &clone
 		}
 	}
 	return out.HealthChecks, nil
@@ -100,25 +118,42 @@ func (s *HTTPServer) HealthServiceChecks(resp http.ResponseWriter, req *http.Req
 	// Make the RPC request
 	var out structs.IndexedHealthChecks
 	defer setMeta(resp, &out.QueryMeta)
+RETRY_ONCE:
 	if err := s.agent.RPC("Health.ServiceChecks", &args, &out); err != nil {
 		return nil, err
 	}
+	if args.QueryOptions.AllowStale && args.MaxStaleDuration > 0 && args.MaxStaleDuration < out.LastContact {
+		args.AllowStale = false
+		args.MaxStaleDuration = 0
+		goto RETRY_ONCE
+	}
+	out.ConsistencyLevel = args.QueryOptions.ConsistencyLevel()
 
 	// Use empty list instead of nil
 	if out.HealthChecks == nil {
 		out.HealthChecks = make(structs.HealthChecks, 0)
 	}
-	for _, c := range out.HealthChecks {
+	for i, c := range out.HealthChecks {
 		if c.ServiceTags == nil {
-			c.ServiceTags = make([]string, 0)
+			clone := *c
+			clone.ServiceTags = make([]string, 0)
+			out.HealthChecks[i] = &clone
 		}
 	}
 	return out.HealthChecks, nil
 }
 
+func (s *HTTPServer) HealthConnectServiceNodes(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	return s.healthServiceNodes(resp, req, true)
+}
+
 func (s *HTTPServer) HealthServiceNodes(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	return s.healthServiceNodes(resp, req, false)
+}
+
+func (s *HTTPServer) healthServiceNodes(resp http.ResponseWriter, req *http.Request, connect bool) (interface{}, error) {
 	// Set default DC
-	args := structs.ServiceSpecificRequest{}
+	args := structs.ServiceSpecificRequest{Connect: connect}
 	s.parseSource(req, &args.Source)
 	args.NodeMetaFilters = s.parseMetaFilter(req)
 	if done := s.parse(resp, req, &args.Datacenter, &args.QueryOptions); done {
@@ -132,8 +167,14 @@ func (s *HTTPServer) HealthServiceNodes(resp http.ResponseWriter, req *http.Requ
 		args.TagFilter = true
 	}
 
+	// Determine the prefix
+	prefix := "/v1/health/service/"
+	if connect {
+		prefix = "/v1/health/connect/"
+	}
+
 	// Pull out the service name
-	args.ServiceName = strings.TrimPrefix(req.URL.Path, "/v1/health/service/")
+	args.ServiceName = strings.TrimPrefix(req.URL.Path, prefix)
 	if args.ServiceName == "" {
 		resp.WriteHeader(http.StatusBadRequest)
 		fmt.Fprint(resp, "Missing service name")
@@ -143,9 +184,16 @@ func (s *HTTPServer) HealthServiceNodes(resp http.ResponseWriter, req *http.Requ
 	// Make the RPC request
 	var out structs.IndexedCheckServiceNodes
 	defer setMeta(resp, &out.QueryMeta)
+RETRY_ONCE:
 	if err := s.agent.RPC("Health.ServiceNodes", &args, &out); err != nil {
 		return nil, err
 	}
+	if args.QueryOptions.AllowStale && args.MaxStaleDuration > 0 && args.MaxStaleDuration < out.LastContact {
+		args.AllowStale = false
+		args.MaxStaleDuration = 0
+		goto RETRY_ONCE
+	}
+	out.ConsistencyLevel = args.QueryOptions.ConsistencyLevel()
 
 	// Filter to only passing if specified
 	if _, ok := params[api.HealthPassing]; ok {
@@ -178,19 +226,20 @@ func (s *HTTPServer) HealthServiceNodes(resp http.ResponseWriter, req *http.Requ
 		out.Nodes = make(structs.CheckServiceNodes, 0)
 	}
 	for i := range out.Nodes {
-		// TODO (slackpad) It's lame that this isn't a slice of pointers
-		// but it's not a well-scoped change to fix this. We should
-		// change this at the next opportunity.
 		if out.Nodes[i].Checks == nil {
 			out.Nodes[i].Checks = make(structs.HealthChecks, 0)
 		}
-		for _, c := range out.Nodes[i].Checks {
+		for j, c := range out.Nodes[i].Checks {
 			if c.ServiceTags == nil {
-				c.ServiceTags = make([]string, 0)
+				clone := *c
+				clone.ServiceTags = make([]string, 0)
+				out.Nodes[i].Checks[j] = &clone
 			}
 		}
 		if out.Nodes[i].Service != nil && out.Nodes[i].Service.Tags == nil {
-			out.Nodes[i].Service.Tags = make([]string, 0)
+			clone := *out.Nodes[i].Service
+			clone.Tags = make([]string, 0)
+			out.Nodes[i].Service = &clone
 		}
 	}
 	return out.Nodes, nil

@@ -85,7 +85,10 @@ $ curl \
 ## Read Configuration
 
 This endpoint returns the configuration and member information of the local
-agent.
+agent. The `Config` element contains a subset of the configuration and its
+format will not change in a backwards incompatible way between releases.
+`DebugConfig` contains the full runtime configuration but its format is subject
+to change without notice or deprecation.
 
 | Method | Path                         | Produces                   |
 | ------ | ---------------------------- | -------------------------- |
@@ -112,42 +115,16 @@ $ curl \
 ```json
 {
   "Config": {
-    "Bootstrap": true,
-    "Server": true,
     "Datacenter": "dc1",
-    "DataDir": "/tmp/consul",
-    "DNSRecursor": "",
-    "DNSRecursors": [],
-    "Domain": "consul.",
-    "LogLevel": "INFO",
-    "NodeID": "40e4a748-2192-161a-0510-9bf59fe950b5",
     "NodeName": "foobar",
-    "ClientAddr": "127.0.0.1",
-    "BindAddr": "0.0.0.0",
-    "AdvertiseAddr": "10.1.10.12",
-    "Ports": {
-      "DNS": 8600,
-      "HTTP": 8500,
-      "RPC": 8400,
-      "SerfLan": 8301,
-      "SerfWan": 8302,
-      "Server": 8300
-    },
-    "LeaveOnTerm": false,
-    "SkipLeaveOnInt": false,
-    "StatsiteAddr": "",
-    "Protocol": 1,
-    "EnableDebug": false,
-    "VerifyIncoming": false,
-    "VerifyOutgoing": false,
-    "CAFile": "",
-    "CertFile": "",
-    "KeyFile": "",
-    "StartJoin": [],
-    "UiDir": "",
-    "PidFile": "",
-    "EnableSyslog": false,
-    "RejoinAfterLeave": false
+    "NodeID": "9d754d17-d864-b1d3-e758-f3fe25a9874f",
+    "Server": true,
+    "Revision": "deadbeef",
+    "Version": "1.0.0"
+  },
+  "DebugConfig": {
+    ... full runtime configuration ...
+    ... format subject to change ...
   },
   "Coord": {
     "Adjustment": 0,
@@ -260,13 +237,18 @@ $ curl \
 This endpoint returns the configuration and member information of the local
 agent.
 
-| Method | Path                         | Produces                   |
-| ------ | ---------------------------- | -------------------------- |
-| `GET`  | `/agent/metrics`             | `application/json`         |
+| Method | Path                               | Produces                                   |
+| ------ | ---------------------------------- | ------------------------------------------ |
+| `GET`  | `/agent/metrics`                   | `application/json`                         |
+| `GET`  | `/agent/metrics?format=prometheus` | `text/plain; version=0.0.4; charset=utf-8` |
 
 This endpoint will dump the metrics for the most recent finished interval.
 For more information about metrics, see the [telemetry](/docs/agent/telemetry.html)
 page.
+
+In order to enable [Prometheus](https://prometheus.io/) support, you need to use the
+configuration directive
+[`prometheus_retention_time`](/docs/agent/options.html#telemetry-prometheus_retention_time).
 
 | Blocking Queries | Consistency Modes | ACL Required |
 | ---------------- | ----------------- | ------------ |
@@ -423,7 +405,7 @@ This endpoint instructs the agent to attempt to connect to a given address.
 
 | Method | Path                         | Produces                   |
 | ------ | ---------------------------- | -------------------------- |
-| `GET`  | `/agent/join/:address`       | `application/json`         |
+| `PUT`  | `/agent/join/:address`       | `application/json`         |
 
 The table below shows this endpoint's support for
 [blocking queries](/api/index.html#blocking-queries),
