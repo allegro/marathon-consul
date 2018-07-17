@@ -16,8 +16,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var hostname = os.Hostname
-
 type Marathoner interface {
 	ConsulApps() ([]*apps.App, error)
 	App(apps.AppID) (*apps.App, error)
@@ -258,7 +256,7 @@ func (m *Marathon) IsLeader() (bool, error) {
 }
 
 func (m *Marathon) resolveHostname() error {
-	hostname, err := hostname()
+	hostname, err := os.Hostname()
 	if err != nil {
 		return err
 	}
