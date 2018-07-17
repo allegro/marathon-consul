@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
-
 	"github.com/stretchr/testify/assert"
+	"os"
 )
 
 func TestMarathon_AppsWhenMarathonReturnEmptyList(t *testing.T) {
@@ -399,10 +399,7 @@ func TestIsLeader_NotPassingMyLeaderIsEmptyStringShouldFillItWithLocalHostname(t
 	url, _ := url.Parse(server.URL)
 	m, _ := New(Config{Location: url.Host, Protocol: "HTTP", Leader: ""})
 	m.client.Transport = transport
-	myHostname := "localhost"
-	hostname = func() (string, error) {
-		return myHostname, nil
-	}
+	myHostname, _ := os.Hostname()
 
 	// when
 	leading, err := m.IsLeader()
