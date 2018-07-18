@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"github.com/stretchr/testify/assert"
-	"os"
 )
 
 func TestMarathon_AppsWhenMarathonReturnEmptyList(t *testing.T) {

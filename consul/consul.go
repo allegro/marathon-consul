@@ -369,7 +369,7 @@ func marathonToConsulCheck(task *apps.Task, check apps.HealthCheck, serviceAddre
 		consulCheck.TCP = fmt.Sprintf("%s:%d", serviceAddress, port)
 		return consulCheck
 	case "COMMAND":
-		consulCheck.Script = substituteEnvironment(check.Command.Value, *task)
+		consulCheck.Args = []string{substituteEnvironment(check.Command.Value, *task)}
 		return consulCheck
 	default:
 		log.WithField("Id", task.AppID.String()).WithField("Address", serviceAddress).

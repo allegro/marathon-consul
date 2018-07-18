@@ -870,7 +870,7 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 			Status:   "passing",
 		},
 		{
-			Script:   "echo 1",
+			Args:   []string{"echo 1"},
 			Interval: "30s",
 			Timeout:  "20s",
 			Status:   "passing",
