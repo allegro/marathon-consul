@@ -38,16 +38,15 @@ func CreateSecuredTestServer(t *testing.T) *testutil.TestServer {
 	return server
 }
 func testPortConfig(t *testing.T) *testutil.TestPortConfig {
-	ports, err := getPorts(6)
+	ports, err := getPorts(5)
 	assert.NoError(t, err)
 
 	return &testutil.TestPortConfig{
 		DNS:     ports[0],
 		HTTP:    ports[1],
-		RPC:     ports[2],
-		SerfLan: ports[3],
-		SerfWan: ports[4],
-		Server:  ports[5],
+		SerfLan: ports[2],
+		SerfWan: ports[3],
+		Server:  ports[4],
 	}
 }
 
