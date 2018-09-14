@@ -55,7 +55,7 @@ check-deps: deps
         (go get github.com/alecthomas/gometalinter && gometalinter --install)
 
 check: check-deps $(SOURCES) test
-	gometalinter ./... --deadline  720s --vendor -D dupl -D gotype -D errcheck -D gas -D golint -D aligncheck -D vetshadow -D maligned -E gofmt
+	gometalinter ./... --deadline  720s --vendor -D dupl -D gotype -D errcheck -D gas -D golint -D aligncheck -D vetshadow -D maligned -D gosec -E gofmt
 
 format:
 	goimports -w -l $(APP_SOURCES)
