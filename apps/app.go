@@ -2,13 +2,19 @@ package apps
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
 
-// Only Marathon apps with this label will be registered in Consul
-const MarathonConsulLabel = "consul"
+const (
+	// Only Marathon apps with this label will be registered in Consul
+	MarathonConsulLabel = "consul"
+	servicePortName     = "service"
+	proxyPortName       = "proxyingress"
+	servicePortTag      = "service-port:%d"
+)
 
 type HealthCheck struct {
 	Path                   string `json:"path"`
@@ -26,6 +32,7 @@ type HealthCheck struct {
 
 type PortDefinition struct {
 	Labels map[string]string `json:"labels"`
+	Name   string            `json:"name,omitempty"`
 }
 
 type Container struct {
@@ -120,7 +127,7 @@ func (app App) RegistrationIntents(task *Task, nameSeparator string) []Registrat
 			},
 		}
 	}
-
+	app.appendServicePortTag(definitions, task)
 	var intents []RegistrationIntent
 	for _, d := range definitions {
 		if d.Index >= taskPortsCount {
@@ -134,6 +141,28 @@ func (app App) RegistrationIntents(task *Task, nameSeparator string) []Registrat
 		})
 	}
 	return intents
+}
+
+func (app App) appendServicePortTag(definitions []indexedPortDefinition, task *Task) {
+	servicePort, exists := app.getServicePort(task)
+	if !exists {
+		return
+	}
+	for i := range definitions {
+		if definitions[i].Name == proxyPortName {
+			definitions[i].Labels[fmt.Sprintf(servicePortTag, servicePort)] = "tag"
+			return
+		}
+	}
+}
+
+func (app App) getServicePort(task *Task) (int, bool) {
+	for i, portDefinition := range app.extractPortDefinitions() {
+		if portDefinition.Name == servicePortName {
+			return task.Ports[i], true
+		}
+	}
+	return 0, false
 }
 
 func marathonAppNameToServiceName(name string, nameSeparator string) string {
@@ -164,6 +193,7 @@ func (app App) labelsToName(labels map[string]string, nameSeparator string) stri
 type indexedPortDefinition struct {
 	Index  int
 	Labels map[string]string
+	Name   string
 }
 
 func (app App) findConsulPortDefinitions() []indexedPortDefinition {
@@ -173,6 +203,7 @@ func (app App) findConsulPortDefinitions() []indexedPortDefinition {
 			definitions = append(definitions, indexedPortDefinition{
 				Index:  i,
 				Labels: d.Labels,
+				Name:   d.Name,
 			})
 		}
 	}
@@ -190,6 +221,6 @@ func (app App) extractPortDefinitions() []PortDefinition {
 	} else {
 		appPortDefinitions = app.PortDefinitions
 	}
-	
+
 	return appPortDefinitions
 }

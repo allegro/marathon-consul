@@ -1,0 +1,31 @@
+{
+  "app": {
+    "id": "lorem/ipsum",
+    "cmd": "Lorem ipsum dolor sit amet, consectetur adipiscing elit",
+    "healthChecks": [
+      {
+        "path": "/ping",
+        "protocol": "HTTP"
+      }
+    ],
+    "labels": {
+      "default-monitoring": "tag"
+    },
+    "portDefinitions": [
+      {
+        "port": 10115,
+        "protocol": "tcp",
+        "name": "proxyingress",
+        "labels": {
+          "consul": "lorem-ipsum",
+          "proxy-port-tag": "tag"
+        }
+      },
+      {
+        "port": 10130,
+        "protocol": "tcp",
+        "name": "service"
+      }
+    ]
+  }
+}

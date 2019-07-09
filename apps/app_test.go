@@ -424,6 +424,58 @@ func TestRegistrationIntent_TaskHasLessPortsThanApp(t *testing.T) {
 	assert.Equal(t, []string{"first-tag", "common-tag"}, intents[0].Tags)
 }
 
+func TestRegistrationIntent_TaskHasServicePort(t *testing.T) {
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"common-tag": "tag"},
+		PortDefinitions: []PortDefinition{
+			{},
+			{
+				Name: "service",
+			},
+			{
+				Labels: map[string]string{"consul": "app-name-admin"},
+			},
+			{
+				Name:   "proxyingress",
+				Labels: map[string]string{"consul": "app-name", "type:proxy": "tag"},
+			},
+		},
+	}
+
+	task := &Task{
+		Ports: []int{222, 333, 444, 555},
+	}
+
+	// when
+	intents := app.RegistrationIntents(task, "-")
+
+	// then
+	assert.Len(t, intents, 2)
+
+	assert.Equal(t, "app-name-admin", intents[0].Name)
+	assert.Equal(t, 444, intents[0].Port)
+	assert.Equal(t, []string{"common-tag"}, intents[0].Tags)
+
+	assert.Equal(t, "app-name", intents[1].Name)
+	assert.Equal(t, 555, intents[1].Port)
+	assert.Equal(t, []string{"type:proxy", "service-port:333", "common-tag"}, intents[1].Tags)
+}
+
+func TestParsePortNames(t *testing.T) {
+	// given
+	appBlob, _ := ioutil.ReadFile("testdata/port-names.json")
+
+	// when
+	app, err := ParseApp(appBlob)
+
+	// then
+	assert.NoError(t, err)
+	assert.Equal(t, "proxyingress", app.PortDefinitions[0].Name)
+	assert.Equal(t, "service", app.PortDefinitions[1].Name)
+}
+
 func TestRegistrationIntentsNumber(t *testing.T) {
 	for _, tc := range registrationIntentsNumberTestCases {
 		t.Run(tc.name, func(t *testing.T) {
