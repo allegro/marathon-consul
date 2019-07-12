@@ -32,11 +32,11 @@ deps:
 	@which goimports > /dev/null || \
         (go get golang.org/x/tools/cmd/goimports)
 
-build-deps: deps format test check
+build-deps: deps format
 	@mkdir -p bin/
 
-build: build-deps
-	go build $(LD_FLAGS) -o bin/marathon-consul
+build: build-deps check test
+	CGO_ENABLED=0 go build $(LD_FLAGS) -o bin/marathon-consul
 
 build-linux: build-deps
 	CGO_ENABLED=0 GOOS=linux go build -a -tags netgo $(LD_FLAGS) -o bin/marathon-consul
@@ -51,11 +51,11 @@ $(TEST_TARGETS):
 	go test -coverprofile=coverage/$(shell basename $@).coverprofile $(TESTARGS) $@
 
 check-deps: deps
-	@which gometalinter > /dev/null || \
-        (go get github.com/alecthomas/gometalinter && gometalinter --install)
+	@which golangci-lint > /dev/null || \
+		(go get -u github.com/golangci/golangci-lint/cmd/golangci-lint)
 
 check: check-deps $(SOURCES) test
-	gometalinter ./... --deadline  720s --vendor -D dupl -D gotype -D errcheck -D gas -D golint -D aligncheck -D vetshadow -D maligned -D gosec -E gofmt
+	golangci-lint run --config=golangcilinter.yaml ./...
 
 format:
 	goimports -w -l $(APP_SOURCES)
