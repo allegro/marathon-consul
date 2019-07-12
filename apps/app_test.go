@@ -394,6 +394,66 @@ func TestRegistrationIntent_MultipleIntentsViaPortDefinitionIfMultipleContainCon
 	assert.Equal(t, []string{"second-tag", "common-tag"}, intents[1].Tags)
 }
 
+func TestRegistrationIntent_PortPlaceholderInPortDefinitionsLabel(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true"},
+		PortDefinitions: []PortDefinition{
+			{
+				Labels: map[string]string{"consul": "true", "something:{port:foo}": "tag"},
+			},
+			{
+				Name: "foo",
+			},
+		},
+	}
+	task := &Task{
+		Ports: []int{1234, 5678},
+	}
+
+	// when
+	intents := app.RegistrationIntents(task, "-")
+
+	// then
+	assert.Len(t, intents, 1)
+	assert.Equal(t, "app-name", intents[0].Name)
+	assert.Equal(t, 1234, intents[0].Port)
+	assert.Equal(t, []string{"something:5678"}, intents[0].Tags)
+}
+
+func TestRegistrationIntent_PortPlaceholderInPortDefinitionsLabel_NameNotFound(t *testing.T) {
+	t.Parallel()
+
+	// given
+	app := &App{
+		ID:     "app-name",
+		Labels: map[string]string{"consul": "true"},
+		PortDefinitions: []PortDefinition{
+			{
+				Labels: map[string]string{"consul": "true", "something:{port:bar}": "tag"},
+			},
+			{
+				Name: "foo",
+			},
+		},
+	}
+	task := &Task{
+		Ports: []int{1234, 5678},
+	}
+
+	// when
+	intents := app.RegistrationIntents(task, "-")
+
+	// then
+	assert.Len(t, intents, 1)
+	assert.Equal(t, "app-name", intents[0].Name)
+	assert.Equal(t, 1234, intents[0].Port)
+	assert.Equal(t, []string{"something:{port:bar}"}, intents[0].Tags)
+}
+
 func TestRegistrationIntent_TaskHasLessPortsThanApp(t *testing.T) {
 	t.Parallel()
 
