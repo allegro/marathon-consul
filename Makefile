@@ -35,7 +35,7 @@ deps:
 build-deps: deps format
 	@mkdir -p bin/
 
-build: build-deps check test
+build: check build-deps test
 	CGO_ENABLED=0 go build $(LD_FLAGS) -o bin/marathon-consul
 
 build-linux: build-deps
