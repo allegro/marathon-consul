@@ -12,11 +12,11 @@ import (
 // TODO this should be a service registry stub in the service package, requires abstracting from AgentServiceRegistration
 type Stub struct {
 	sync.RWMutex
-	services                   map[service.ServiceId]*consulapi.AgentServiceRegistration
+	services                   map[service.ID]*consulapi.AgentServiceRegistration
 	failGetServicesForNames    map[string]bool
 	failRegisterForIDs         map[apps.TaskID]bool
 	failDeregisterByTaskForIDs map[apps.TaskID]bool
-	failDeregisterForIDs       map[service.ServiceId]bool
+	failDeregisterForIDs       map[service.ID]bool
 	consul                     *Consul
 }
 
@@ -26,11 +26,11 @@ func NewConsulStub() *Stub {
 
 func NewConsulStubWithTag(tag string) *Stub {
 	return &Stub{
-		services:                   make(map[service.ServiceId]*consulapi.AgentServiceRegistration),
+		services:                   make(map[service.ID]*consulapi.AgentServiceRegistration),
 		failGetServicesForNames:    make(map[string]bool),
 		failRegisterForIDs:         make(map[apps.TaskID]bool),
 		failDeregisterByTaskForIDs: make(map[apps.TaskID]bool),
-		failDeregisterForIDs:       make(map[service.ServiceId]bool),
+		failDeregisterForIDs:       make(map[service.ID]bool),
 		consul:                     New(Config{Tag: tag, ConsulNameSeparator: "."}),
 	}
 }
@@ -41,10 +41,10 @@ func (c *Stub) GetAllServices() ([]*service.Service, error) {
 	var allServices []*service.Service
 	for _, s := range c.services {
 		allServices = append(allServices, &service.Service{
-			ID:   service.ServiceId(s.ID),
-			Name: s.Name,
-			Tags: s.Tags,
-			RegisteringAgentAddress: s.Address,
+			ID:           service.ID(s.ID),
+			Name:         s.Name,
+			Tags:         s.Tags,
+			AgentAddress: s.Address,
 		})
 	}
 	return allServices, nil
@@ -62,7 +62,7 @@ func (c *Stub) FailDeregisterByTaskForID(taskID apps.TaskID) {
 	c.failDeregisterByTaskForIDs[taskID] = true
 }
 
-func (c *Stub) FailDeregisterForID(serviceID service.ServiceId) {
+func (c *Stub) FailDeregisterForID(serviceID service.ID) {
 	c.failDeregisterForIDs[serviceID] = true
 }
 
@@ -76,10 +76,10 @@ func (c *Stub) GetServices(name string) ([]*service.Service, error) {
 	for _, s := range c.services {
 		if s.Name == name && contains(s.Tags, c.consul.config.Tag) {
 			services = append(services, &service.Service{
-				ID:   service.ServiceId(s.ID),
-				Name: s.Name,
-				Tags: s.Tags,
-				RegisteringAgentAddress: s.Address,
+				ID:           service.ID(s.ID),
+				Name:         s.Name,
+				Tags:         s.Tags,
+				AgentAddress: s.Address,
 			})
 		}
 	}
@@ -97,7 +97,7 @@ func (c *Stub) Register(task *apps.Task, app *apps.App) error {
 		return err
 	}
 	for _, r := range serviceRegistrations {
-		c.services[service.ServiceId(r.ID)] = r
+		c.services[service.ID(r.ID)] = r
 	}
 	return nil
 }
@@ -114,7 +114,7 @@ func (c *Stub) RegisterWithoutMarathonTaskTag(task *apps.Task, app *apps.App) {
 			Tags:    intent.Tags,
 			Checks:  consulapi.AgentServiceChecks{},
 		}
-		c.services[service.ServiceId(serviceRegistration.ID)] = &serviceRegistration
+		c.services[service.ID(serviceRegistration.ID)] = &serviceRegistration
 	}
 }
 
@@ -122,7 +122,7 @@ func (c *Stub) RegisterOnlyFirstRegistrationIntent(task *apps.Task, app *apps.Ap
 	c.Lock()
 	defer c.Unlock()
 	serviceRegistrations, _ := c.consul.marathonTaskToConsulServices(task, app)
-	c.services[service.ServiceId(serviceRegistrations[0].ID)] = serviceRegistrations[0]
+	c.services[service.ID(serviceRegistrations[0].ID)] = serviceRegistrations[0]
 }
 
 func (c *Stub) DeregisterByTask(taskID apps.TaskID) error {
@@ -132,7 +132,7 @@ func (c *Stub) DeregisterByTask(taskID apps.TaskID) error {
 		return fmt.Errorf("Consul stub programmed to fail when deregistering task of id %s", taskID.String())
 	}
 	for _, x := range c.servicesMatchingTask(taskID) {
-		delete(c.services, service.ServiceId(x.ID))
+		delete(c.services, service.ID(x.ID))
 	}
 	return nil
 }
@@ -161,7 +161,7 @@ func (c *Stub) RegisteredTaskIDs(serviceName string) []apps.TaskID {
 	services, _ := c.GetServices(serviceName)
 	taskIds := []apps.TaskID{}
 	for _, s := range services {
-		taskID, _ := s.TaskId()
+		taskID, _ := s.TaskID()
 		taskIds = append(taskIds, taskID)
 	}
 	return taskIds

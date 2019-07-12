@@ -14,11 +14,11 @@ import (
 )
 
 type handlerStubs struct {
-	serviceRegistry service.ServiceRegistry
+	serviceRegistry service.Registry
 	marathon        marathon.Marathoner
 }
 
-// Creates eventHandler and returns nonbuffered event queue that has to be used to send events to handler and
+// Creates EventHandler and returns nonbuffered event queue that has to be used to send events to handler and
 // function that can be used as a synchronization point to wait until previous event has been processed.
 // Under the hood synchronization function simply sends a stop signal to the handlers stopChan.
 func testEventHandler(stubs handlerStubs) (chan<- Event, func()) {

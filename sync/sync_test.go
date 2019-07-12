@@ -439,7 +439,7 @@ func TestSync_WithConsulProblems(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func newSyncWithDefaultConfig(marathon marathon.Marathoner, serviceRegistry service.ServiceRegistry) *Sync {
+func newSyncWithDefaultConfig(marathon marathon.Marathoner, serviceRegistry service.Registry) *Sync {
 	return New(Config{Enabled: true, Leader: "localhost:8080"}, marathon, serviceRegistry, noopSyncStartedListener)
 }
 

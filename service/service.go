@@ -8,21 +8,21 @@ import (
 	"github.com/allegro/marathon-consul/apps"
 )
 
-type ServiceId string
+type ID string
 
-func (id ServiceId) String() string {
+func (id ID) String() string {
 	return string(id)
 }
 
 type Service struct {
-	ID                      ServiceId
-	Name                    string
-	Tags                    []string
-	RegisteringAgentAddress string
-	EnableTagOverride       bool
+	ID                ID
+	Name              string
+	Tags              []string
+	AgentAddress      string
+	EnableTagOverride bool
 }
 
-func (s *Service) TaskId() (apps.TaskID, error) {
+func (s *Service) TaskID() (apps.TaskID, error) {
 	for _, tag := range s.Tags {
 		if strings.HasPrefix(tag, "marathon-task:") {
 			return apps.TaskID(strings.TrimPrefix(tag, "marathon-task:")), nil
@@ -31,14 +31,14 @@ func (s *Service) TaskId() (apps.TaskID, error) {
 	return apps.TaskID(""), errors.New("marathon-task tag missing")
 }
 
-func MarathonTaskTag(taskId apps.TaskID) string {
-	return fmt.Sprintf("marathon-task:%s", taskId)
+func MarathonTaskTag(taskID apps.TaskID) string {
+	return fmt.Sprintf("marathon-task:%s", taskID)
 }
 
-type ServiceRegistry interface {
+type Registry interface {
 	GetAllServices() ([]*Service, error)
 	GetServices(name string) ([]*Service, error)
 	Register(task *apps.Task, app *apps.App) error
-	DeregisterByTask(taskId apps.TaskID) error
+	DeregisterByTask(taskID apps.TaskID) error
 	Deregister(toDeregister *Service) error
 }

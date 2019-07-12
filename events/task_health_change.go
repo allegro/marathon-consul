@@ -21,13 +21,13 @@ type TaskHealthChange struct {
 
 // Regular expression to extract runSpecId from instanceId
 // See: https://github.com/mesosphere/marathon/blob/v1.4.0-RC4/src/main/scala/mesosphere/marathon/core/instance/Instance.scala#L244
-var instanceIdRegex = regexp.MustCompile(`^(.+)\.(instance-|marathon-)([^\.]+)$`)
+var instanceIDRegex = regexp.MustCompile(`^(.+)\.(instance-|marathon-)([^\.]+)$`)
 
 func (t TaskHealthChange) TaskID() apps.TaskID {
 	if t.ID != "" {
 		return t.ID
 	}
-	return apps.TaskID(instanceIdRegex.ReplaceAllString(t.InstanceID, "$1.$3"))
+	return apps.TaskID(instanceIDRegex.ReplaceAllString(t.InstanceID, "$1.$3"))
 }
 
 func ParseTaskHealthChange(event []byte) (*TaskHealthChange, error) {

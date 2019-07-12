@@ -12,10 +12,10 @@ const totalPauseGauge = "runtime.mem.pause_total_ns"
 const lastPauseGauge = "runtime.mem.last_pause"
 
 func collectSystemMetrics() {
-	metrics.Register(allocGauge, baseGauge{value: func(memStats runtime.MemStats) int64 { return int64(memStats.Alloc) }})
-	metrics.Register(heapObjectsGauge, baseGauge{value: func(memStats runtime.MemStats) int64 { return int64(memStats.HeapObjects) }})
-	metrics.Register(totalPauseGauge, baseGauge{value: func(memStats runtime.MemStats) int64 { return int64(memStats.PauseTotalNs) }})
-	metrics.Register(lastPauseGauge, baseGauge{value: func(memStats runtime.MemStats) int64 { return int64(memStats.PauseNs[(memStats.NumGC+255)%256]) }})
+	_ = metrics.Register(allocGauge, baseGauge{value: func(memStats runtime.MemStats) int64 { return int64(memStats.Alloc) }})
+	_ = metrics.Register(heapObjectsGauge, baseGauge{value: func(memStats runtime.MemStats) int64 { return int64(memStats.HeapObjects) }})
+	_ = metrics.Register(totalPauseGauge, baseGauge{value: func(memStats runtime.MemStats) int64 { return int64(memStats.PauseTotalNs) }})
+	_ = metrics.Register(lastPauseGauge, baseGauge{value: func(memStats runtime.MemStats) int64 { return int64(memStats.PauseNs[(memStats.NumGC+255)%256]) }})
 }
 
 type baseGauge struct {

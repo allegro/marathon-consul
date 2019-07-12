@@ -54,7 +54,7 @@ check-deps: deps
 	@which golangci-lint > /dev/null || \
 		(go get -u github.com/golangci/golangci-lint/cmd/golangci-lint)
 
-check: check-deps $(SOURCES) test
+check: check-deps $(SOURCES)
 	golangci-lint run --config=golangcilinter.yaml ./...
 
 format:

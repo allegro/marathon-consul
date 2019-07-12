@@ -62,10 +62,10 @@ func instances(appsCount, instancesCount int) []*service.Service {
 		app := ConsulApp(fmt.Sprintf("consul/service/no_%d", i), instancesCount)
 		for _, task := range app.Tasks {
 			createdInstances[i] = &service.Service{
-				ID:   service.ServiceId(task.ID.String()),
-				Name: app.ID.String(),
-				Tags: []string{"marathon"},
-				RegisteringAgentAddress: task.Host,
+				ID:           service.ID(task.ID.String()),
+				Name:         app.ID.String(),
+				Tags:         []string{"marathon"},
+				AgentAddress: task.Host,
 			}
 		}
 	}

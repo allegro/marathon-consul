@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	timeutil "github.com/allegro/marathon-consul/time"
 	"github.com/hashicorp/consul/testutil"
 	"github.com/stretchr/testify/assert"
+
+	timeutil "github.com/allegro/marathon-consul/time"
 )
 
 func CreateTestServer(t *testing.T) *testutil.TestServer {
@@ -56,7 +57,7 @@ func getPorts(number int) ([]int, error) {
 	listener := make([]*net.TCPListener, number)
 	defer func() {
 		for _, l := range listener {
-			l.Close()
+			_ = l.Close()
 		}
 
 	}()
@@ -100,7 +101,7 @@ func FailingClient() *Consul {
 	}
 	consul := New(config)
 	// initialize the agents cache with a single client pointing at provided location
-	consul.AddAgent(host)
+	_ = consul.AddAgent(host)
 	return consul
 }
 
@@ -118,7 +119,7 @@ func consulClientAtAddress(host string, port int, local bool) *Consul {
 	}
 	consul := New(config)
 	// initialize the agents cache with a single client pointing at provided location
-	consul.AddAgent(host)
+	_ = consul.AddAgent(host)
 	return consul
 }
 
@@ -133,6 +134,6 @@ func secureConsulClientAtAddress(host string, port int) *Consul {
 	}
 	consul := New(config)
 	// initialize the agents cache with a single client pointing at provided location
-	consul.AddAgent(host)
+	_ = consul.AddAgent(host)
 	return consul
 }

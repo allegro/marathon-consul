@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/allegro/marathon-consul/apps"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
 	"github.com/allegro/marathon-consul/service"
-	log "github.com/sirupsen/logrus"
 )
 
 type Event struct {
@@ -19,9 +20,9 @@ type Event struct {
 	Body      []byte
 }
 
-type eventHandler struct {
+type EventHandler struct {
 	id              int
-	serviceRegistry service.ServiceRegistry
+	serviceRegistry service.Registry
 	marathon        marathon.Marathoner
 	eventQueue      <-chan Event
 }
@@ -34,8 +35,8 @@ const (
 	EmptyEventType               = ""
 )
 
-func NewEventHandler(id int, serviceRegistry service.ServiceRegistry, marathon marathon.Marathoner, eventQueue <-chan Event) *eventHandler {
-	return &eventHandler{
+func NewEventHandler(id int, serviceRegistry service.Registry, marathon marathon.Marathoner, eventQueue <-chan Event) *EventHandler {
+	return &EventHandler{
 		id:              id,
 		serviceRegistry: serviceRegistry,
 		marathon:        marathon,
@@ -43,7 +44,7 @@ func NewEventHandler(id int, serviceRegistry service.ServiceRegistry, marathon m
 	}
 }
 
-func (fh *eventHandler) Start() chan<- StopEvent {
+func (fh *EventHandler) Start() chan<- StopEvent {
 	var e Event
 	process := func() {
 		err := fh.handleEvent(e.EventType, e.Body)
@@ -82,7 +83,7 @@ func (fh *eventHandler) Start() chan<- StopEvent {
 	return quitChan
 }
 
-func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
+func (fh *EventHandler) handleEvent(eventType string, body []byte) error {
 
 	body = replaceTaskIDWithID(body)
 
@@ -105,7 +106,7 @@ func (fh *eventHandler) handleEvent(eventType string, body []byte) error {
 	}
 }
 
-func (fh *eventHandler) handleHealthyTask(body []byte) error {
+func (fh *EventHandler) handleHealthyTask(body []byte) error {
 	taskHealthChange, err := ParseTaskHealthChange(body)
 	if err != nil {
 		log.WithError(err).Error("Body generated error")
@@ -155,7 +156,7 @@ func (fh *eventHandler) handleHealthyTask(body []byte) error {
 	return nil
 }
 
-func (fh *eventHandler) handleStatusEvent(body []byte) error {
+func (fh *EventHandler) handleStatusEvent(body []byte) error {
 	task, err := apps.ParseTask(body)
 	if err != nil {
 		log.WithError(err).WithField("Body", body).Error("Could not parse event body")
@@ -181,7 +182,7 @@ func (fh *eventHandler) handleStatusEvent(body []byte) error {
 	}
 }
 
-func (fh *eventHandler) deregister(taskID apps.TaskID) error {
+func (fh *EventHandler) deregister(taskID apps.TaskID) error {
 	err := fh.serviceRegistry.DeregisterByTask(taskID)
 	if err != nil {
 		log.WithField("Id", taskID).WithError(err).Error("There was a problem deregistering task")

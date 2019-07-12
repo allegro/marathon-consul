@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cyberdelia/go-metrics-graphite"
+	graphite "github.com/cyberdelia/go-metrics-graphite"
 	"github.com/rcrowley/go-metrics"
 	log "github.com/sirupsen/logrus"
 )
@@ -102,8 +102,8 @@ func defaultPrefix() (string, error) {
 }
 
 func initStdout(interval time.Duration) error {
-	logger := logger.New(os.Stderr, "localhost: ", logger.Lmicroseconds)
-	go metrics.Log(metrics.DefaultRegistry, interval, logger)
+	loggerInstance := logger.New(os.Stderr, "localhost: ", logger.Lmicroseconds)
+	go metrics.Log(metrics.DefaultRegistry, interval, loggerInstance)
 	return nil
 }
 

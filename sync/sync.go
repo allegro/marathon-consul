@@ -14,13 +14,13 @@ import (
 type Sync struct {
 	config              Config
 	marathon            marathon.Marathoner
-	serviceRegistry     service.ServiceRegistry
+	serviceRegistry     service.Registry
 	syncStartedListener startedListener
 }
 
 type startedListener func(apps []*apps.App)
 
-func New(config Config, marathon marathon.Marathoner, serviceRegistry service.ServiceRegistry, syncStartedListener startedListener) *Sync {
+func New(config Config, marathon marathon.Marathoner, serviceRegistry service.Registry, syncStartedListener startedListener) *Sync {
 	return &Sync{config, marathon, serviceRegistry, syncStartedListener}
 }
 
@@ -109,10 +109,10 @@ func (s *Sync) deregisterConsulServicesNotFoundInMarathon(marathonApps []*apps.A
 	for _, service := range services {
 		logFields := log.Fields{
 			"Id":      service.ID,
-			"Address": service.RegisteringAgentAddress,
+			"Address": service.AgentAddress,
 			"Sync":    true,
 		}
-		if taskIDInTag, err := service.TaskId(); err != nil {
+		if taskIDInTag, err := service.TaskID(); err != nil {
 			log.WithField("Id", service.ID).WithError(err).
 				Warn("Couldn't extract marathon task id, deregistering since sync should have reregistered it already")
 			if err := s.serviceRegistry.Deregister(service); err != nil {
@@ -190,7 +190,7 @@ func (s *Sync) registerAppTasksNotFoundInConsul(marathonApps []*apps.App, servic
 func taskIdsInConsulServices(services []*service.Service) map[apps.TaskID]int {
 	serviceCounters := make(map[apps.TaskID]int)
 	for _, service := range services {
-		if taskID, err := service.TaskId(); err == nil {
+		if taskID, err := service.TaskID(); err == nil {
 			serviceCounters[taskID]++
 		}
 	}
