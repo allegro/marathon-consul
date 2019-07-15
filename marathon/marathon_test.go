@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"testing"
+
 	"github.com/stretchr/testify/assert"
 )
 

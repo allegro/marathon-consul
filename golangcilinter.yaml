@@ -1,0 +1,19 @@
+run:
+  aggregate: true
+  concurrency: 2
+  cyclo: 14
+  deadline: "300s"
+  skip-files:
+  - ".*_string.go"
+  - ".*_test.go"
+linters:
+  disable-all: true
+  enable:
+    - deadcode
+    - errcheck
+    - gocyclo
+    - goimports
+    - golint
+    - gosimple
+    - govet
+

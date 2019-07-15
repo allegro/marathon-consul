@@ -5,22 +5,23 @@ import (
 	"io"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/allegro/marathon-consul/events"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/metrics"
-	log "github.com/sirupsen/logrus"
 )
 
-// SSEHandler defines handler for marathon event stream, opening and closing
+// HandlerSSE defines handler for marathon event stream, opening and closing
 // subscription
-type SSEHandler struct {
+type HandlerSSE struct {
 	config      Config
 	eventQueue  chan events.Event
 	Streamer    *marathon.Streamer
 	maxLineSize int64
 }
 
-func newSSEHandler(eventQueue chan events.Event, service marathon.Marathoner, maxLineSize int64, config Config) (*SSEHandler, error) {
+func newSSEHandler(eventQueue chan events.Event, service marathon.Marathoner, maxLineSize int64, config Config) (*HandlerSSE, error) {
 
 	streamer, err := service.EventStream(
 		[]string{events.StatusUpdateEventType, events.HealthStatusChangedEventType},
@@ -31,7 +32,7 @@ func newSSEHandler(eventQueue chan events.Event, service marathon.Marathoner, ma
 		return nil, fmt.Errorf("Unable to start Streamer: %s", err)
 	}
 
-	return &SSEHandler{
+	return &HandlerSSE{
 		config:      config,
 		eventQueue:  eventQueue,
 		Streamer:    streamer,
@@ -40,7 +41,7 @@ func newSSEHandler(eventQueue chan events.Event, service marathon.Marathoner, ma
 }
 
 // Open connection to marathon v2/events
-func (h *SSEHandler) start() (chan<- events.StopEvent, error) {
+func (h *HandlerSSE) start() (chan<- events.StopEvent, error) {
 	if err := h.Streamer.Start(); err != nil {
 		return nil, fmt.Errorf("Cannot start Streamer: %s", err)
 	}
@@ -67,7 +68,7 @@ func (h *SSEHandler) start() (chan<- events.StopEvent, error) {
 	return stopChan, nil
 }
 
-func (h *SSEHandler) handle() {
+func (h *HandlerSSE) handle() {
 	e, err := events.ParseSSEEvent(h.Streamer.Scanner)
 	if err != nil {
 		if err == io.EOF {
@@ -89,7 +90,7 @@ func (h *SSEHandler) handle() {
 	h.enqueueEvent(e)
 }
 
-func (h *SSEHandler) enqueueEvent(e events.SSEEvent) {
+func (h *HandlerSSE) enqueueEvent(e events.SSEEvent) {
 	select {
 	case h.eventQueue <- events.Event{Timestamp: time.Now(), EventType: e.Type, Body: e.Body}:
 		metrics.Mark("events.read.accept")
@@ -100,6 +101,6 @@ func (h *SSEHandler) enqueueEvent(e events.SSEEvent) {
 }
 
 // Close connections managed by context
-func (h *SSEHandler) stop() {
+func (h *HandlerSSE) stop() {
 	h.Streamer.Stop()
 }

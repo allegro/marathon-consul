@@ -5,17 +5,18 @@ import (
 	"net/http"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/allegro/marathon-consul/events"
 	"github.com/allegro/marathon-consul/marathon"
 	"github.com/allegro/marathon-consul/service"
 	"github.com/allegro/marathon-consul/web"
-	log "github.com/sirupsen/logrus"
 )
 
 type Stop func()
 type Handler func(w http.ResponseWriter, r *http.Request)
 
-func NewHandler(config Config, webConfig web.Config, marathon marathon.Marathoner, serviceOperations service.ServiceRegistry) (Stop, error) {
+func NewHandler(config Config, webConfig web.Config, marathon marathon.Marathoner, serviceOperations service.Registry) (Stop, error) {
 	stopChannels := make([]chan<- events.StopEvent, webConfig.WorkersCount)
 	stopFunc := stop(stopChannels)
 	eventQueue := make(chan events.Event, webConfig.QueueSize)

@@ -68,10 +68,10 @@ func TestRegister_ForInvalidHost(t *testing.T) {
 
 	// when
 	err = consul.Deregister(&service.Service{
-		ID:   service.ServiceId("someId"),
-		Name: "service",
-		Tags: []string{},
-		RegisteringAgentAddress: "",
+		ID:           service.ID("someId"),
+		Name:         "service",
+		Tags:         []string{},
+		AgentAddress: "",
 	})
 
 	// then
@@ -870,7 +870,7 @@ func TestMarathonTaskToConsulServiceMapping(t *testing.T) {
 			Status:   "passing",
 		},
 		{
-			Args:   []string{"echo 1"},
+			Args:     []string{"echo 1"},
 			Interval: "30s",
 			Timeout:  "20s",
 			Status:   "passing",
