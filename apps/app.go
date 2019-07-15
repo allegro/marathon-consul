@@ -2,6 +2,7 @@ package apps
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -26,6 +27,7 @@ type HealthCheck struct {
 
 type PortDefinition struct {
 	Labels map[string]string `json:"labels"`
+	Name   string            `json:"name,omitempty"`
 }
 
 type Container struct {
@@ -99,7 +101,7 @@ func (app App) RegistrationIntentsNumber() int {
 		return 0
 	}
 
-	definitions := app.findConsulPortDefinitions()
+	definitions := app.filterConsulDefinitions(app.extractIndexedPortDefinitions())
 	if len(definitions) == 0 {
 		return 1
 	}
@@ -109,9 +111,11 @@ func (app App) RegistrationIntentsNumber() int {
 
 func (app App) RegistrationIntents(task *Task, nameSeparator string) []RegistrationIntent {
 	taskPortsCount := len(task.Ports)
-	definitions := app.findConsulPortDefinitions()
-	commonTags := labelsToTags(app.Labels)
-	if len(definitions) == 0 && taskPortsCount != 0 {
+	indexedPortDefinitions := app.extractIndexedPortDefinitions()
+	consulPortDefinitions := app.filterConsulDefinitions(indexedPortDefinitions)
+	tagPlaceholderMapping := createTagPlaceholderMapping(indexedPortDefinitions, task.Ports)
+	commonTags := labelsToTags(app.Labels, tagPlaceholderMapping)
+	if len(consulPortDefinitions) == 0 && taskPortsCount != 0 {
 		return []RegistrationIntent{
 			{
 				Name: app.labelsToName(app.Labels, nameSeparator),
@@ -122,7 +126,7 @@ func (app App) RegistrationIntents(task *Task, nameSeparator string) []Registrat
 	}
 
 	var intents []RegistrationIntent
-	for _, d := range definitions {
+	for _, d := range consulPortDefinitions {
 		if d.Index >= taskPortsCount {
 			log.WithField("Id", task.ID.String()).Warnf("Port index (%d) out of bounds should be from range [0,%d)", d.Index, taskPortsCount)
 			continue
@@ -130,7 +134,7 @@ func (app App) RegistrationIntents(task *Task, nameSeparator string) []Registrat
 		intents = append(intents, RegistrationIntent{
 			Name: app.labelsToName(d.Labels, nameSeparator),
 			Port: task.Ports[d.Index],
-			Tags: append(labelsToTags(d.Labels), commonTags...),
+			Tags: append(labelsToTags(d.Labels, tagPlaceholderMapping), commonTags...),
 		})
 	}
 	return intents
@@ -140,14 +144,33 @@ func marathonAppNameToServiceName(name string, nameSeparator string) string {
 	return strings.Replace(strings.Trim(strings.TrimSpace(name), "/"), "/", nameSeparator, -1)
 }
 
-func labelsToTags(labels map[string]string) []string {
+func labelsToTags(labels map[string]string, tagPlaceholderMapping map[string]string) []string {
 	tags := make([]string, 0, len(labels))
 	for key, value := range labels {
 		if value == "tag" {
-			tags = append(tags, key)
+			tags = append(tags, resolvePlaceholders(key, tagPlaceholderMapping))
 		}
 	}
 	return tags
+}
+
+func createTagPlaceholderMapping(portDefinitions []indexedPortDefinition, ports []int) map[string]string {
+	mapping := map[string]string{}
+	for _, d := range portDefinitions {
+		if d.Name != "" {
+			placeholder := fmt.Sprintf("{port:%s}", d.Name)
+			mapping[placeholder] = fmt.Sprint(ports[d.Index])
+		}
+	}
+	return mapping
+}
+
+func resolvePlaceholders(value string, tagPlaceholderMapping map[string]string) string {
+	for placeholder, replacement := range tagPlaceholderMapping {
+		value = strings.Replace(value, placeholder, replacement, -1)
+	}
+
+	return value
 }
 
 func (app App) labelsToName(labels map[string]string, nameSeparator string) string {
@@ -164,20 +187,31 @@ func (app App) labelsToName(labels map[string]string, nameSeparator string) stri
 type indexedPortDefinition struct {
 	Index  int
 	Labels map[string]string
+	Name   string
 }
 
-func (app App) findConsulPortDefinitions() []indexedPortDefinition {
+func (app App) extractIndexedPortDefinitions() []indexedPortDefinition {
 	var definitions []indexedPortDefinition
 	for i, d := range app.extractPortDefinitions() {
-		if _, ok := d.Labels[MarathonConsulLabel]; ok {
-			definitions = append(definitions, indexedPortDefinition{
-				Index:  i,
-				Labels: d.Labels,
-			})
-		}
+		definitions = append(definitions, indexedPortDefinition{
+			Index:  i,
+			Labels: d.Labels,
+			Name:   d.Name,
+		})
 	}
 
 	return definitions
+}
+
+func (app App) filterConsulDefinitions(all []indexedPortDefinition) []indexedPortDefinition {
+	var consulDefinitions []indexedPortDefinition
+	for _, d := range all {
+		if _, ok := d.Labels[MarathonConsulLabel]; ok {
+			consulDefinitions = append(consulDefinitions, d)
+		}
+	}
+
+	return consulDefinitions
 }
 
 // Deprecated: Allows for backward compatibility with Marathons' network API
