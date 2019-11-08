@@ -267,6 +267,50 @@ func TestGetAllServices(t *testing.T) {
 	assert.Contains(t, serviceNames, "serviceB")
 }
 
+func TestGetServicesFromSingleDc(t *testing.T) {
+	t.Parallel()
+	// create cluster of 2 consul servers
+	server1 := CreateTestServerDatacenter(t, "dc-1")
+	defer server1.Stop()
+
+	server2 := CreateTestServerDatacenter(t, "dc-2")
+	defer server2.Stop()
+
+	server1.JoinWAN(t, server2.LANAddr)
+
+	// create client
+	consul := ClientAtServer(server1)
+	consul.config.Tag = "marathon"
+	// configure fetching services from single datacenter
+	consul.config.Dc = "dc-1"
+
+	// given
+	// register services in both servers
+	server1.AddService(t, "serviceA", "passing", []string{"public", "marathon"})
+	server1.AddService(t, "serviceB", "passing", []string{"marathon"})
+	server1.AddService(t, "serviceC", "passing", []string{"zookeeper"})
+
+	server2.AddService(t, "serviceA", "passing", []string{"private", "marathon"})
+	server2.AddService(t, "serviceB", "passing", []string{"zookeeper"})
+	server2.AddService(t, "serviceD", "passing", []string{"marathon"})
+
+	// when
+	services, err := consul.GetAllServices()
+
+	// then
+	assert.NoError(t, err)
+	assert.Len(t, services, 2)
+
+	serviceNames := make(map[string]struct{})
+	for _, s := range services {
+		serviceNames[s.Name] = struct{}{}
+	}
+	assert.Len(t, serviceNames, 2)
+	assert.Contains(t, serviceNames, "serviceA")
+	assert.Contains(t, serviceNames, "serviceB")
+	assert.NotContains(t, serviceNames, "serviceD")
+}
+
 func TestGetServicesUsingProviderWithRetriesOnAgentFailure_ShouldRetryConfiguredNumberOfTimes(t *testing.T) {
 	t.Parallel()
 	server1 := CreateTestServer(t)

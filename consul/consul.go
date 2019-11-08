@@ -64,7 +64,7 @@ func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide Servi
 }
 
 func (c *Consul) getServicesUsingAgent(name string, agent *consulAPI.Client) ([]*service.Service, error) {
-	dcAwareQueries, err := dcAwareQueriesForAllDCs(agent, c.config.Dc)
+	dcAwareQueries, err := dcAwareQueries(agent, c.config.Dc)
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +80,11 @@ func (c *Consul) getServicesUsingAgent(name string, agent *consulAPI.Client) ([]
 	return allServices, nil
 }
 
-func dcAwareQueriesForAllDCs(agent *consulAPI.Client, dc string) ([]*consulAPI.QueryOptions, error) {
-	if dc != "" {
+func dcAwareQueries(agent *consulAPI.Client, singleDc string) ([]*consulAPI.QueryOptions, error) {
+	if singleDc != "" {
 		var queries []*consulAPI.QueryOptions
 		queries = append(queries, &consulAPI.QueryOptions{
-			Datacenter: dc,
+			Datacenter: singleDc,
 		})
 		return queries, nil
 	}
@@ -107,7 +107,7 @@ func (c *Consul) GetAllServices() ([]*service.Service, error) {
 }
 
 func (c *Consul) getAllServices(agent *consulAPI.Client) ([]*service.Service, error) {
-	dcAwareQueries, err := dcAwareQueriesForAllDCs(agent, c.config.Dc)
+	dcAwareQueries, err := dcAwareQueries(agent, c.config.Dc)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,8 @@ func (c *Consul) getAllServices(agent *consulAPI.Client) ([]*service.Service, er
 	for _, dcAwareQuery := range dcAwareQueries {
 		consulServices, _, err := agent.Catalog().Services(dcAwareQuery)
 		if err != nil {
-			return nil, err
+			log.WithError(err).Error("An error occurred getting services from Consul, will continue with another DC")
+			continue
 		}
 		for consulService, tags := range consulServices {
 			if contains(tags, c.config.Tag) {
@@ -237,7 +238,7 @@ func (c *Consul) deregisterMultipleServices(services []*service.Service, taskID 
 
 func (c *Consul) findServicesByTaskID(searchedTaskID apps.TaskID) ([]*service.Service, error) {
 	return c.getServicesUsingProviderWithRetriesOnAgentFailure(func(agent *consulAPI.Client) ([]*service.Service, error) {
-		dcAwareQueries, err := dcAwareQueriesForAllDCs(agent, c.config.Dc)
+		dcAwareQueries, err := dcAwareQueries(agent, c.config.Dc)
 		if err != nil {
 			return nil, err
 		}
@@ -247,7 +248,8 @@ func (c *Consul) findServicesByTaskID(searchedTaskID apps.TaskID) ([]*service.Se
 		for _, dcAwareQuery := range dcAwareQueries {
 			consulServices, _, err := agent.Catalog().Services(dcAwareQuery)
 			if err != nil {
-				return nil, err
+				log.WithError(err).Error("An error occurred getting services from Consul, will continue with another DC")
+				continue
 			}
 			for consulService, tags := range consulServices {
 				if contains(tags, searchedTag) {

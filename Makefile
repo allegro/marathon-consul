@@ -64,7 +64,7 @@ FPM-exists:
 	@fpm -v || \
 	(echo >&2 "FPM must be installed on the system. See https://github.com/jordansissel/fpm"; false)
 
-deb: FPM-exists build
+deb: FPM-exists build-linux
 	mkdir -p dist/$(VERSION)/
 	cd dist/$(VERSION)/ && \
 	fpm -s dir \
@@ -73,6 +73,7 @@ deb: FPM-exists build
         -v $(VERSION) \
         --url="https://github.com/allegro/marathon-consul" \
         --vendor=Allegro \
+        --architecture=amd64 \
         --maintainer="Allegro Group <opensource@allegro.pl>" \
         --description "Marathon-consul service (performs Marathon Tasks registration as Consul Services for service discovery) Marathon-consul takes information provided by the Marathon event bus and forwards it to Consul agents. It also re-syncs all the information from Marathon to Consul on startup and repeats it with given interval." \
         --deb-priority optional \
