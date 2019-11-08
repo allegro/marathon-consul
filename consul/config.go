@@ -11,6 +11,7 @@ type Config struct {
 	SslCaCert              string
 	Token                  string
 	Tag                    string
+	Dc                     string
 	Timeout                time.Interval
 	RequestRetries         uint32
 	AgentFailuresTolerance uint32

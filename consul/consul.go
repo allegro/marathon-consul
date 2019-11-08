@@ -64,7 +64,7 @@ func (c *Consul) getServicesUsingProviderWithRetriesOnAgentFailure(provide Servi
 }
 
 func (c *Consul) getServicesUsingAgent(name string, agent *consulAPI.Client) ([]*service.Service, error) {
-	dcAwareQueries, err := dcAwareQueriesForAllDCs(agent)
+	dcAwareQueries, err := dcAwareQueriesForAllDCs(agent, c.config.Dc)
 	if err != nil {
 		return nil, err
 	}
@@ -80,12 +80,18 @@ func (c *Consul) getServicesUsingAgent(name string, agent *consulAPI.Client) ([]
 	return allServices, nil
 }
 
-func dcAwareQueriesForAllDCs(agent *consulAPI.Client) ([]*consulAPI.QueryOptions, error) {
+func dcAwareQueriesForAllDCs(agent *consulAPI.Client, dc string) ([]*consulAPI.QueryOptions, error) {
+	if dc != "" {
+		var queries []*consulAPI.QueryOptions
+		queries = append(queries, &consulAPI.QueryOptions{
+			Datacenter: dc,
+		})
+		return queries, nil
+	}
 	datacenters, err := agent.Catalog().Datacenters()
 	if err != nil {
 		return nil, err
 	}
-
 	var queries []*consulAPI.QueryOptions
 	for _, dc := range datacenters {
 		queries = append(queries, &consulAPI.QueryOptions{
@@ -101,7 +107,7 @@ func (c *Consul) GetAllServices() ([]*service.Service, error) {
 }
 
 func (c *Consul) getAllServices(agent *consulAPI.Client) ([]*service.Service, error) {
-	dcAwareQueries, err := dcAwareQueriesForAllDCs(agent)
+	dcAwareQueries, err := dcAwareQueriesForAllDCs(agent, c.config.Dc)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +237,7 @@ func (c *Consul) deregisterMultipleServices(services []*service.Service, taskID 
 
 func (c *Consul) findServicesByTaskID(searchedTaskID apps.TaskID) ([]*service.Service, error) {
 	return c.getServicesUsingProviderWithRetriesOnAgentFailure(func(agent *consulAPI.Client) ([]*service.Service, error) {
-		dcAwareQueries, err := dcAwareQueriesForAllDCs(agent)
+		dcAwareQueries, err := dcAwareQueriesForAllDCs(agent, c.config.Dc)
 		if err != nil {
 			return nil, err
 		}
