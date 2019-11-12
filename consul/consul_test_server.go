@@ -23,6 +23,17 @@ func CreateTestServer(t *testing.T) *testutil.TestServer {
 	return server
 }
 
+func CreateTestServerDatacenter(t *testing.T, dc string) *testutil.TestServer {
+	server, err := testutil.NewTestServerConfig(func(c *testutil.TestServerConfig) {
+		c.Datacenter = dc
+		c.Ports = testPortConfig(t)
+	})
+
+	assert.NoError(t, err)
+
+	return server
+}
+
 const MasterToken = "masterToken"
 
 func CreateSecuredTestServer(t *testing.T) *testutil.TestServer {
