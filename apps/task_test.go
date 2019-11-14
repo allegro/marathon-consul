@@ -41,7 +41,7 @@ func TestParseTasks(t *testing.T) {
 
 	expectedTasks := []Task{
 		{
-			ID:                 "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8",
+			ID:                 "test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8._app.1",
 			Timestamp:          time.Timestamp{},
 			AppID:              "/test",
 			Host:               "192.168.2.114",
@@ -49,7 +49,7 @@ func TestParseTasks(t *testing.T) {
 			HealthCheckResults: []HealthCheckResult{{Alive: true}},
 		},
 		{
-			ID:    "test.4453212c-1a81-11e5-bdb6-e6cb6734eaf8",
+			ID:    "test.4453212c-1a81-11e5-bdb6-e6cb6734eaf8._app.1",
 			AppID: "/test",
 			Host:  "192.168.2.114",
 			Ports: []int{31797},
@@ -136,4 +136,40 @@ func TestId_AppIdForInvalidIdShouldPanic(t *testing.T) {
 		a := TaskID("id").AppID()
 		assert.Nil(t, a)
 	})
+}
+
+func TestFindTaskByIdNotExactMatch(t *testing.T) { // Marathon version 1.9 doesn't match the event app id with the current app id, because it has not the suffix "._app.1"
+	t.Parallel()
+
+	tasksBlob, _ := ioutil.ReadFile("testdata/tasks.json")
+	tasks, err := ParseTasks(tasksBlob)
+	assert.Nil(t, err)
+
+	task := TaskID("test.4453212c-1a81-11e5-bdb6-e6cb6734eaf8")
+	_, found := FindTaskByID(task, tasks)
+	assert.True(t, found)
+}
+
+func TestFindTaskByIdNotFound(t *testing.T) {
+	t.Parallel()
+
+	tasksBlob, _ := ioutil.ReadFile("testdata/tasks.json")
+	tasks, err := ParseTasks(tasksBlob)
+	assert.Nil(t, err)
+
+	task := TaskID("this-task-doesnt-exist")
+	_, found := FindTaskByID(task, tasks)
+	assert.False(t, found)
+}
+
+func TestFindTaskByIdExactMatch(t *testing.T) { // When marathon app id in events is the same as the app id in the task, which is also currently the case.
+	t.Parallel()
+
+	tasksBlob, _ := ioutil.ReadFile("testdata/tasks.json")
+	tasks, err := ParseTasks(tasksBlob)
+	assert.Nil(t, err)
+
+	task := TaskID("test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8._app.1")
+	_, found := FindTaskByID(task, tasks)
+	assert.True(t, found)
 }
