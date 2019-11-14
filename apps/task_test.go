@@ -173,3 +173,15 @@ func TestFindTaskByIdExactMatch(t *testing.T) { // When marathon app id in event
 	_, found := FindTaskByID(task, tasks)
 	assert.True(t, found)
 }
+
+func TestFindTaskByIdExactMatchBeforeMarathonVersionOneDotNine(t *testing.T) { // before marathon v1.9 the app id of an event did match the task app id
+	t.Parallel()
+
+	tasksBlob, _ := ioutil.ReadFile("testdata/tasks-before-marathon-1.9.json")
+	tasks, err := ParseTasks(tasksBlob)
+	assert.Nil(t, err)
+
+	task := TaskID("test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8")
+	_, found := FindTaskByID(task, tasks)
+	assert.True(t, found)
+}
