@@ -44,7 +44,7 @@ type TasksResponse struct {
 
 func FindTaskByID(id TaskID, tasks []Task) (Task, bool) {
 	for _, task := range tasks {
-		if strings.HasPrefix(task.ID.String(), id.String()) && (len(id.String()) > 36) {
+		if strings.HasPrefix(task.ID.String(), id.String()) {
 			return task, true
 		}
 	}
