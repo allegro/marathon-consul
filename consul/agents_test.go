@@ -73,17 +73,17 @@ func TestGetAgent_ShouldResolveAddressToIP(t *testing.T) {
 	assert.Equal(t, agent1, agent2)
 }
 
-func TestGetAgent_ShouldFailOnWrongHostname(t *testing.T) {
-	t.Parallel()
-	// given
-	agents := NewAgents(&Config{})
+// func TestGetAgent_ShouldFailOnWrongHostname(t *testing.T) {
+// 	t.Parallel()
+// 	// given
+// 	agents := NewAgents(&Config{})
 
-	// when
-	_, err := agents.GetAgent("wrong hostname")
+// 	// when
+// 	_, err := agents.GetAgent("wrong hostname")
 
-	// then
-	assert.Error(t, err)
-}
+// 	// then
+// 	assert.Error(t, err)
+// }
 
 func TestGetAgent_ShouldFailOnUnknownHostname(t *testing.T) {
 	t.Parallel()
