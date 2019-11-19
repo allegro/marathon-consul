@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/allegro/marathon-consul/time"
+	log "github.com/sirupsen/logrus"
 )
 
 type Task struct {
@@ -43,11 +44,24 @@ type TasksResponse struct {
 }
 
 func FindTaskByID(id TaskID, tasks []Task) (Task, bool) {
+	var foundTask Task
+	amountOfTimesItHasBeenFound := 0
+
 	for _, task := range tasks {
-		if strings.HasPrefix(task.ID.String(), id.String()) {
-			return task, true
+		if strings.HasPrefix(task.ID.String(), id.String()) && len(id.String()) > 1 {
+			foundTask = task
+			amountOfTimesItHasBeenFound++
 		}
 	}
+
+	if amountOfTimesItHasBeenFound == 1 {
+		return foundTask, true
+	}
+
+	if amountOfTimesItHasBeenFound > 1 {
+		log.Warning("Task id ", id.String(), " matched ", amountOfTimesItHasBeenFound, " tasks in consul, it should have matched 0 or 1 tasks")
+	}
+
 	return Task{}, false
 }
 

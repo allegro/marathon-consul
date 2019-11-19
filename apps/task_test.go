@@ -138,7 +138,7 @@ func TestId_AppIdForInvalidIdShouldPanic(t *testing.T) {
 	})
 }
 
-func TestFindTaskByIdNotExactMatch(t *testing.T) { // Marathon version 1.9 doesn't match the event app id with the current app id, because it has not the suffix "._app.1"
+func TestFindTaskByIdNotExactMatch(t *testing.T) { // Marathon version > 1.9 doesn't match the event app id with the current app id, because it has not the suffix "._app.1"
 	t.Parallel()
 
 	tasksBlob, _ := ioutil.ReadFile("testdata/tasks.json")
@@ -184,4 +184,29 @@ func TestFindTaskByIdExactMatchBeforeMarathonVersionOneDotNine(t *testing.T) { /
 	task := TaskID("test.47de43bd-1a81-11e5-bdb6-e6cb6734eaf8")
 	_, found := FindTaskByID(task, tasks)
 	assert.True(t, found)
+
+}
+
+func TestFindTaskByIdWhereTaskIdInEventIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	tasksBlob, _ := ioutil.ReadFile("testdata/tasks-before-marathon-1.9.json")
+	tasks, err := ParseTasks(tasksBlob)
+	assert.Nil(t, err)
+
+	task := TaskID("")
+	_, found := FindTaskByID(task, tasks)
+	assert.False(t, found)
+}
+
+func TestFindTaskByIdWhichMightMatchMoreThanOne(t *testing.T) {
+	t.Parallel()
+
+	tasksBlob, _ := ioutil.ReadFile("testdata/tasks-before-marathon-1.9.json")
+	tasks, err := ParseTasks(tasksBlob)
+	assert.Nil(t, err)
+
+	task := TaskID("test.4")
+	_, found := FindTaskByID(task, tasks)
+	assert.False(t, found)
 }
