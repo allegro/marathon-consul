@@ -44,11 +44,18 @@ type TasksResponse struct {
 }
 
 func FindTaskByID(id TaskID, tasks []Task) (Task, bool) {
+
+	if id.String() == "" {
+		// fail fast
+		log.Warning("Search for an empty string is not allowed")
+		return Task{}, false
+	}
+
 	var foundTask Task
 	amountOfTimesItHasBeenFound := 0
 
 	for _, task := range tasks {
-		if strings.HasPrefix(task.ID.String(), id.String()) && len(id.String()) > 1 {
+		if strings.HasPrefix(task.ID.String(), id.String()) {
 			foundTask = task
 			amountOfTimesItHasBeenFound++
 		}
