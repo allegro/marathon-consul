@@ -10,6 +10,7 @@ import (
 
 // Only Marathon apps with this label will be registered in Consul
 const MarathonConsulLabel = "consul"
+const MarathonConsulTagValue = "tag"
 
 type HealthCheck struct {
 	Path                   string `json:"path"`
@@ -147,7 +148,7 @@ func marathonAppNameToServiceName(name string, nameSeparator string) string {
 func labelsToTags(labels map[string]string, tagPlaceholderMapping map[string]string) []string {
 	tags := make([]string, 0, len(labels))
 	for key, value := range labels {
-		if value == "tag" {
+		if value == MarathonConsulTagValue {
 			tags = append(tags, resolvePlaceholders(key, tagPlaceholderMapping))
 		}
 	}
@@ -206,12 +207,43 @@ func (app App) extractIndexedPortDefinitions() []indexedPortDefinition {
 func (app App) filterConsulDefinitions(all []indexedPortDefinition) []indexedPortDefinition {
 	var consulDefinitions []indexedPortDefinition
 	for _, d := range all {
-		if _, ok := d.Labels[MarathonConsulLabel]; ok {
-			consulDefinitions = append(consulDefinitions, d)
+		if labelName, ok := d.Labels[MarathonConsulLabel]; ok {
+			multipleDefinitions := strings.Split(labelName, ",")
+
+			for _, name := range multipleDefinitions {
+				labels := extractLabelsForService(name, d.Labels)
+				consulDefinitions = append(consulDefinitions, indexedPortDefinition{
+					Index:  d.Index,
+					Labels: labels,
+					Name:   name,
+				})
+			}
 		}
 	}
 
 	return consulDefinitions
+}
+
+func extractLabelsForService(serviceName string, labels map[string]string) map[string]string {
+	newLabels := make(map[string]string)
+
+	for key, value := range labels {
+		valueAndSelector := strings.Split(value, ":")
+		if len(valueAndSelector) > 1 {
+			extractedValue := valueAndSelector[0]
+			serviceSelector := valueAndSelector[1]
+
+			if extractedValue == MarathonConsulTagValue && serviceSelector == serviceName {
+				newLabels[key] = extractedValue
+			}
+		} else if key == MarathonConsulLabel {
+			newLabels[key] = serviceName
+		} else {
+			newLabels[key] = value
+		}
+	}
+
+	return newLabels
 }
 
 // Deprecated: Allows for backward compatibility with Marathons' network API

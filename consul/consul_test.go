@@ -483,6 +483,48 @@ func TestRegisterServices_CustomServiceName(t *testing.T) {
 	assert.Equal(t, "myCustomServiceName", services[0].Name)
 }
 
+func TestRegisterServices_MultipleRegistrationsWithSamePort(t *testing.T) {
+	t.Parallel()
+	server := CreateTestServer(t)
+	defer server.Stop()
+
+	consul := ClientAtServer(server)
+	consul.config.Tag = "marathon"
+
+	// given
+	app := utils.ConsulApp("serviceA", 1)
+	app.PortDefinitions = []apps.PortDefinition{
+		{
+			Labels: map[string]string{"consul": "first-name,second-name", "first-tag": "tag:first-name", "second-tag": "tag:second-name"},
+		},
+	}
+	app.Tasks[0].Host = server.Config.Bind
+	app.Tasks[0].Ports = []int{8080}
+	app.Labels["common-tag"] = "tag"
+
+	// when
+	err := consul.Register(&app.Tasks[0], app)
+
+	// then
+	assert.NoError(t, err)
+
+	// when
+	services, _ := consul.GetAllServices()
+
+	// then
+	assert.Len(t, services, 2)
+
+	first, found := findServiceByName("first-name", services)
+	assert.True(t, found, "first-name not found in services")
+	second, found := findServiceByName("second-name", services)
+	assert.True(t, found, "second-name not found in services")
+
+	assert.Equal(t, "first-name", first.Name)
+	assert.Equal(t, []string{"marathon", "first-tag", "common-tag", "marathon-task:serviceA.0"}, first.Tags)
+	assert.Equal(t, "second-name", second.Name)
+	assert.Equal(t, []string{"marathon", "second-tag", "common-tag", "marathon-task:serviceA.0"}, second.Tags)
+}
+
 func TestRegisterServices_MultipleRegistrations(t *testing.T) {
 	t.Parallel()
 	server := CreateTestServer(t)

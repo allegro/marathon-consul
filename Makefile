@@ -52,9 +52,9 @@ $(TEST_TARGETS):
 
 check-deps: deps
 	@which golangci-lint > /dev/null || \
-		(go get -u github.com/golangci/golangci-lint/cmd/golangci-lint)
+		(GO111MODULE=on go get -v github.com/golangci/golangci-lint/cmd/golangci-lint@v1.25.0)
 
-check: check-deps $(SOURCES)
+check: check-deps $(SOURCES) test
 	golangci-lint run --config=golangcilinter.yaml ./...
 
 format:
