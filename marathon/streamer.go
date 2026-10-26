@@ -44,6 +44,7 @@ func (s *Streamer) Start() error {
 		return fmt.Errorf("Subscription request errored: %s", err)
 	}
 	if res.StatusCode != http.StatusOK {
+		res.Body.Close()
 		return fmt.Errorf("Event stream not connected: Expected %d but got %d", http.StatusOK, res.StatusCode)
 	}
 	log.WithFields(log.Fields{
